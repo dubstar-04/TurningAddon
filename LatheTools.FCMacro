@@ -1,0 +1,132 @@
+import FreeCAD
+import Part
+import os, math
+
+from PySide import QtGui, QtCore
+
+dir = os.path.dirname(__file__)
+ui_name = "LatheTools.ui"
+path_to_ui = dir + "/" +ui_name
+
+class TurningInsert:
+	def __init__(self):
+
+    	self.shape = '' 			#D
+    	self.clearanceAngle = ''	#C
+    	self.tolerance = ''			#M
+    	self.type = ''				#T
+    	self.edgeLength = 0			#07	
+    	self.thickness = 0			#02
+    	self.noseRadius	= 0			#04
+		self.cuttingDirection = 'R' #R-L-N
+	
+	def getShape(self):
+
+		A 	Parallelogram (85 degree)
+		B 	Parallelogram (82 degree)
+		C 	Rhombic (80 degree)
+		D 	Rhombic (55 degree)
+		E 	Rhombic (75 degree)
+		F 	Rhombic (50 degree)
+		H 	Hexagonal
+		K 	Parallelogram (55 degree)
+		L 	Rectangular
+		M 	Rhombic (86 degree)
+		O 	Octagonal
+		P 	Pentagonal
+		R 	Round
+		S 	Square
+		T 	Triangular
+		V 	Rhombic (35 degree)
+		W 	Trigon
+
+	def getClearanceAngle(self):
+
+		A 	3 degrees
+		B 	5 degrees
+		C 	7 degrees
+		D 	15 degrees
+		E 	20 degrees
+		F 	25 degrees
+		G 	30 degrees
+		N 	0 degrees
+		P 	11 degrees
+		O 	Other
+
+	def getType(self):
+
+		A 	Hole
+		G 	Hole, chip break double side
+		M 	Hole, chip break single side
+		N 	No Hole, No Chipbreak
+		P 	Hole, chip break double side
+		Q 	Countersunk Hole
+		R 	No Hole, chip break single side
+		T 	C’sunk Hole, c’break single side
+		W 	Double Countersunk Hole
+		X 	Other
+
+	def getEdgeLength(self):
+		#http://www.mitsubishicarbide.com/en/technical_information/tec_turning_tools/tec_turning_insert/tec_turning_guide/tec_turning_identification
+
+	def getThickness(self):
+		S1 = 1.39
+		01 = 1.59
+		T0 = 1.79
+		02 = 2.38
+		T2 = 2.78
+		03 = 3.18
+		T3 = 3.97
+		04 = 4.76
+		06 = 6.35
+		07 = 7.94
+		09 = 9.52
+
+	def getNoseRadius(self):
+		00 = sharp
+		V3 = 0.03
+		V5 = 0.05
+		01 = 0.1
+		02 = 0.2
+		04 = 0.4
+		08 = 0.8
+		12 = 1.2
+		16 = 1.6
+		20 = 2.0
+		24 = 2.4
+		28 = 2.8
+		32 = 2.2
+	
+	def getCuttingDirection(self):
+
+		R = Right
+		L = Left
+		N = Netural
+
+
+
+class LatheToolPanel:
+	def __init__(self):
+		pass
+
+       	#Load UI Components
+	   	#self.addFace_PB = self.form.addFace_PB
+
+    	#connect
+		#self.addFace_PB.clicked.connect(self.addFace)
+
+	def reject(self):
+		FreeCAD.Console.PrintMessage("\nReject Signal")
+
+	def accept(self):
+		FreeCAD.Console.PrintMessage("\nAccept Signal")
+		self.quit()
+    
+	def quit(self):
+		FreeCADGui.Control.closeDialog(self)
+
+panel = LatheToolPanel()
+
+if FreeCADGui.Control.activeDialog():
+	FreeCAD.Console.PrintMessage("Dialog Panel currently open: Close it?")
+FreeCADGui.Control.showDialog(panel)
