@@ -118,8 +118,9 @@ class ObjectOp(PathOp.ObjectOp):
         '''
         stockBB = self.stock.Shape.BoundBox
         stock_z_pos = stockBB.ZMax
+        parentJob = PathUtils.findParentJob(obj)
 
-        self.startOffset = obj.StartDepth.Value - stockBB.ZMax
+        self.startOffset = obj.StartDepth.Value - stockBB.ZMax + parentJob.SetupSheet.SafeHeightOffset.Value
         self.endOffset = stockBB.ZMin - obj.FinalDepth.Value 
 
         stock_plane_length =  obj.StartDepth.Value - obj.FinalDepth.Value
