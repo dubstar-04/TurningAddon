@@ -23,6 +23,8 @@
 # ***************************************************************************
 
 import os
+from LibLathe.LLBoundBox import BoundBox
+from LibLathe.LLPoint import Point
 
 def getResourcePath(resName):
     # get this directory
@@ -34,3 +36,7 @@ def getResourcePath(resName):
     res = os.path.join( resourcePath, resName)
     
     return res
+
+def getLibLatheBoundBox(FcBB):
+    LibLatheBoundbox =  BoundBox(Point(FcBB.XMin, FcBB.YMin, FcBB.ZMin), Point(FcBB.XMax, FcBB.YMax, FcBB.ZMax))
+    return LibLatheBoundbox
