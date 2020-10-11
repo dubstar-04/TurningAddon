@@ -28,6 +28,8 @@ import PathScripts.PathUtils as PathUtils
 import PathTurnScripts.PathTurnBase as PathTurnBase
 from PySide import QtCore
 
+import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
+
 import LibLathe.LLFaceOP as LLF
 from LibLathe.LLPoint import Point
 from LibLathe.LLSegment import Segment
@@ -54,7 +56,11 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
         #self.clear_path() 
         facingOP = LLF.FaceOP()
         facingOP.set_params(self.getProps(obj))
-        facingOP.add_stock(self.stock.Shape.BoundBox)
+
+        stockBoundbox = PathTurnHelpers.getLibLatheBoundBox(self.stock_silhoutte.BoundBox)
+        facingOP.add_stock(stockBoundbox)
+
+        facingOP.add_stock(stockBoundbox)
         facingOP.add_part_edges(self.part_outline)
         PathCode = facingOP.get_gcode()
 

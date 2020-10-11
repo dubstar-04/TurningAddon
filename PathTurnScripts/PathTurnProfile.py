@@ -28,6 +28,8 @@ import PathTurnScripts.PathTurnBase as PathTurnBase
 import PathScripts.PathLog as PathLog
 from PySide import QtCore
 
+import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
+
 import LibLathe.LLProfileOP as LLP
 from LibLathe.LLPoint import Point
 from LibLathe.LLSegment import Segment
@@ -50,7 +52,10 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
         '''
         profileOP = LLP.ProfileOP()
         profileOP.set_params(self.getProps(obj))
-        profileOP.add_stock(self.stock.Shape.BoundBox)
+
+        stockBoundbox = PathTurnHelpers.getLibLatheBoundBox(self.stock_silhoutte.BoundBox)
+        profileOP.add_stock(stockBoundbox)
+
         profileOP.add_part_edges(self.part_outline)
         PathCode = profileOP.get_gcode()
 
