@@ -2,7 +2,7 @@
 A FreeCAD Path Addon to encourage the development of CNC turning functionality for the PATH workbench.  
 
 ## Description
-This addon when installed will appear in the Path Workbench toolbar menu and will allow the creation of turning tools paths for use with a CNC lathe. This addon includes [LibLathe](https://github.com/dubstar-04/LibLathe) as a submodule. 
+This addon when installed will appear in the Path Workbench toolbar menu and will allow the creation of turning paths for use with a CNC lathe. This addon includes [LibLathe](https://github.com/dubstar-04/LibLathe) as a submodule. 
 
 ## Features
 * Turning Profiling operation
