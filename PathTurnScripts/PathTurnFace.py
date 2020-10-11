@@ -55,7 +55,6 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
         facingOP = LLF.FaceOP()
         facingOP.set_params(self.getProps(obj))
         facingOP.add_stock(self.stock.Shape.BoundBox)
-        #facingOP.add_part(self.model[0].Shape.BoundBox)
         facingOP.add_part_edges(self.part_outline)
         PathCode = facingOP.get_gcode()
 
