@@ -89,7 +89,6 @@ def SetupProperties():
 
 def Create(name, obj=None):
     '''Create(name) ... Creates and returns a TurnProfile operation.'''
-    print('Profile Create - Name', name)
     if obj is None:
         obj = FreeCAD.ActiveDocument.addObject("Path::FeaturePython", name)
     obj.Proxy = ObjectTurnProfile(obj, name)
