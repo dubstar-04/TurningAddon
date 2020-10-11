@@ -59,6 +59,7 @@ def updateMenu(workbench):
         if addonMenu is None:
             addonMenu = QtGui.QMenu("Turning Addon")
             addonMenu.setObjectName("Turning_Addons")
+            addonMenu.setIcon(QtGui.QPixmap(getIcon('Path-TurningAddon.svg')))
 
             # Find the dressup menu entry
             dressupMenu = mw.findChild(QtGui.QMenu, "Path Dressup")
