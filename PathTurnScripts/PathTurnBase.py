@@ -123,8 +123,8 @@ class ObjectOp(PathOp.ObjectOp):
         self.endOffset = stockBB.ZMin - obj.FinalDepth.Value 
 
         stock_plane_length =  obj.StartDepth.Value - obj.FinalDepth.Value
-        stock_plane_width = stockBB.XLength/2 - self.minDia + self.maxDia 
-        stock_plane = Part.makePlane(stock_plane_length, stock_plane_width, FreeCAD.Vector(-self.minDia - stock_plane_width, 0, stock_z_pos + self.startOffset ), FreeCAD.Vector(0,-1,0))
+        stock_plane_width = stockBB.XLength/2
+        stock_plane = Part.makePlane(stock_plane_length, stock_plane_width, FreeCAD.Vector(-stock_plane_width, 0, stock_z_pos ), FreeCAD.Vector(0,-1,0))
         return stock_plane
 
     def get_part_outline(self):
