@@ -30,7 +30,7 @@ from LibLathe.LLPoint import Point
 def getResourcePath(resName):
     # get this directory
     pathScripts = os.path.dirname(__file__)
-    # get the parent directory 
+    # get the parent directory
     __dir__ = os.path.dirname(pathScripts)
     # get the resourse directory
     resourcePath = os.path.join(__dir__, 'Gui/Resources/panels')

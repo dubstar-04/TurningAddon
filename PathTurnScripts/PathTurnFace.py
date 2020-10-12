@@ -24,15 +24,12 @@
 
 import FreeCAD
 import Path
-import PathScripts.PathUtils as PathUtils
 import PathTurnScripts.PathTurnBase as PathTurnBase
 from PySide import QtCore
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
 import LibLathe.LLFaceOP as LLF
-from LibLathe.LLPoint import Point
-from LibLathe.LLSegment import Segment
 
 __title__ = "Path Turn Facing Operation"
 __author__ = "dubstar-04 (Daniel Wood)"

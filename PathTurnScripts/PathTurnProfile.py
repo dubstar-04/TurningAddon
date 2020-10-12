@@ -25,14 +25,11 @@
 import FreeCAD
 import Path
 import PathTurnScripts.PathTurnBase as PathTurnBase
-import PathScripts.PathLog as PathLog
 from PySide import QtCore
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
 import LibLathe.LLProfileOP as LLP
-from LibLathe.LLPoint import Point
-from LibLathe.LLSegment import Segment
 
 __title__ = "Path Turn Profile Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -61,9 +58,7 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
         PathCode = profileOP.get_gcode()
 
         for pathlist in PathCode:
-            # print('pathlist', pathlist)
             for command in pathlist:
-                # print('command:', command.get_movement(), command.get_params())
                 pathCommand = Path.Command(command.get_movement(), command.get_params())
                 self.commandlist.append(pathCommand)
 

@@ -32,9 +32,6 @@ import PathScripts.PathUtils as PathUtils
 
 from PySide import QtCore
 
-import math
-import Draft
-
 if FreeCAD.GuiUp:
     import FreeCADGui
 
@@ -71,13 +68,15 @@ class ObjectOp(PathOp.ObjectOp):
     def initOperation(self, obj):
         '''initOperation(obj)'''
 
-        obj.addProperty("App::PropertyLength", "StepOver", "Turn Path", translate("TurnPath", "Operation Stepover")).StepOver = 1.0 
-        obj.addProperty("App::PropertyInteger", "FinishPasses", "Turn Path", translate("TurnPath", "Number of Finish Passes")).FinishPasses = 2
+        obj.addProperty("App::PropertyLength", "StepOver", "Turn Path", translate("TurnPath", "Operation Stepover"))
+        obj.addProperty("App::PropertyInteger", "FinishPasses", "Turn Path", translate("TurnPath", "Number of Finish Passes"))
         obj.addProperty("App::PropertyBool", "AllowGrooving", "Turn Path", translate("TurnPath", "Minimum Diameter for Operation"))
         obj.addProperty("App::PropertyBool", "AllowFacing", "Turn Path", translate("TurnPath", "Minimum Diameter for Operation"))
         obj.addProperty("App::PropertyBool", "AllowRoughing", "Turn Path", translate("TurnPath", "Include Tool Paths For Roughing"))
         obj.addProperty("App::PropertyBool", "AllowFinishing", "Turn Path", translate("TurnPath", "Include Tool Paths For Finishing"))
 
+        obj.StepOver = 1.0
+        obj.FinishPasses = 2
         obj.AllowRoughing = True
         obj.AllowFinishing = True
 
@@ -191,6 +190,6 @@ class ObjectOp(PathOp.ObjectOp):
     def generate_gcode(self, obj):
         '''
         Base function to generate gcode for the OP by writing path command to self.commandlist
-        Should be overwritten by subclasses. 
+        Should be overwritten by subclasses.
         '''
         pass

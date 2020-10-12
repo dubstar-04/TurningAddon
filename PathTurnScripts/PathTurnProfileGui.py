@@ -23,7 +23,6 @@
 # ***************************************************************************
 
 import FreeCAD
-import FreeCADGui
 import PathTurnScripts.PathTurnBaseGui as PathTurnBaseGui
 import PathTurnScripts.PathTurnProfile as PathTurnProfile
 import PathScripts.PathLog as PathLog
