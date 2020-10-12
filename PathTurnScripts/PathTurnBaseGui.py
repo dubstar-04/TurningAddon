@@ -72,6 +72,12 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         if obj.AllowFacing != self.form.allowFacing.isChecked():
             obj.AllowFacing = self.form.allowFacing.isChecked()
 
+        if obj.AllowRoughing != self.form.allowRoughing.isChecked():
+            obj.AllowRoughing = self.form.allowRoughing.isChecked()
+
+        if obj.AllowFinishing != self.form.allowFinishing.isChecked():
+            obj.AllowFinishing = self.form.allowFinishing.isChecked()
+
         self.updateToolController(obj, self.form.toolController)
         self.updateCoolant(obj, self.form.coolantController)
 
@@ -94,6 +100,16 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         else:
             self.form.allowFacing.setCheckState(QtCore.Qt.Unchecked)
 
+        if obj.AllowRoughing:
+            self.form.allowRoughing.setCheckState(QtCore.Qt.Checked)
+        else:
+            self.form.allowRoughing.setCheckState(QtCore.Qt.Unchecked)
+
+        if obj.AllowFinishing:
+            self.form.allowFinishing.setCheckState(QtCore.Qt.Checked)
+        else:
+            self.form.allowFinishing.setCheckState(QtCore.Qt.Unchecked)
+
     def getSignalsForUpdate(self, obj):
         '''getSignalsForUpdate(obj) ... return list of signals for updating obj'''
         signals = []
@@ -102,6 +118,8 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         signals.append(self.form.finishPasses.valueChanged)
         signals.append(self.form.allowGrooving.stateChanged)
         signals.append(self.form.allowFacing.stateChanged)
+        signals.append(self.form.allowRoughing.stateChanged)
+        signals.append(self.form.allowFinishing.stateChanged)
 
         signals.append(self.form.toolController.currentIndexChanged)
         signals.append(self.form.coolantController.currentIndexChanged)
