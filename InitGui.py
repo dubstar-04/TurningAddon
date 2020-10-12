@@ -1,5 +1,6 @@
 
 """Path Turning Addon module for FreeCAD."""
 
-import FreeCAD, FreeCADGui
+import FreeCAD
+import FreeCADGui
 import InitTurningAddon

@@ -26,17 +26,19 @@ import os
 from LibLathe.LLBoundBox import BoundBox
 from LibLathe.LLPoint import Point
 
+
 def getResourcePath(resName):
     # get this directory
     pathScripts = os.path.dirname(__file__)
     # get the parent directory 
     __dir__ = os.path.dirname(pathScripts)
     # get the resourse directory
-    resourcePath = os.path.join( __dir__, 'Gui/Resources/panels')
-    res = os.path.join( resourcePath, resName)
-    
+    resourcePath = os.path.join(__dir__, 'Gui/Resources/panels')
+    res = os.path.join(resourcePath, resName)
+
     return res
 
+
 def getLibLatheBoundBox(FcBB):
-    LibLatheBoundbox =  BoundBox(Point(FcBB.XMin, FcBB.YMin, FcBB.ZMin), Point(FcBB.XMax, FcBB.YMax, FcBB.ZMax))
+    LibLatheBoundbox = BoundBox(Point(FcBB.XMin, FcBB.YMin, FcBB.ZMin), Point(FcBB.XMax, FcBB.YMax, FcBB.ZMax))
     return LibLatheBoundbox

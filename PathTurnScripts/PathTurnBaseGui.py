@@ -45,31 +45,32 @@ if LOGLEVEL:
 else:
     PathLog.setLevel(PathLog.Level.NOTICE, PathLog.thisModule())
 
+
 class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
     '''Page controller class for turning operations '''
 
     def initPage(self, obj):
-        self.updating = False # pylint: disable=attribute-defined-outside-init
+        self.updating = False  # pylint: disable=attribute-defined-outside-init
 
     def getForm(self):
         '''getForm() ... return UI'''
-        #return FreeCADGui.PySideUic.loadUi(":/panels/PageOpTurnBaseEdit.ui")
+        # return FreeCADGui.PySideUic.loadUi(":/panels/PageOpTurnBaseEdit.ui")
         turnUi = PathTurnHelpers.getResourcePath("PageOpTurnBaseEdit.ui")
         return FreeCADGui.PySideUic.loadUi(turnUi)
 
     def getFields(self, obj):
         '''getFields(obj) ... transfers values from UI to obj's proprties'''
         PathLog.track()
-            
-        PathGui.updateInputField(obj, 'StepOver', self.form.stepOver)  
-        
-        obj.FinishPasses = self.form.finishPasses.value()   
+
+        PathGui.updateInputField(obj, 'StepOver', self.form.stepOver)
+
+        obj.FinishPasses = self.form.finishPasses.value()
 
         if obj.AllowGrooving != self.form.allowGrooving.isChecked():
             obj.AllowGrooving = self.form.allowGrooving.isChecked()
 
         if obj.AllowFacing != self.form.allowFacing.isChecked():
-            obj.AllowFacing= self.form.allowFacing.isChecked()
+            obj.AllowFacing = self.form.allowFacing.isChecked()
 
         self.updateToolController(obj, self.form.toolController)
         self.updateCoolant(obj, self.form.coolantController)
