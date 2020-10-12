@@ -39,21 +39,23 @@ __author__ = "dubstar-04 (Daniel Wood)"
 __url__ = "http://www.freecadweb.org"
 __doc__ = "Class implementation for turning facing operations."
 
+
 def translate(context, text, disambig=None):
     return QtCore.QCoreApplication.translate(context, text, disambig)
+
 
 class ObjectTurnFace(PathTurnBase.ObjectOp):
     '''Proxy class for turning facing operations.'''
 
     def opFeatures(self, obj):
         '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
-        return PathTurnBase.PathOp.FeatureDiameters | PathTurnBase.PathOp.FeatureTool | PathTurnBase.PathOp.FeatureDepths | PathTurnBase.PathOp.FeatureNoFinalDepth | PathTurnBase.PathOp.FeatureCoolant 
-    
+        return PathTurnBase.PathOp.FeatureDiameters | PathTurnBase.PathOp.FeatureTool | PathTurnBase.PathOp.FeatureDepths | PathTurnBase.PathOp.FeatureNoFinalDepth | PathTurnBase.PathOp.FeatureCoolant
+
     def generate_gcode(self, obj):
         '''
         Generate GCode for the op
         '''
-        #self.clear_path() 
+        # self.clear_path()
         facingOP = LLF.FaceOP()
         facingOP.set_params(self.getProps(obj))
 
@@ -65,10 +67,10 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
         PathCode = facingOP.get_gcode()
 
         for pathlist in PathCode:
-            #print('pathlist', pathlist)
+            # print('pathlist', pathlist)
             for command in pathlist:
-                #print('command:', command.get_movement(), command.get_params())
-                pathCommand = Path.Command(command.get_movement(), command.get_params())            
+                # print('command:', command.get_movement(), command.get_params())
+                pathCommand = Path.Command(command.get_movement(), command.get_params())
                 self.commandlist.append(pathCommand)
 
     def opSetDefaultValues(self, obj, job):
@@ -76,6 +78,7 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
 
     def opUpdateDepths(self, obj):
         obj.OpStartDepth = obj.OpStockZMax
+
 
 def SetupProperties():
     setup = []
@@ -88,7 +91,8 @@ def SetupProperties():
     setup.append("AllowGrooving")
     setup.append("AllowFacing")
     return setup
-    
+
+
 def Create(name, obj=None):
     '''Create(name) ... Creates and returns a TurnFace operation.'''
     if obj is None:

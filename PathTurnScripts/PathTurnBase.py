@@ -28,12 +28,13 @@ import Path
 import PathScripts.PathLog as PathLog
 import PathScripts.PathOp as PathOp
 import PathScripts.PathUtils as PathUtils
-#import PathScripts.PathGeom as PathGeom
+# import PathScripts.PathGeom as PathGeom
 
 from PySide import QtCore
 
 import math
 import Draft
+
 if FreeCAD.GuiUp:
     import FreeCADGui
 
@@ -45,9 +46,11 @@ __author__ = "dubstar-04 (Daniel Wood)"
 __url__ = "http://www.freecadweb.org"
 __doc__ = "Base class implementation for turning operations."
 
+
 # Qt translation handling
 def translate(context, text, disambig=None):
     return QtCore.QCoreApplication.translate(context, text, disambig)
+
 
 LOGLEVEL = False
 
@@ -68,16 +71,20 @@ class ObjectOp(PathOp.ObjectOp):
     def initOperation(self, obj):
         '''initOperation(obj)'''
 
-        obj.addProperty("App::PropertyLength", "StepOver", "Turn Path", translate("TurnPath", "Operation Stepover")).StepOver = 1.0 
-        obj.addProperty("App::PropertyInteger", "FinishPasses", "Turn Path", translate("TurnPath", "Number of Finish Passes")).FinishPasses = 2
-        obj.addProperty("App::PropertyBool", "AllowGrooving", "Turn Path", translate("TurnPath", "Minimum Diameter for Operation"))
-        obj.addProperty("App::PropertyBool", "AllowFacing", "Turn Path", translate("TurnPath", "Minimum Diameter for Operation"))
+        obj.addProperty("App::PropertyLength", "StepOver", "Turn Path",
+                        translate("TurnPath", "Operation Stepover")).StepOver = 1.0
+        obj.addProperty("App::PropertyInteger", "FinishPasses", "Turn Path",
+                        translate("TurnPath", "Number of Finish Passes")).FinishPasses = 2
+        obj.addProperty("App::PropertyBool", "AllowGrooving", "Turn Path",
+                        translate("TurnPath", "Minimum Diameter for Operation"))
+        obj.addProperty("App::PropertyBool", "AllowFacing", "Turn Path",
+                        translate("TurnPath", "Minimum Diameter for Operation"))
 
     def opExecute(self, obj):
         '''opExecute(obj) ... processes all Base features
         '''
         PathLog.track()
-        self.tool = None       
+        self.tool = None
         self.minDia = obj.MinDiameter.Value
         self.maxDia = obj.MaxDiameter.Value
         self.startOffset = 0
@@ -90,26 +97,26 @@ class ObjectOp(PathOp.ObjectOp):
         # Clear any existing gcode
         obj.Path.Commands = []
 
-        print("Process Geometry")     
-        self.stock_silhoutte = self.get_stock_silhoutte(obj)  
+        print("Process Geometry")
+        self.stock_silhoutte = self.get_stock_silhoutte(obj)
         self.part_outline = self.get_part_outline()
         self.generate_gcode(obj)
 
     def getProps(self, obj):
-        #TODO: use the start and final depths
+        # TODO: use the start and final depths
         print('getProps - Start Depth: ', obj.OpStartDepth.Value, 'Final Depth: ', obj.OpFinalDepth.Value)
 
         props = {}
-        props['min_dia']=self.minDia
-        props['extra_dia']=self.maxDia
-        props['start_offset']=self.startOffset
-        props['end_offset']=self.endOffset
-        props['allow_grooving']=self.allowGrooving
-        props['allow_facing']=self.allowFacing
-        props['step_over']=self.stepOver
-        props['finish_passes']=self.finishPasses
-        props['hfeed' ]=obj.ToolController.HorizFeed.Value 
-        props['vfeed']=obj.ToolController.VertFeed.Value
+        props['min_dia'] = self.minDia
+        props['extra_dia'] = self.maxDia
+        props['start_offset'] = self.startOffset
+        props['end_offset'] = self.endOffset
+        props['allow_grooving'] = self.allowGrooving
+        props['allow_facing'] = self.allowFacing
+        props['step_over'] = self.stepOver
+        props['finish_passes'] = self.finishPasses
+        props['hfeed'] = obj.ToolController.HorizFeed.Value
+        props['vfeed'] = obj.ToolController.VertFeed.Value
         return props
 
     def get_stock_silhoutte(self, obj):
@@ -121,18 +128,20 @@ class ObjectOp(PathOp.ObjectOp):
         parentJob = PathUtils.findParentJob(obj)
 
         self.startOffset = obj.StartDepth.Value - stockBB.ZMax + parentJob.SetupSheet.SafeHeightOffset.Value
-        self.endOffset = stockBB.ZMin - obj.FinalDepth.Value 
+        self.endOffset = stockBB.ZMin - obj.FinalDepth.Value
 
-        stock_plane_length =  obj.StartDepth.Value - obj.FinalDepth.Value
-        stock_plane_width = stockBB.XLength/2
-        stock_plane = Part.makePlane(stock_plane_length, stock_plane_width, FreeCAD.Vector(-stock_plane_width, 0, stock_z_pos ), FreeCAD.Vector(0,-1,0))
+        stock_plane_length = obj.StartDepth.Value - obj.FinalDepth.Value
+        stock_plane_width = stockBB.XLength / 2
+        stock_plane = Part.makePlane(stock_plane_length, stock_plane_width,
+                                     FreeCAD.Vector(-stock_plane_width, 0, stock_z_pos), FreeCAD.Vector(0, -1, 0))
         return stock_plane
 
     def get_part_outline(self):
         '''
         Get Part Outline
         '''
-        sections=Path.Area().add(self.model[0].Shape).makeSections(mode=0, heights=[0.0],  project=True, plane=self.stock_silhoutte)
+        sections = Path.Area().add(self.model[0].Shape).makeSections(mode=0, heights=[0.0], project=True,
+                                                                     plane=self.stock_silhoutte)
         part_silhoutte = sections[0].setParams(Offset=0.0).getShape()
         part_bound_face = sections[0].setParams(Offset=0.1).getShape()
         path_area = self.stock_silhoutte.cut(part_silhoutte)
@@ -145,18 +154,18 @@ class ObjectOp(PathOp.ObjectOp):
             for vertex in edge.Vertexes:
                 if not part_bound_face.isInside(vertex.Point, 0.1, True):
                     edge_in = False
-             
-            if edge_in: 
-                #if self.part_edges.__contains__(edge) == False:
+
+            if edge_in:
+                # if self.part_edges.__contains__(edge) == False:
                 part_edges.append(edge)
                 vert = edge.Vertexes
-                pt1 = Point(vert[0].X, vert[0].Y,vert[0].Z)
-                pt2 = Point(vert[-1].X,vert[-1].Y,vert[-1].Z)
+                pt1 = Point(vert[0].X, vert[0].Y, vert[0].Z)
+                pt2 = Point(vert[-1].X, vert[-1].Y, vert[-1].Z)
                 seg = Segment(pt1, pt2)
-                
-                if isinstance(edge.Curve,Part.Circle):
-                    #rad = edge.Curve.Radius
-                    #angle = 2 * math.asin((seg.get_length()/2) / rad)
+
+                if isinstance(edge.Curve, Part.Circle):
+                    # rad = edge.Curve.Radius
+                    # angle = 2 * math.asin((seg.get_length()/2) / rad)
                     line1 = Part.makeLine(edge.Curve.Location, edge.Vertexes[0].Point)
                     line2 = Part.makeLine(edge.Curve.Location, edge.Vertexes[-1].Point)
                     part_edges.append(line1)
@@ -164,19 +173,19 @@ class ObjectOp(PathOp.ObjectOp):
 
                     angle = edge.LastParameter - edge.FirstParameter
                     direction = edge.Curve.Axis.y
-                    #print('bulge angle', direction, angle * direction)
-                    #TODO: set the correct sign for the bulge +-
+                    # print('bulge angle', direction, angle * direction)
+                    # TODO: set the correct sign for the bulge +-
                     seg.set_bulge(angle * direction)
 
                 part_segments.append(seg)
-                               
-        #path_profile = Part.makeCompound(part_edges)
-        #Part.show(path_profile, 'Final_pass') 
+
+        # path_profile = Part.makeCompound(part_edges)
+        # Part.show(path_profile, 'Final_pass')
         return part_segments
-  
+
     def generate_gcode(self, obj):
         '''
         Base function to generate gcode for the OP by writing path command to self.commandlist
         Should be overwritten by subclasses. 
-        '''     
+        '''
         pass

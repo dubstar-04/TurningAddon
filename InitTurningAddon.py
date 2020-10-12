@@ -24,8 +24,8 @@
 
 import FreeCADGui
 from PySide import QtGui
-#import PathTurningAddonGui, PathTurningAddon
-#from PathTurnScripts import PathTurnProfile
+# import PathTurningAddonGui, PathTurningAddon
+# from PathTurnScripts import PathTurnProfile
 
 # import all turning operations
 from PathTurnScripts import PathTurnProfileGui
@@ -33,17 +33,18 @@ from PathTurnScripts import PathTurnFaceGui
 import os
 
 __dir__ = os.path.dirname(__file__)
-iconPath = os.path.join( __dir__, 'Gui/Resources/Icons' )
+iconPath = os.path.join(__dir__, 'Gui/Resources/Icons')
+
 
 def getIcon(iconName):
-     return os.path.join( iconPath , iconName)
+    return os.path.join(iconPath, iconName)
+
 
 def updateMenu(workbench):
-    
     if workbench == 'PathWorkbench':
 
         print('FreeCAD Turning Addon loaded:', workbench)
-        
+
         mw = FreeCADGui.getMainWindow()
         addonMenu = None
 
@@ -77,6 +78,7 @@ def updateMenu(workbench):
             # append this addon to addon menu
             addonMenu.addAction(action)
 
+
 def createAction(menu, actionName):
     text = "Path" + actionName
     command = "Path_" + actionName
@@ -86,8 +88,9 @@ def createAction(menu, actionName):
     action.setText(text)
     action.setIcon(QtGui.QPixmap(getIcon(icon)))
     action.setStatusTip("Path " + actionName + " Operation")
-    action.triggered.connect(lambda: FreeCADGui.runCommand(command,0))
+    action.triggered.connect(lambda: FreeCADGui.runCommand(command, 0))
 
     return action
+
 
 FreeCADGui.getMainWindow().workbenchActivated.connect(updateMenu)

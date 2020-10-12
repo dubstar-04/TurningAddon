@@ -39,6 +39,7 @@ __author__ = "dubstar-04 (Daniel Wood)"
 __url__ = "http://www.freecadweb.org"
 __doc__ = "Class implementation for turning profiling operations."
 
+
 def translate(context, text, disambig=None):
     return QtCore.QCoreApplication.translate(context, text, disambig)
 
@@ -60,10 +61,10 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
         PathCode = profileOP.get_gcode()
 
         for pathlist in PathCode:
-            #print('pathlist', pathlist)
+            # print('pathlist', pathlist)
             for command in pathlist:
-                #print('command:', command.get_movement(), command.get_params())
-                pathCommand = Path.Command(command.get_movement(), command.get_params())            
+                # print('command:', command.get_movement(), command.get_params())
+                pathCommand = Path.Command(command.get_movement(), command.get_params())
                 self.commandlist.append(pathCommand)
 
     def opSetDefaultValues(self, obj, job):
@@ -73,7 +74,8 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
     def opUpdateDepths(self, obj):
         obj.OpStartDepth = obj.OpStockZMax
         obj.OpFinalDepth = obj.OpStockZMin
-        print('opSetDefaultValues:', obj.OpStartDepth.Value, obj.OpFinalDepth.Value)      
+        print('opSetDefaultValues:', obj.OpStartDepth.Value, obj.OpFinalDepth.Value)
+
 
 def SetupProperties():
     setup = []
@@ -86,6 +88,7 @@ def SetupProperties():
     setup.append("AllowGrooving")
     setup.append("AllowFacing")
     return setup
+
 
 def Create(name, obj=None):
     '''Create(name) ... Creates and returns a TurnProfile operation.'''

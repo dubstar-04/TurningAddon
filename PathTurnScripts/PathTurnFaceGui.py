@@ -51,11 +51,12 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
 
 
 Command = PathOpGui.SetupOperation('TurnFace',
-        PathTurnFace.Create,
-        TaskPanelOpPage,
-        'Path-TurnFace',
-        QtCore.QT_TRANSLATE_NOOP("PathTurnFace", "Turn Face"),
-        QtCore.QT_TRANSLATE_NOOP("PathTurnFace", "Creates a Turning Facing object from a features of a base object"),
-        PathTurnFace.SetupProperties)
+                                   PathTurnFace.Create,
+                                   TaskPanelOpPage,
+                                   'Path-TurnFace',
+                                   QtCore.QT_TRANSLATE_NOOP("PathTurnFace", "Turn Face"),
+                                   QtCore.QT_TRANSLATE_NOOP("PathTurnFace",
+                                                            "Creates a Turning Facing object from a features of a base object"),
+                                   PathTurnFace.SetupProperties)
 
 FreeCAD.Console.PrintLog("Loading PathTurnFaceGui... done\n")

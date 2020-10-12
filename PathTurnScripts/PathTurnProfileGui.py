@@ -49,12 +49,14 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
     '''Page controller class for Helix operations.'''
     pass
 
+
 Command = PathOpGui.SetupOperation('TurnProfile',
-        PathTurnProfile.Create,
-        TaskPanelOpPage,
-        'Path-TurnProfile',
-        QtCore.QT_TRANSLATE_NOOP("PathTurnProfile", "Turn Profile"),
-        QtCore.QT_TRANSLATE_NOOP("PathTurnProfile", "Creates a Path Turning Profile object from a features of a base object"),
-        PathTurnProfile.SetupProperties)
+                                   PathTurnProfile.Create,
+                                   TaskPanelOpPage,
+                                   'Path-TurnProfile',
+                                   QtCore.QT_TRANSLATE_NOOP("PathTurnProfile", "Turn Profile"),
+                                   QtCore.QT_TRANSLATE_NOOP("PathTurnProfile",
+                                                            "Creates a Path Turning Profile object from a features of a base object"),
+                                   PathTurnProfile.SetupProperties)
 
 FreeCAD.Console.PrintLog("Loading PathTurnProfileGui... done\n")
