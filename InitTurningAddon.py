@@ -24,12 +24,10 @@
 
 import FreeCADGui
 from PySide import QtGui
-# import PathTurningAddonGui, PathTurningAddon
-# from PathTurnScripts import PathTurnProfile
 
 # import all turning operations
-from PathTurnScripts import PathTurnProfileGui
-from PathTurnScripts import PathTurnFaceGui
+from PathTurnScripts import PathTurnProfileGui  # noqa: F401
+from PathTurnScripts import PathTurnFaceGui  # noqa: F401
 import os
 
 __dir__ = os.path.dirname(__file__)
