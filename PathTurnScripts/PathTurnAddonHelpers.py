@@ -23,8 +23,16 @@
 # ***************************************************************************
 
 import os
-from LibLathe.LLBoundBox import BoundBox
-from LibLathe.LLPoint import Point
+import sys
+
+# add path to liblath to the python path
+pathScripts = os.path.dirname(__file__)
+__dir__ = os.path.dirname(pathScripts)
+liblathePath = os.path.join(__dir__, 'LibLathe')
+sys.path.append(liblathePath)
+
+from liblathe.boundbox import BoundBox
+from liblathe.point import Point
 
 
 def getResourcePath(resName):
@@ -39,6 +47,6 @@ def getResourcePath(resName):
     return res
 
 
-def getLibLatheBoundBox(FcBB):
-    LibLatheBoundbox = BoundBox(Point(FcBB.XMin, FcBB.YMin, FcBB.ZMin), Point(FcBB.XMax, FcBB.YMax, FcBB.ZMax))
-    return LibLatheBoundbox
+def getliblatheBoundBox(FcBB):
+    liblatheBoundbox = BoundBox(Point(FcBB.XMin, FcBB.YMin, FcBB.ZMin), Point(FcBB.XMax, FcBB.YMax, FcBB.ZMax))
+    return liblatheBoundbox
