@@ -60,6 +60,8 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
         facingOP.add_stock(stockBoundbox)
 
         facingOP.add_part_edges(self.part_outline)
+        facingOP.add_tool('DCMT070204R')
+
         PathCode = facingOP.get_gcode()
 
         for pathlist in PathCode:
@@ -77,6 +79,7 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
     def opUpdateDepths(self, obj):
         obj.OpStartDepth = obj.OpStockZMax
         obj.OpFinalDepth = obj.OpStockZMin
+
 
 def SetupProperties():
     setup = []
