@@ -29,7 +29,7 @@ from PySide import QtCore
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
-import LibLathe.LLProfileOP as LLP
+import liblathe.profile_op as LLP
 
 __title__ = "Path Turn Profile Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -51,7 +51,7 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
         profileOP = LLP.ProfileOP()
         profileOP.set_params(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getLibLatheBoundBox(self.stock_silhoutte.BoundBox)
+        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stock_silhoutte.BoundBox)
         profileOP.add_stock(stockBoundbox)
 
         profileOP.add_part_edges(self.part_outline)

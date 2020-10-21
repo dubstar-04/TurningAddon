@@ -29,7 +29,7 @@ from PySide import QtCore
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
-import LibLathe.LLFaceOP as LLF
+import liblathe.face_op as LLF
 
 __title__ = "Path Turn Facing Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -56,7 +56,7 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
         facingOP = LLF.FaceOP()
         facingOP.set_params(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getLibLatheBoundBox(self.stock_silhoutte.BoundBox)
+        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stock_silhoutte.BoundBox)
         facingOP.add_stock(stockBoundbox)
 
         facingOP.add_part_edges(self.part_outline)

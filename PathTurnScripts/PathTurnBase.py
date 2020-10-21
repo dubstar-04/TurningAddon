@@ -35,8 +35,8 @@ from PySide import QtCore
 if FreeCAD.GuiUp:
     import FreeCADGui
 
-from LibLathe.LLPoint import Point
-from LibLathe.LLSegment import Segment
+from liblathe.point import Point
+from liblathe.segment import Segment
 
 __title__ = "Path Turn Base Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
