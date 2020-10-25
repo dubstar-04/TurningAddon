@@ -76,14 +76,12 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
 
 def SetupProperties():
     setup = []
-    setup.append("Direction")
     setup.append("StepOver")
-    setup.append("MinDia")
-    setup.append("MaxDia")
-    setup.append("StartOffset")
-    setup.append("EndOffset")
+    setup.append("FinishPasses")
     setup.append("AllowGrooving")
     setup.append("AllowFacing")
+    setup.append("AllowRoughing")
+    setup.append("AllowFinishing")
     return setup
 
 
