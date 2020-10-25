@@ -1,4 +1,4 @@
-# FreeCAD Turning Addon
+# FreeCAD Turning Addon ![Python package](https://github.com/dubstar-04/FreeCAD_Turning_Addon/workflows/Python%20package/badge.svg?branch=master)
 A FreeCAD Path Addon to encourage the development of CNC turning functionality for the PATH workbench.  
 
 ## Description
