@@ -45,7 +45,7 @@ else:
 
 
 class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
-    '''Page controller class for Helix operations.'''
+    '''Page controller class for Turning operations.'''
     pass
 
 
