@@ -75,7 +75,7 @@ class ObjectOp(PathOp.ObjectOp):
         obj.addProperty("App::PropertyBool", "AllowRoughing", "Turn Path", translate("TurnPath", "Include Tool Paths For Roughing"))
         obj.addProperty("App::PropertyBool", "AllowFinishing", "Turn Path", translate("TurnPath", "Include Tool Paths For Finishing"))
 
-        obj.StepOver = 1.0
+        obj.StepOver = FreeCAD.Units.Quantity(1.0, FreeCAD.Units.Length)
         obj.FinishPasses = 2
         obj.AllowRoughing = True
         obj.AllowFinishing = True
