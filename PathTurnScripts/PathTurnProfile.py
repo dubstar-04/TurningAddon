@@ -55,7 +55,7 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
         profileOP.add_stock(stockBoundbox)
 
         profileOP.add_part_edges(self.part_outline)
-        profileOP.add_tool('DCMT070204R')  # TODO: Incorperate lathe tools into FreeCAD
+        profileOP.add_tool(obj.ToolController.Tool.Name)  # TODO: Incorperate lathe tools into FreeCAD
 
         PathCode = profileOP.get_gcode()
 

@@ -60,7 +60,7 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
         facingOP.add_stock(stockBoundbox)
 
         facingOP.add_part_edges(self.part_outline)
-        facingOP.add_tool('DCMT070204R')
+        facingOP.add_tool(obj.ToolController.Tool.Name)  # TODO: Incorperate lathe tools into FreeCAD
 
         PathCode = facingOP.get_gcode()
 
