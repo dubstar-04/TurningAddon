@@ -110,7 +110,7 @@ class ObjectOp(PathOp.ObjectOp):
 
         props = {}
         props['min_dia'] = self.minDia
-        props['extra_dia'] = self.maxDia
+        props['extra_dia'] = self.maxDia - self.stock.Shape.BoundBox.XLength
         props['start_offset'] = self.startOffset
         props['end_offset'] = self.endOffset
         props['allow_grooving'] = self.allowGrooving
