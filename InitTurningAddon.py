@@ -26,8 +26,9 @@ import FreeCADGui
 from PySide import QtGui
 
 # import all turning operations
-from PathTurnScripts import PathTurnProfileGui  # noqa: F401
 from PathTurnScripts import PathTurnFaceGui  # noqa: F401
+from PathTurnScripts import PathTurnPartGui  # noqa: F401
+from PathTurnScripts import PathTurnProfileGui  # noqa: F401
 import os
 
 __dir__ = os.path.dirname(__file__)
@@ -66,7 +67,7 @@ def updateMenu(workbench):
             pathMenu.insertMenu(dressupMenu.menuAction(), addonMenu)
 
         # list of commands to add to the menu, add new commands here:
-        commands = ['TurnProfile', 'TurnFace']
+        commands = ['TurnFace', 'TurnProfile', 'TurnPart']
 
         # load the commands to the FreeCAD Menu
         for command in commands:
