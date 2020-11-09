@@ -29,9 +29,9 @@ from PySide import QtCore
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
-import liblathe.profile_op as LLP
+import liblathe.rough_op as LLP
 
-__title__ = "Path Turn Profile Operation"
+__title__ = "Path Turn Rough Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
 __url__ = "http://www.freecadweb.org"
 __doc__ = "Class implementation for turning profiling operations."
@@ -41,23 +41,23 @@ def translate(context, text, disambig=None):
     return QtCore.QCoreApplication.translate(context, text, disambig)
 
 
-class ObjectTurnProfile(PathTurnBase.ObjectOp):
-    '''Proxy class for turning profile operations.'''
+class ObjectTurnRough(PathTurnBase.ObjectOp):
+    '''Proxy class for turning roughing operations.'''
 
     def op_generate_gcode(self, obj, turnTool):
         '''
         Generate GCode for the op
         '''
-        profileOP = LLP.ProfileOP()
-        profileOP.set_params(self.getProps(obj))
+        RoughOP = LLP.RoughOP()
+        RoughOP.set_params(self.getProps(obj))
 
         stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stock_silhoutte.BoundBox)
-        profileOP.add_stock(stockBoundbox)
+        RoughOP.add_stock(stockBoundbox)
 
-        profileOP.add_part_edges(self.part_outline)
-        profileOP.add_tool(turnTool)
+        RoughOP.add_part_edges(self.part_outline)
+        RoughOP.add_tool(turnTool)
 
-        PathCode = profileOP.get_gcode()
+        PathCode = RoughOP.get_gcode()
 
         for pathlist in PathCode:
             for command in pathlist:
@@ -84,8 +84,8 @@ def SetupProperties():
 
 
 def Create(name, obj=None):
-    '''Create(name) ... Creates and returns a TurnProfile operation.'''
+    '''Create(name) ... Creates and returns a TurnRough operation.'''
     if obj is None:
         obj = FreeCAD.ActiveDocument.addObject("Path::FeaturePython", name)
-    obj.Proxy = ObjectTurnProfile(obj, name)
+    obj.Proxy = ObjectTurnRough(obj, name)
     return obj

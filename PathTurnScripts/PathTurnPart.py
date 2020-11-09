@@ -79,9 +79,6 @@ def SetupProperties():
     setup.append("StepOver")
     setup.append("FinishPasses")
     setup.append("AllowGrooving")
-    setup.append("AllowFacing")
-    setup.append("AllowRoughing")
-    setup.append("AllowFinishing")
     return setup
 
 
