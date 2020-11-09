@@ -37,6 +37,7 @@ if FreeCAD.GuiUp:
 
 from liblathe.point import Point
 from liblathe.segment import Segment
+from liblathe.tool import Tool
 
 __title__ = "Path Turn Base Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -190,6 +191,33 @@ class ObjectOp(PathOp.ObjectOp):
     def generate_gcode(self, obj):
         '''
         Base function to generate gcode for the OP by writing path command to self.commandlist
-        Should be overwritten by subclasses.
+        Calls operations op_generate_gcode.
         '''
-        pass
+        opTool = obj.ToolController.Tool
+
+        # only toolbits are supported
+        if isinstance(opTool, Path.Tool):
+            raise RuntimeError("Path Turn: Legacy Tools Not Supported ")
+
+        # create a liblathe tool and assign the toolbit parameters
+        turnTool = Tool()
+
+        if hasattr(opTool, "TipAngle"):
+            turnTool.set_tip_angle(opTool.TipAngle.Value)
+
+        if hasattr(opTool, "EdgeLength"):
+            turnTool.set_edge_length(opTool.EdgeLength.Value)
+
+        if hasattr(opTool, "TipRadius"):
+            turnTool.set_nose_radius(opTool.TipRadius.Value)
+
+        if hasattr(opTool, "Rotation"):
+            turnTool.set_rotation(opTool.Rotation.Value)
+
+        self.op_generate_gcode(obj, turnTool)
+
+    def op_generate_gcode(self, obj, turnTool):
+        '''op_generate_gcode(obj) ... overwrite to set initial default values.
+        Called after the receiver has been fully created with all properties.
+        Should be overwritten by subclasses.'''
+        pass  # pylint: disable=unnecessary-pass
