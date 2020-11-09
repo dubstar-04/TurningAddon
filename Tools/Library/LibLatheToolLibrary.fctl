@@ -1,0 +1,13 @@
+{
+  "tools": [
+    {
+      "nr": "1",
+      "path": "C.fctb"
+    },
+    {
+      "nr": 2,
+      "path": "D.fctb"
+    }
+  ],
+  "version": 1
+}
