@@ -83,6 +83,13 @@ class ObjectOp(PathOp.ObjectOp):
         self.tool = None
         self.minDia = obj.MinDiameter.Value
         self.maxDia = obj.MaxDiameter.Value
+
+        if self.minDia >= self.maxDia:
+            raise RuntimeError(translate('PathTurn', "Minimum diameter is equal or greater than maximum diameter"))
+
+        if obj.StartDepth.Value <= obj.FinalDepth.Value:
+            raise RuntimeError(translate('PathTurn', "Start depth is equal or less than final depth"))
+
         self.startOffset = 0
         self.endOffset = 0
         self.allowGrooving = obj.AllowGrooving
@@ -186,7 +193,7 @@ class ObjectOp(PathOp.ObjectOp):
 
         # only toolbits are supported
         if isinstance(opTool, Path.Tool):
-            raise RuntimeError("Path Turn: Legacy Tools Not Supported ")
+            raise RuntimeError(translate('PathTurn', "Path Turn: Legacy Tools Not Supported "))
 
         # create a liblathe tool and assign the toolbit parameters
         turnTool = Tool()
