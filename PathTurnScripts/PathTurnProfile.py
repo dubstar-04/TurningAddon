@@ -44,7 +44,7 @@ def translate(context, text, disambig=None):
 class ObjectTurnProfile(PathTurnBase.ObjectOp):
     '''Proxy class for turning profile operations.'''
 
-    def generate_gcode(self, obj):
+    def op_generate_gcode(self, obj, turnTool):
         '''
         Generate GCode for the op
         '''
@@ -55,7 +55,7 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
         profileOP.add_stock(stockBoundbox)
 
         profileOP.add_part_edges(self.part_outline)
-        profileOP.add_tool(obj.ToolController.Tool.Name)  # TODO: Incorperate lathe tools into FreeCAD
+        profileOP.add_tool(turnTool)
 
         PathCode = profileOP.get_gcode()
 
@@ -67,11 +67,12 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
     def opSetDefaultValues(self, obj, job):
         obj.OpStartDepth = job.Stock.Shape.BoundBox.ZMax
         obj.OpFinalDepth = job.Stock.Shape.BoundBox.ZMin
+        print('opSetDefaultValues:', obj.OpStartDepth.Value, obj.OpFinalDepth.Value)
 
     def opUpdateDepths(self, obj):
         obj.OpStartDepth = obj.OpStockZMax
         obj.OpFinalDepth = obj.OpStockZMin
-        print('opSetDefaultValues:', obj.OpStartDepth.Value, obj.OpFinalDepth.Value)
+        print('opUpdateDepths:', obj.OpStartDepth.Value, obj.OpFinalDepth.Value)
 
 
 def SetupProperties():

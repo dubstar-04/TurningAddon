@@ -44,7 +44,7 @@ def translate(context, text, disambig=None):
 class ObjectTurnPart(PathTurnBase.ObjectOp):
     '''Proxy class for turning Part operations.'''
 
-    def generate_gcode(self, obj):
+    def op_generate_gcode(self, obj, turnTool):
         '''
         Generate GCode for the op
         '''
@@ -55,7 +55,7 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
         PartOP.add_stock(stockBoundbox)
 
         PartOP.add_part_edges(self.part_outline)
-        PartOP.add_tool(obj.ToolController.Tool.Name)  # TODO: Incorperate lathe tools into FreeCAD
+        PartOP.add_tool(turnTool)
 
         PathCode = PartOP.get_gcode()
 

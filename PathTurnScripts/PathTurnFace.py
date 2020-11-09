@@ -48,7 +48,7 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
     #    '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
     #    return PathTurnBase.PathOp.FeatureDiameters | PathTurnBase.PathOp.FeatureTool | PathTurnBase.PathOp.FeatureDepths | PathTurnBase.PathOp.FeatureNoFinalDepth | PathTurnBase.PathOp.FeatureCoolant
 
-    def generate_gcode(self, obj):
+    def op_generate_gcode(self, obj, turnTool):
         '''
         Generate GCode for the op
         '''
@@ -60,7 +60,7 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
         facingOP.add_stock(stockBoundbox)
 
         facingOP.add_part_edges(self.part_outline)
-        facingOP.add_tool(obj.ToolController.Tool.Name)  # TODO: Incorperate lathe tools into FreeCAD
+        facingOP.add_tool(turnTool)
 
         PathCode = facingOP.get_gcode()
 
