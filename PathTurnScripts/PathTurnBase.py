@@ -72,14 +72,9 @@ class ObjectOp(PathOp.ObjectOp):
         obj.addProperty("App::PropertyLength", "StepOver", "Turn Path", translate("TurnPath", "Operation Stepover"))
         obj.addProperty("App::PropertyInteger", "FinishPasses", "Turn Path", translate("TurnPath", "Number of Finish Passes"))
         obj.addProperty("App::PropertyBool", "AllowGrooving", "Turn Path", translate("TurnPath", "Minimum Diameter for Operation"))
-        obj.addProperty("App::PropertyBool", "AllowFacing", "Turn Path", translate("TurnPath", "Minimum Diameter for Operation"))
-        obj.addProperty("App::PropertyBool", "AllowRoughing", "Turn Path", translate("TurnPath", "Include Tool Paths For Roughing"))
-        obj.addProperty("App::PropertyBool", "AllowFinishing", "Turn Path", translate("TurnPath", "Include Tool Paths For Finishing"))
 
         obj.StepOver = FreeCAD.Units.Quantity(1.0, FreeCAD.Units.Length)
         obj.FinishPasses = 2
-        obj.AllowRoughing = True
-        obj.AllowFinishing = True
 
     def opExecute(self, obj):
         '''opExecute(obj) ... processes all Base features
@@ -91,9 +86,6 @@ class ObjectOp(PathOp.ObjectOp):
         self.startOffset = 0
         self.endOffset = 0
         self.allowGrooving = obj.AllowGrooving
-        self.allowFacing = obj.AllowFacing
-        self.allowRoughing = obj.AllowRoughing
-        self.allowFinishing = obj.AllowFinishing
         self.stepOver = obj.StepOver.Value
         self.finishPasses = obj.FinishPasses
 
@@ -115,9 +107,6 @@ class ObjectOp(PathOp.ObjectOp):
         props['start_offset'] = self.startOffset
         props['end_offset'] = self.endOffset
         props['allow_grooving'] = self.allowGrooving
-        props['allow_facing'] = self.allowFacing
-        props['allow_roughing'] = self.allowRoughing
-        props['allow_finishing'] = self.allowFinishing
         props['step_over'] = self.stepOver
         props['finish_passes'] = self.finishPasses
         props['hfeed'] = obj.ToolController.HorizFeed.Value
