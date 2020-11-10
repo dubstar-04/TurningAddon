@@ -202,6 +202,8 @@ class ObjectOp(PathOp.ObjectOp):
         # create a liblathe tool and assign the toolbit parameters
         turnTool = Tool()
 
+        # TODO: set some sensible default values or raise error if attribute not available
+
         if hasattr(opTool, "TipAngle"):
             turnTool.set_tip_angle(opTool.TipAngle.Value)
 
