@@ -7,6 +7,10 @@
     {
       "nr": 2,
       "path": "iso_shape_d.fctb"
+    },
+    {
+      "nr": 3,
+      "path": "iso_shape_s.fctb"
     }
   ],
   "version": 1
