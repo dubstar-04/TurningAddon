@@ -46,7 +46,14 @@ else:
 
 class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
     '''Page controller class for Turning operations.'''
-    pass
+
+    def setOpFields(self, obj):
+        '''setFields(obj) ... transfers obj's property values to UI'''
+
+        self.form.stepOver.setEnabled(False)
+        self.form.finishPasses.setEnabled(False)
+        self.form.allowGrooving.setEnabled(False)
+        self.form.stockToLeave.setEnabled(False)
 
 
 Command = PathOpGui.SetupOperation('TurnPart',
