@@ -71,10 +71,12 @@ class ObjectOp(PathOp.ObjectOp):
 
         obj.addProperty("App::PropertyLength", "StepOver", "Turn Path", translate("TurnPath", "Operation Stepover"))
         obj.addProperty("App::PropertyInteger", "FinishPasses", "Turn Path", translate("TurnPath", "Number of Finish Passes"))
+        obj.addProperty("App::PropertyFloat", "StockToLeave", "Turn Path", translate("TurnPath", "Distance for stock to leave uncut"))
         obj.addProperty("App::PropertyBool", "AllowGrooving", "Turn Path", translate("TurnPath", "Minimum Diameter for Operation"))
 
         obj.StepOver = FreeCAD.Units.Quantity(1.0, FreeCAD.Units.Length)
         obj.FinishPasses = 2
+        obj.StockToLeave = 0
 
     def opExecute(self, obj):
         '''opExecute(obj) ... processes all Base features
@@ -95,6 +97,7 @@ class ObjectOp(PathOp.ObjectOp):
         self.allowGrooving = obj.AllowGrooving
         self.stepOver = obj.StepOver.Value
         self.finishPasses = obj.FinishPasses
+        self.stockToLeave = obj.StockToLeave
 
         # Clear any existing gcode
         obj.Path.Commands = []
@@ -116,6 +119,7 @@ class ObjectOp(PathOp.ObjectOp):
         props['allow_grooving'] = self.allowGrooving
         props['step_over'] = self.stepOver
         props['finish_passes'] = self.finishPasses
+        props['stock_to_leave'] = self.stockToLeave
         props['hfeed'] = obj.ToolController.HorizFeed.Value
         props['vfeed'] = obj.ToolController.VertFeed.Value
         return props
