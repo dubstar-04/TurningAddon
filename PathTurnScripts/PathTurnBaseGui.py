@@ -65,6 +65,7 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         PathGui.updateInputField(obj, 'StepOver', self.form.stepOver)
 
         obj.FinishPasses = self.form.finishPasses.value()
+        obj.StockToLeave = self.form.stockToLeave.value()
 
         if obj.AllowGrooving != self.form.allowGrooving.isChecked():
             obj.AllowGrooving = self.form.allowGrooving.isChecked()
@@ -78,6 +79,7 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
 
         self.form.stepOver.setText(FreeCAD.Units.Quantity(obj.StepOver.Value, FreeCAD.Units.Length).UserString)
         self.form.finishPasses.setValue(obj.FinishPasses)
+        self.form.stockToLeave.setValue(obj.StockToLeave)
         self.setupToolController(obj, self.form.toolController)
         self.setupCoolant(obj, self.form.coolantController)
 
@@ -92,6 +94,7 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
 
         signals.append(self.form.stepOver.editingFinished)
         signals.append(self.form.finishPasses.valueChanged)
+        signals.append(self.form.stockToLeave.valueChanged)
         signals.append(self.form.allowGrooving.stateChanged)
 
         signals.append(self.form.toolController.currentIndexChanged)
