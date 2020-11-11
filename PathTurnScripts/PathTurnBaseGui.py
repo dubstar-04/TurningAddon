@@ -88,6 +88,8 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         else:
             self.form.allowGrooving.setCheckState(QtCore.Qt.Unchecked)
 
+        self.setOpFields(obj)
+
     def getSignalsForUpdate(self, obj):
         '''getSignalsForUpdate(obj) ... return list of signals for updating obj'''
         signals = []
@@ -101,3 +103,8 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         signals.append(self.form.coolantController.currentIndexChanged)
 
         return signals
+
+    def setOpFields(self, obj):
+        '''setOpFields(obj) ... overwrite to set operations specific values.
+        Should be overwritten by subclasses.'''
+        pass  # pylint: disable=unnecessary-pass

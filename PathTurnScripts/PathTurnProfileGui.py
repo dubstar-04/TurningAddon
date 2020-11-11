@@ -46,7 +46,10 @@ else:
 
 class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
     '''Page controller class for Turning operations.'''
-    pass
+
+    def setOpFields(self, obj):
+        '''setFields(obj) ... transfers obj's property values to UI'''
+        pass
 
 
 Command = PathOpGui.SetupOperation('TurnProfile',
