@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
 <svg
    xmlns:dc="http://purl.org/dc/elements/1.1/"
    xmlns:cc="http://creativecommons.org/ns#"
@@ -14,22 +12,10 @@
    height="64px"
    id="svg2816"
    version="1.1"
-   inkscape:version="0.92.4 5da689c313, 2019-01-14"
-   sodipodi:docname="Path-TurnProfile.svg">
+   inkscape:version="1.0.1 (3bc2e813f5, 2020-09-07)"
+   sodipodi:docname="Path-TurnToolHelper.svg">
   <defs
      id="defs2818">
-    <linearGradient
-       inkscape:collect="always"
-       id="linearGradient3915">
-      <stop
-         style="stop-color:#3465a4;stop-opacity:1"
-         offset="0"
-         id="stop3917" />
-      <stop
-         style="stop-color:#729fcf;stop-opacity:1"
-         offset="1"
-         id="stop3919" />
-    </linearGradient>
     <linearGradient
        id="linearGradient4513">
       <stop
@@ -894,24 +880,6 @@
        y1="17"
        x2="32"
        y2="45" />
-    <linearGradient
-       inkscape:collect="always"
-       xlink:href="#linearGradient3915"
-       id="linearGradient1010"
-       gradientUnits="userSpaceOnUse"
-       x1="33"
-       y1="45"
-       x2="33"
-       y2="39" />
-    <linearGradient
-       inkscape:collect="always"
-       xlink:href="#linearGradient3915"
-       id="linearGradient1023"
-       x1="13"
-       y1="52"
-       x2="13"
-       y2="44"
-       gradientUnits="userSpaceOnUse" />
   </defs>
   <sodipodi:namedview
      id="base"
@@ -934,14 +902,15 @@
      inkscape:snap-bbox-midpoints="true"
      inkscape:object-paths="true"
      inkscape:object-nodes="true"
-     inkscape:window-width="2512"
+     inkscape:window-width="2560"
      inkscape:window-height="1376"
-     inkscape:window-x="48"
+     inkscape:window-x="0"
      inkscape:window-y="27"
      inkscape:window-maximized="1"
      inkscape:snap-global="true"
      showguides="true"
-     inkscape:guide-bbox="true">
+     inkscape:guide-bbox="true"
+     inkscape:document-rotation="0">
     <inkscape:grid
        type="xygrid"
        id="grid3127"
@@ -986,39 +955,23 @@
      id="layer1"
      inkscape:label="Layer 1"
      inkscape:groupmode="layer">
-    <rect
-       style="fill:url(#linearGradient1023);fill-opacity:1;stroke:#000000;stroke-width:2;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       id="rect963"
-       width="16"
-       height="43"
-       x="5"
-       y="10" />
-    <rect
-       style="fill:url(#linearGradient1010);fill-opacity:1;stroke:#0b0000;stroke-width:2;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       id="rect965"
-       width="23"
-       height="30"
-       x="21"
-       y="16" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:2,1;stroke-dashoffset:0"
-       d="M 2,31.5 H 62"
-       id="path967"
-       inkscape:connector-curvature="0" />
-    <path
-       style="fill:none;stroke:#8ae234;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="M 4,57 H 57"
-       id="path973-3"
-       inkscape:connector-curvature="0" />
-    <path
-       style="fill:none;stroke:#8ae234;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="M 23,53 H 57"
-       id="path973-6"
-       inkscape:connector-curvature="0" />
-    <path
-       style="fill:none;stroke:#8ae234;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="M 23,49 H 57"
-       id="path973-7"
-       inkscape:connector-curvature="0" />
+    <ellipse
+       style="opacity:1;fill:#729fcf;stroke:#000000;stroke-width:1.96722;fill-opacity:1"
+       id="path969"
+       cx="32"
+       cy="31.999998"
+       rx="29.016394"
+       ry="29.016392" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:52.8482px;line-height:1.25;font-family:sans-serif;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.3212"
+       x="18.923489"
+       y="51.611637"
+       id="text973"><tspan
+         sodipodi:role="line"
+         id="tspan971"
+         x="18.923489"
+         y="51.611637"
+         style="stroke-width:1.3212">?</tspan></text>
   </g>
 </svg>

@@ -27,11 +27,12 @@ from PySide import QtGui
 
 # import all turning operations
 from PathTurnScripts import PathTurnFaceGui  # noqa: F401
-from PathTurnScripts import PathTurnPartGui  # noqa: F401
+from PathTurnScripts import PathTurnPartoffGui  # noqa: F401
 from PathTurnScripts import PathTurnProfileGui  # noqa: F401
 from PathTurnScripts import PathTurnRoughGui  # noqa: F401
 from PathTurnScripts import PathTurnToolHelperGui  # noqa: F401
 import os
+import re
 
 __dir__ = os.path.dirname(__file__)
 iconPath = os.path.join(__dir__, 'Gui/Resources/Icons')
@@ -69,7 +70,7 @@ def updateMenu(workbench):
             pathMenu.insertMenu(dressupMenu.menuAction(), addonMenu)
 
         # list of commands to add to the menu, add new commands here:
-        commands = ['TurnFace', 'TurnProfile', 'TurnPart', 'TurnRough', 'TurnToolHelper']
+        commands = ['TurnFace', 'TurnProfile', 'TurnPartoff', 'TurnRough', 'TurnToolHelper']
 
         # load the commands to the FreeCAD Menu
         for command in commands:
@@ -81,7 +82,8 @@ def updateMenu(workbench):
 
 
 def createAction(menu, actionName):
-    text = "Path" + actionName
+    # space the actionName at caps
+    text = re.sub(r"(\w)([A-Z])", r"\1 \2", actionName)
     command = "Path_" + actionName
     icon = "Path-" + actionName + ".svg"
 

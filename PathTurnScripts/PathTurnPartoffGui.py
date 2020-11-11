@@ -24,7 +24,7 @@
 
 import FreeCAD
 import PathTurnScripts.PathTurnBaseGui as PathTurnBaseGui
-import PathTurnScripts.PathTurnPart as PathTurnPart
+import PathTurnScripts.PathTurnPartoff as PathTurnPartoff
 import PathScripts.PathLog as PathLog
 import PathScripts.PathOpGui as PathOpGui
 
@@ -56,13 +56,13 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
         self.form.stockToLeave.setEnabled(False)
 
 
-Command = PathOpGui.SetupOperation('TurnPart',
-                                   PathTurnPart.Create,
+Command = PathOpGui.SetupOperation('TurnPartoff',
+                                   PathTurnPartoff.Create,
                                    TaskPanelOpPage,
-                                   'Path-TurnPart',
-                                   QtCore.QT_TRANSLATE_NOOP("PathTurnPart", "Turn Part"),
-                                   QtCore.QT_TRANSLATE_NOOP("PathTurnPart",
+                                   'Path-TurnPartoff',
+                                   QtCore.QT_TRANSLATE_NOOP("PathTurnPartoff", "Turn Part"),
+                                   QtCore.QT_TRANSLATE_NOOP("PathTurnPartoff",
                                                             "Creates a Path Turning Part object from a features of a base object"),
-                                   PathTurnPart.SetupProperties)
+                                   PathTurnPartoff.SetupProperties)
 
-FreeCAD.Console.PrintLog("Loading PathTurnPartGui... done\n")
+FreeCAD.Console.PrintLog("Loading PathTurnPartoffGui... done\n")
