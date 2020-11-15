@@ -48,7 +48,7 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
         '''
         Generate GCode for the op
         '''
-        PartOP = LLP.PartOP()
+        PartOP = LLP.PartoffOP()
         PartOP.set_params(self.getProps(obj))
 
         stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stock_silhoutte.BoundBox)
@@ -59,10 +59,9 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
 
         PathCode = PartOP.get_gcode()
 
-        for pathlist in PathCode:
-            for command in pathlist:
-                pathCommand = Path.Command(command.get_movement(), command.get_params())
-                self.commandlist.append(pathCommand)
+        for command in PathCode:
+            pathCommand = Path.Command(command.get_movement(), command.get_params())
+            self.commandlist.append(pathCommand)
 
     def opSetDefaultValues(self, obj, job):
         obj.OpStartDepth = job.Stock.Shape.BoundBox.ZMax

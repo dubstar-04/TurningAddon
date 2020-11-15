@@ -64,12 +64,9 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
 
         PathCode = facingOP.get_gcode()
 
-        for pathlist in PathCode:
-            # print('pathlist', pathlist)
-            for command in pathlist:
-                # print('command:', command.get_movement(), command.get_params())
-                pathCommand = Path.Command(command.get_movement(), command.get_params())
-                self.commandlist.append(pathCommand)
+        for command in PathCode:
+            pathCommand = Path.Command(command.get_movement(), command.get_params())
+            self.commandlist.append(pathCommand)
 
     def opSetDefaultValues(self, obj, job):
         obj.OpStartDepth = job.Stock.Shape.BoundBox.ZMax
