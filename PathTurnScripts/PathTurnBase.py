@@ -109,7 +109,8 @@ class ObjectOp(PathOp.ObjectOp):
 
     def getProps(self, obj):
         # TODO: use the start and final depths
-        print('getProps - Start Depth: ', obj.OpStartDepth.Value, 'Final Depth: ', obj.OpFinalDepth.Value)
+        # print('getProps - Start Depth: ', obj.OpStartDepth.Value, 'Final Depth: ', obj.OpFinalDepth.Value)
+        parentJob = PathUtils.findParentJob(obj)
 
         props = {}
         props['min_dia'] = self.minDia
@@ -122,6 +123,7 @@ class ObjectOp(PathOp.ObjectOp):
         props['stock_to_leave'] = self.stockToLeave
         props['hfeed'] = obj.ToolController.HorizFeed.Value
         props['vfeed'] = obj.ToolController.VertFeed.Value
+        props['clearance'] = parentJob.SetupSheet.SafeHeightOffset.Value
         return props
 
     def get_stock_silhoutte(self, obj):
@@ -130,9 +132,8 @@ class ObjectOp(PathOp.ObjectOp):
         '''
         stockBB = self.stock.Shape.BoundBox
         stock_z_pos = stockBB.ZMax
-        parentJob = PathUtils.findParentJob(obj)
 
-        self.startOffset = obj.StartDepth.Value - stockBB.ZMax + parentJob.SetupSheet.SafeHeightOffset.Value
+        self.startOffset = obj.StartDepth.Value - stockBB.ZMax
         self.endOffset = stockBB.ZMin - obj.FinalDepth.Value
 
         stock_plane_length = obj.StartDepth.Value - obj.FinalDepth.Value
