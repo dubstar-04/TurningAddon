@@ -145,15 +145,29 @@ class ObjectOp(PathOp.ObjectOp):
         '''
         Get Part Outline
         '''
-        sections = Path.Area().add(self.model[0].Shape).makeSections(mode=0, heights=[0.0], project=True,
-                                                                     plane=self.stock_silhoutte)
+        # TODO: Revisit the edge extraction and find a more elegant method
+        model = self.model[0].Shape
+        # get a section through the part origin on the XZ Plane
+        sections = Path.Area().add(model).makeSections(mode=0, heights=[0.0], project=True, plane=self.stock_silhoutte)
         part_silhoutte = sections[0].setParams(Offset=0.0).getShape()
+        # get an offset section larger than the part section
         part_bound_face = sections[0].setParams(Offset=0.1).getShape()
-        path_area = self.stock_silhoutte.cut(part_silhoutte)
+
+        # ensure the cutplane is larger than the part or segments will be missed
+        modelBB = model.BoundBox
+        plane_length = modelBB.ZLength * 1.5
+        plane_width = (modelBB.XLength / 2) * 1.5
+        z_ref = modelBB.ZMax + (plane_length - modelBB.ZLength) / 2
+
+        # create a plane larger than the part
+        cut_plane = Part.makePlane(plane_length, plane_width, FreeCAD.Vector(-plane_width, 0, z_ref), FreeCAD.Vector(0, -1, 0))
+        # Cut the part section from the cut plane
+        path_area = cut_plane.cut(part_silhoutte)
 
         part_edges = []
         part_segments = []
 
+        # interate through the edges and check if each is inside the bound_face
         for edge in path_area.Edges:
             edge_in = True
             for vertex in edge.Vertexes:
@@ -161,7 +175,6 @@ class ObjectOp(PathOp.ObjectOp):
                     edge_in = False
 
             if edge_in:
-                # if self.part_edges.__contains__(edge) == False:
                 part_edges.append(edge)
                 vert = edge.Vertexes
                 pt1 = Point(vert[0].X, vert[0].Y, vert[0].Z)
@@ -169,8 +182,6 @@ class ObjectOp(PathOp.ObjectOp):
                 seg = Segment(pt1, pt2)
 
                 if isinstance(edge.Curve, Part.Circle):
-                    # rad = edge.Curve.Radius
-                    # angle = 2 * math.asin((seg.get_length()/2) / rad)
                     line1 = Part.makeLine(edge.Curve.Location, edge.Vertexes[0].Point)
                     line2 = Part.makeLine(edge.Curve.Location, edge.Vertexes[-1].Point)
                     part_edges.append(line1)
