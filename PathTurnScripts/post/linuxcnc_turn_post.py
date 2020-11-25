@@ -358,13 +358,14 @@ def parse(pathobj):
                         outstring.append(param + str(int(c.Parameters['D'])))
                     elif param == 'S':
                         outstring.append(param + str(int(c.Parameters['S'])))
-                    elif param == 'Y':
-                        if LATHE_MODE:
-                            continue
                     else:
                         if (not OUTPUT_DOUBLES) and (param in currLocation) and (currLocation[param] == c.Parameters[param]):
                             continue
                         else:
+                            # omit Y parameters in lathe_mode
+                            if param == 'Y' and LATHE_MODE:
+                                continue
+
                             pos = Units.Quantity(c.Parameters[param], FreeCAD.Units.Length)
                             outstring.append(
                                 param + format(float(pos.getValueAs(UNIT_FORMAT)), precision_string))
