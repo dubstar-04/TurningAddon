@@ -100,7 +100,7 @@ class ObjectTurnThread(PathTurnBase.ObjectOp):
             obj.Peak *= -1
         
         # Move to start of drive line
-        params = {'Z': obj.StartDepth.Value+obj.Pitch, 'X': obj.MaxDiameter.Value/2 - obj.Peak}
+        params = {'Z': obj.StartDepth.Value+obj.Pitch+1, 'X': obj.MaxDiameter.Value/2 - obj.Peak}
         move = Command('G0', params)
         
         # Threading command
