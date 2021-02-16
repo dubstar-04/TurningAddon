@@ -59,6 +59,7 @@ class ObjectTurnThread(PathTurnBase.ObjectOp):
         obj.addProperty("App::PropertyEnumeration", "ThreadType", "Turn Path", "Type of Thread")
         obj.ThreadType = ['External', 'Internal']
 
+        # Set default values
         obj.SpringPasses = 0
         obj.DOC = FreeCAD.Units.Quantity(0.1, FreeCAD.Units.Length)
         obj.Pitch = 1.0
@@ -94,15 +95,19 @@ class ObjectTurnThread(PathTurnBase.ObjectOp):
         '''
         Generate GCode for the op
         '''
+        # Check for external/internal thread
         if obj.ThreadType == "External":
             obj.Peak *= -1
         
+        # Move to start of drive line
         params = {'Z': obj.StartDepth.Value+obj.Pitch, 'X': obj.MaxDiameter.Value/2 - obj.Peak}
         move = Command('G0', params)
         
+        # Threading command
         params = {'Z': obj.OpStockZMin.Value+obj.FinalDepth.Value, 'P': obj.Pitch, 'I': obj.Peak, 'J': obj.DOC.Value, 'K': obj.ThreadDepth, 'Q': obj.SlideAngle, 'H': obj.SpringPasses}
         thread = Command('G76', params)
-
+        
+        # Add commands
         pathCommand = Path.Command(move.get_movement(), move.get_params())
         self.commandlist.append(pathCommand)
         pathCommand = Path.Command(thread.get_movement(), thread.get_params())
