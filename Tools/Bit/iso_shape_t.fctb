@@ -1,7 +1,7 @@
 {
   "version": 2,
   "name": "TCMT110204R",
-  "shape": "/home/sandal/.FreeCAD/Mod/FreeCAD_Turning_Addon/Tools/Shape/Iso_shape_T.fcstd",
+  "shape": "Iso_shape_T.fcstd",
   "parameter": {
     "Diameter": "1.48 mm",
     "EdgeLength": "6.35 mm",
