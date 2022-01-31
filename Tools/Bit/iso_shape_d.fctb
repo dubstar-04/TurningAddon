@@ -1,7 +1,7 @@
 {
   "version": 2,
   "name": "DCMT070204R",
-  "shape": "/home/sandal/.FreeCAD/Mod/FreeCAD_Turning_Addon/Tools/Shape/Iso_shape_D.fcstd",
+  "shape": "Iso_shape_D.fcstd",
   "parameter": {
     "Diameter": "3.77 mm",
     "EdgeLength": "6.35 mm",

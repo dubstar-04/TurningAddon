@@ -1,7 +1,7 @@
 {
   "version": 2,
   "name": "SNMG090304N",
-  "shape": "/home/sandal/.FreeCAD/Mod/FreeCAD_Turning_Addon/Tools/Shape/Iso_shape_S.fcstd",
+  "shape": "Iso_shape_S.fcstd",
   "parameter": {
     "Diameter": "3.77 mm",
     "EdgeLength": "9.53 mm",
