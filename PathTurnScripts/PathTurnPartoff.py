@@ -81,9 +81,9 @@ def SetupProperties():
     return setup
 
 
-def Create(name, obj=None):
+def Create(name, obj=None, parentJob=None):
     '''Create(name) ... Creates and returns a TurnPart operation.'''
     if obj is None:
         obj = FreeCAD.ActiveDocument.addObject("Path::FeaturePython", name)
-    obj.Proxy = ObjectTurnPart(obj, name)
+    obj.Proxy = ObjectTurnPart(obj, name, parentJob)
     return obj
