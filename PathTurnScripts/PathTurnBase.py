@@ -25,8 +25,8 @@
 import FreeCAD
 import Part
 import Path
-import PathScripts.PathLog as PathLog
-import PathScripts.PathOp as PathOp
+import Path.Log as PathLog
+import Path.Op.Base as PathOp
 import PathScripts.PathUtils as PathUtils
 # import PathScripts.PathGeom as PathGeom
 
@@ -208,8 +208,8 @@ class ObjectOp(PathOp.ObjectOp):
         opTool = obj.ToolController.Tool
 
         # only toolbits are supported
-        if isinstance(opTool, Path.Tool):
-            raise RuntimeError(translate('PathTurn', "Path Turn: Legacy Tools Not Supported "))
+        #if isinstance(opTool, Path.Tool):
+        #    raise RuntimeError(translate('PathTurn', "Path Turn: Legacy Tools Not Supported "))
 
         # create a liblathe tool and assign the toolbit parameters
         turnTool = Tool()

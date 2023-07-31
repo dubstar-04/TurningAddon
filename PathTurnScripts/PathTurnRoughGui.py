@@ -25,8 +25,8 @@
 import FreeCAD
 import PathTurnScripts.PathTurnBaseGui as PathTurnBaseGui
 import PathTurnScripts.PathTurnRough as PathTurnRough
-import PathScripts.PathLog as PathLog
-import PathScripts.PathOpGui as PathOpGui
+import Path.Log as PathLog
+import Path.Op.Gui.Base as PathOpGui
 
 from PySide import QtCore
 
