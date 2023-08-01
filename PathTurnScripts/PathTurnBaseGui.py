@@ -24,9 +24,11 @@
 
 import FreeCAD
 import FreeCADGui
-import PathScripts.PathLog as PathLog
-import PathScripts.PathOpGui as PathOpGui
-import PathScripts.PathGui as PathGui
+import Path.Log as PathLog
+import Path.Op.Gui.Base as PathOpGui
+#import PathGui
+
+import Path.Base.Gui.Util as PathGuiUtil
 
 from PySide import QtCore, QtGui
 
@@ -62,7 +64,7 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         '''getFields(obj) ... transfers values from UI to obj's proprties'''
         PathLog.track()
 
-        PathGui.updateInputField(obj, 'StepOver', self.form.stepOver)
+        PathGuiUtil.updateInputField(obj, 'StepOver', self.form.stepOver)
 
         obj.FinishPasses = self.form.finishPasses.value()
         obj.StockToLeave = self.form.stockToLeave.value()

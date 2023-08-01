@@ -13,7 +13,7 @@ This addon when installed will appear in the Path Workbench toolbar menu and wil
 * Turning Parting operation
 
 ## Requirements
-* FreeCAD v0.19
+* FreeCAD v0.21
 * Path Toolbits (Legacy tools are not supported)
 * Python3  
 * Qt5
