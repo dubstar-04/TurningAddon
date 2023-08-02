@@ -28,8 +28,8 @@ import Path
 import argparse
 import datetime
 import shlex
-from PathScripts import PostUtils
-from PathScripts import PathUtils
+import Path.Post.Utils as PostUtils
+import PathScripts.PathUtils as PathUtils
 
 TOOLTIP = '''
 This is a postprocessor file for the Path workbench. It is used to
