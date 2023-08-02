@@ -30,21 +30,22 @@ import datetime
 import shlex
 import Path.Post.Utils as PostUtils
 import PathScripts.PathUtils as PathUtils
+import math
 
 TOOLTIP = '''
 This is a postprocessor file for the Path workbench. It is used to
 take a pseudo-gcode fragment outputted by a Path object, and output
-real GCode suitable for a linuxcnc 3 axis mill. This postprocessor, once placed
+real GCode suitable for a denford_novaturn 3 axis mill. This postprocessor, once placed
 in the appropriate PathScripts folder, can be used directly from inside
 FreeCAD, via the GUI importer or via python scripts with:
 
-import linuxcnc_post
-linuxcnc_post.export(object,"/path/to/file.ncc","")
+import denford_novaturn_post
+denford_novaturn_post.export(object,"/path/to/file.ncc","")
 '''
 
 now = datetime.datetime.now()
 
-parser = argparse.ArgumentParser(prog='linuxcnc', add_help=False)
+parser = argparse.ArgumentParser(prog='denford_novaturn', add_help=False)
 parser.add_argument('--no-header', action='store_true', help='suppress header output')
 parser.add_argument('--no-comments', action='store_true', help='suppress comment output')
 parser.add_argument('--line-numbers', action='store_true', help='prefix with line numbers')
@@ -66,7 +67,7 @@ OUTPUT_HEADER = True
 OUTPUT_LINE_NUMBERS = False
 SHOW_EDITOR = True
 MODAL = False  # if true commands are suppressed if the same as previous line.
-USE_TLO = True # if true G43 will be output following tool changes
+USE_TLO = False # if true G43 will be output following tool changes
 LATHE_MODE=False # if true use G18 and omit y parameter from positions
 OUTPUT_DOUBLES = True  # if false duplicate axis values are suppressed if the same as previous line.
 COMMAND_SPACE = " "
@@ -77,20 +78,16 @@ UNITS = "G21"  # G21 for metric, G20 for us standard
 UNIT_SPEED_FORMAT = 'mm/min'
 UNIT_FORMAT = 'mm'
 
-MACHINE_NAME = "LinuxCNC"
-CORNER_MIN = {'x': 0, 'y': 0, 'z': 0}
-CORNER_MAX = {'x': 500, 'y': 300, 'z': 300}
+MACHINE_NAME = "Denford Novaturn"
 PRECISION = 3
 
 # Preamble text will appear at the beginning of the GCODE output file.
-PREAMBLE = '''G17 G54 G40 G49 G80 G90
-'''
+PREAMBLE =  '''G98'''#'''G17 G54 G40 G49 G80 G90'''
 
 # Postamble text will appear following the last operation.
-POSTAMBLE = '''M05
-G17 G54 G90 G80 G40
-M2
-'''
+POSTAMBLE = '''G28 U0. W0. 
+M30
+''' #'''M05 G17 G54 G90 G80 G40 M2'''
 
 # Pre operation text will be inserted before every operation
 PRE_OPERATION = ''''''
@@ -104,6 +101,16 @@ TOOL_CHANGE = ''''''
 # to distinguish python built-in open function from the one declared below
 if open.__module__ in ['__builtin__','io']:
     pythonopen = open
+
+
+def RfromIK(command):
+    """Returns the radius for an IK arc command"""
+    parameters = command.Parameters 
+    i = parameters['I']
+    k = parameters['K']
+    rad = math.sqrt(math.pow(i, 2) + math.pow(k, 2))
+    
+    return rad
 
 
 def processArguments(argstring):
@@ -307,7 +314,7 @@ def parse(pathobj):
     currLocation = {}  # keep track for no doubles
 
     # the order of parameters
-    params = ['X', 'Y', 'Z', 'A', 'B', 'C', 'I', 'J', 'K', 'F', 'S', 'T', 'Q', 'R', 'L', 'H', 'D', 'P']
+    params = ['X', 'Y', 'Z', 'A', 'B', 'C', 'F', 'S', 'T', 'Q', 'R', 'L', 'H', 'D', 'P']
     firstmove = Path.Command("G0", {"X": -1, "Y": -1, "Z": -1, "F": 0.0})
     currLocation.update(firstmove.Parameters)  # set First location Parameters
 
@@ -340,11 +347,19 @@ def parse(pathobj):
             if c.Name[0] == '(' and not OUTPUT_COMMENTS: # command is a comment
                 continue
 
+            # Don't output G18
+            if c.Name in ["G18"]:
+                continue
+            # NextStep controller requires arcs to use radius mode
+            if c.Name in ["G2", "G02", "G3", "G03"]:
+                # add the radius parameter
+                c.Parameters["R"] = RfromIK(c)
+
             # Now add the remaining parameters in order
             for param in params:
                 if param in c.Parameters:
                     if param == 'F' and (currLocation[param] != c.Parameters[param] or OUTPUT_DOUBLES):
-                        if c.Name not in ["G0", "G00"]:  # linuxcnc doesn't use rapid speeds
+                        if c.Name not in ["G0", "G00"]:  # denford_novaturn doesn't use rapid speeds
                             speed = Units.Quantity(c.Parameters['F'], FreeCAD.Units.Velocity)
                             if speed.getValueAs(UNIT_SPEED_FORMAT) > 0.0:
                                 outstring.append(param + format(float(speed.getValueAs(UNIT_SPEED_FORMAT)), precision_string))
@@ -365,7 +380,7 @@ def parse(pathobj):
                             # omit Y parameters in lathe_mode
                             if param == 'Y' and LATHE_MODE:
                                 continue
-
+     
                             pos = Units.Quantity(c.Parameters[param], FreeCAD.Units.Length)
                             outstring.append(
                                 param + format(float(pos.getValueAs(UNIT_FORMAT)), precision_string))
