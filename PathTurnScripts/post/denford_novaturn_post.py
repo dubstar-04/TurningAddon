@@ -102,21 +102,15 @@ TOOL_CHANGE = ''''''
 if open.__module__ in ['__builtin__','io']:
     pythonopen = open
 
-def IJtoRad(command):
-    # G3 X13.000 Z3.360 I-0.500 K-40.559
-    # G3 X26.5 Z-53.2 R0.45
+
+def RfromIK(command):
+    """Returns the radius for an IK arc command"""
     parameters = command.Parameters 
     i = parameters['I']
     k = parameters['K']
-
     rad = math.sqrt(math.pow(i, 2) + math.pow(k, 2))
-    parameters["R"] = rad
-    print('rad', rad)
-    #parameters.pop("I")
-    #parameters.pop("K")
-    del command.Parameters['I']
-    del parameters["K"]
-    return parameters
+    
+    return rad
 
 
 def processArguments(argstring):
@@ -320,7 +314,7 @@ def parse(pathobj):
     currLocation = {}  # keep track for no doubles
 
     # the order of parameters
-    params = ['X', 'Y', 'Z', 'A', 'B', 'C', 'I', 'J', 'K', 'F', 'S', 'T', 'Q', 'R', 'L', 'H', 'D', 'P']
+    params = ['X', 'Y', 'Z', 'A', 'B', 'C', 'F', 'S', 'T', 'Q', 'R', 'L', 'H', 'D', 'P']
     firstmove = Path.Command("G0", {"X": -1, "Y": -1, "Z": -1, "F": 0.0})
     currLocation.update(firstmove.Parameters)  # set First location Parameters
 
@@ -353,12 +347,13 @@ def parse(pathobj):
             if c.Name[0] == '(' and not OUTPUT_COMMENTS: # command is a comment
                 continue
 
+            # Don't output G18
             if c.Name in ["G18"]:
-                print("G18")
                 continue
+            # NextStep controller requires arcs to use radius mode
             if c.Name in ["G2", "G02", "G3", "G03"]:
-                c.Parameters = IJtoRad(c)
-                print(param, c.Parameters)
+                # add the radius parameter
+                c.Parameters["R"] = RfromIK(c)
 
             # Now add the remaining parameters in order
             for param in params:
@@ -385,13 +380,7 @@ def parse(pathobj):
                             # omit Y parameters in lathe_mode
                             if param == 'Y' and LATHE_MODE:
                                 continue
-                            '''
-                            if param == 'I' and LATHE_MODE:
-                                continue
-                            if param == 'K' and LATHE_MODE:
-                                continue
-                            '''
-
+     
                             pos = Units.Quantity(c.Parameters[param], FreeCAD.Units.Length)
                             outstring.append(
                                 param + format(float(pos.getValueAs(UNIT_FORMAT)), precision_string))
