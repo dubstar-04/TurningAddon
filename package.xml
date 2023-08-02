@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <package format="1">
-  <name>FreeCAD Turning Addon</name>
+  <name>Turning Addon</name>
   <description>A FreeCAD Path Addon to encourage the development of CNC turning functionality for the PATH workbench</description>
   <version>0.2</version>
   <maintainer email="s.d.wood.82@googlemail.com">Daniel Wood</maintainer>
   <license file="LICENSE">LGPL-2.1</license>
-  <url type="repository" branch="master">https://github.com/dubstar-04/FreeCAD_Turning_Addon</url>
-  <url type="readme">https://github.com/dubstar-04/FreeCAD_Turning_Addon/blob/master/README.md</url>
+  <url type="repository" branch="master">https://github.com/dubstar-04/TurningAddon</url>
+  <url type="readme">https://github.com/dubstar-04/TurningAddon/blob/master/README.md</url>
 
   <content>
     <workbench>
