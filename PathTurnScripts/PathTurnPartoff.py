@@ -29,7 +29,7 @@ from PySide import QtCore
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
-import liblathe.partoff_op as LLP
+import liblathe.op.partoff as LLP
 
 __title__ = "Path Turn Part Operation"
 __author__ = "dubstar-04 (Daniel Wood)"

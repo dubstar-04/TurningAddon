@@ -29,7 +29,7 @@ from PySide import QtCore
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
-import liblathe.face_op as LLF
+import liblathe.op.face as LLF
 
 __title__ = "Path Turn Facing Operation"
 __author__ = "dubstar-04 (Daniel Wood)"

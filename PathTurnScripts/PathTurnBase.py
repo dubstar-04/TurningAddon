@@ -35,9 +35,9 @@ from PySide import QtCore
 if FreeCAD.GuiUp:
     import FreeCADGui
 
-from liblathe.point import Point
-from liblathe.segment import Segment
-from liblathe.tool import Tool
+from liblathe.base.point import Point
+from liblathe.base.segment import Segment
+from liblathe.base.tool import Tool
 
 __title__ = "Path Turn Base Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
