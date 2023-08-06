@@ -31,8 +31,8 @@ __dir__ = os.path.dirname(pathScripts)
 liblathePath = os.path.join(__dir__, 'LibLathe')
 sys.path.append(liblathePath)
 
-from liblathe.boundbox import BoundBox
-from liblathe.point import Point
+from liblathe.base.boundbox import BoundBox
+from liblathe.base.point import Point
 
 
 def getResourcePath(resName):
