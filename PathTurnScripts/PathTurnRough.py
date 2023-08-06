@@ -29,7 +29,7 @@ from PySide import QtCore
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
-import liblathe.rough_op as LLP
+import liblathe.op.rough as LLP
 
 __title__ = "Path Turn Rough Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
