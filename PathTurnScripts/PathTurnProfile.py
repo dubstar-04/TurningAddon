@@ -29,7 +29,7 @@ from PySide import QtCore
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
-import liblathe.profile_op as LLP
+import liblathe.op.profile as LLP
 
 __title__ = "Path Turn Profile Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
