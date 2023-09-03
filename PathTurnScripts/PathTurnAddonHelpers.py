@@ -48,5 +48,5 @@ def getResourcePath(resName):
 
 
 def getliblatheBoundBox(FcBB):
-    liblatheBoundbox = BoundBox(Point(FcBB.XMin, FcBB.YMin, FcBB.ZMin), Point(FcBB.XMax, FcBB.YMax, FcBB.ZMax))
+    liblatheBoundbox = BoundBox(Point(FcBB.XMin, FcBB.ZMin), Point(FcBB.XMax, FcBB.ZMax))
     return liblatheBoundbox
