@@ -161,7 +161,8 @@ class ObjectOp(PathOp.ObjectOp):
         z_ref = modelBB.ZMax + (plane_length - modelBB.ZLength) / 2
 
         # create a plane larger than the part
-        cut_plane = Part.makePlane(plane_length, plane_width, FreeCAD.Vector(-plane_width, 0, z_ref), FreeCAD.Vector(0, -1, 0))
+        cut_plane = Part.makePlane(plane_length, plane_width, FreeCAD.Vector(0, 0, z_ref), FreeCAD.Vector(0, -1, 0))
+        # Part.show(cut_plane, 'cut_plane')
         # Cut the part section from the cut plane
         path_area = cut_plane.cut(part_silhoutte)
 
