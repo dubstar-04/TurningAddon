@@ -178,8 +178,8 @@ class ObjectOp(PathOp.ObjectOp):
             if edge_in:
                 part_edges.append(edge)
                 vert = edge.Vertexes
-                pt1 = Point(vert[0].X, vert[0].Y, vert[0].Z)
-                pt2 = Point(vert[-1].X, vert[-1].Y, vert[-1].Z)
+                pt1 = Point(vert[0].X, vert[0].Z)
+                pt2 = Point(vert[-1].X, vert[-1].Z)
                 seg = Segment(pt1, pt2)
 
                 if isinstance(edge.Curve, Part.Circle):
