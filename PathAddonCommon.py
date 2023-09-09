@@ -2,7 +2,7 @@
 
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2019 Daniel Wood <s.d.wood.82@gmail.com>                *
+# *   Copyright (c) 2023 Daniel Wood <s.d.wood.82@googlemail.com>            *
 # *                                                                         *
 # *   This program is free software; you can redistribute it and/or modify  *
 # *   it under the terms of the GNU Lesser General Public License (LGPL)    *
@@ -22,31 +22,52 @@
 # *                                                                         *
 # ***************************************************************************
 
-import os
-import sys
-
-# add path to liblath to the python path
-pathScripts = os.path.dirname(__file__)
-__dir__ = os.path.dirname(pathScripts)
-liblathePath = os.path.join(__dir__, 'LibLathe')
-sys.path.append(liblathePath)
-
-from liblathe.base.boundbox import BoundBox
-from liblathe.base.point import Point
+import FreeCADGui
+from PySide import QtGui
 
 
-def getResourcePath(resName):
-    # get this directory
-    pathScripts = os.path.dirname(__file__)
-    # get the parent directory
-    __dir__ = os.path.dirname(pathScripts)
-    # get the resourse directory
-    resourcePath = os.path.join(__dir__, 'Gui/Resources/panels')
-    res = os.path.join(resourcePath, resName)
+def loadPathAddonMenu():
+    mw = FreeCADGui.getMainWindow()
+    mb = mw.menuBar()
 
-    return res
+    # Find the path addon menu
+    pathAddonAction = mw.findChild(QtGui.QAction, "PathAddons")
+
+    if pathAddonAction:
+        pathAddonMenu = pathAddonAction.menu()
+    else:
+        pathAddonAction = QtGui.QAction(mw)
+        pathAddonAction.setObjectName("PathAddons")
+        pathAddonAction.setIconText("Path Addons")
+
+        pathAddonMenu = QtGui.QMenu("Path Addon Menu")
+        pathAddonMenu.setObjectName("PathAddonMenu")
+
+        pathAddonAction.setMenu(pathAddonMenu)
+
+    menuLoaded = False
+    for action in mb.actions():
+        if action.objectName() == "PathAddons":
+            menuLoaded = True
+            break
+
+    if not menuLoaded:
+        # add addon to the menu bar
+        mb.addAction(pathAddonAction)
+
+    return pathAddonMenu
 
 
-def getliblatheBoundBox(FcBB):
-    liblatheBoundbox = BoundBox(Point(FcBB.XMin, FcBB.ZMin), Point(FcBB.XMax, FcBB.ZMax))
-    return liblatheBoundbox
+def loadToolBar(name, actions):
+    """Load a toolbar in the path workbench"""
+    mw = FreeCADGui.getMainWindow()
+    tb = QtGui.QToolBar(name)
+    tb.setObjectName(name + "_ToolBar")
+
+    for action in actions:
+        tbb = QtGui.QToolButton(tb)
+        # tbb.setObjectName("ToolButton")
+        tbb.setDefaultAction(action)
+        tb.addWidget(tbb)
+
+    mw.addToolBar(tb)
