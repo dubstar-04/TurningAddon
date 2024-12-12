@@ -43,7 +43,7 @@ def getIcon(iconName):
 
 
 def updateMenu(workbench):
-    if workbench == 'PathWorkbench':
+    if workbench == 'CAMWorkbench':
 
         print('FreeCAD Turning Addon loaded:', workbench)
 
@@ -51,9 +51,9 @@ def updateMenu(workbench):
         addonMenu = None
 
         # Find the main path menu
-        pathMenu = mw.findChild(QtGui.QMenu, "&Path")
+        CAMMenu = mw.findChild(QtGui.QMenu, "&CAM")
 
-        for menu in pathMenu.actions():
+        for menu in CAMMenu.actions():
             if menu.text() == "Turning Addon":
                 # create a new addon menu
                 addonMenu = menu.menu()
@@ -62,12 +62,12 @@ def updateMenu(workbench):
         if addonMenu is None:
             addonMenu = QtGui.QMenu("Turning Addon")
             addonMenu.setObjectName("Turning_Addons")
-            addonMenu.setIcon(QtGui.QPixmap(getIcon('Path-TurningAddon.svg')))
+            addonMenu.setIcon(QtGui.QPixmap(getIcon('CAM-TurningAddon.svg')))
 
             # Find the dressup menu entry
             dressupMenu = mw.findChild(QtGui.QMenu, "Path Dressup")
 
-            pathMenu.insertMenu(dressupMenu.menuAction(), addonMenu)
+            CAMMenu.insertMenu(dressupMenu.menuAction(), addonMenu)
 
         # list of commands to add to the menu, add new commands here:
         commands = ['TurnFace', 'TurnProfile', 'TurnPartoff', 'TurnRough', 'TurnToolHelper']
@@ -84,13 +84,13 @@ def updateMenu(workbench):
 def createAction(menu, actionName):
     # space the actionName at caps
     text = re.sub(r"(\w)([A-Z])", r"\1 \2", actionName)
-    command = "Path_" + actionName
-    icon = "Path-" + actionName + ".svg"
+    command = "CAM_" + actionName
+    icon = "CAM-" + actionName + ".svg"
 
     action = QtGui.QAction(menu)
     action.setText(text)
     action.setIcon(QtGui.QPixmap(getIcon(icon)))
-    action.setStatusTip("Path " + actionName + " Operation")
+    action.setStatusTip("CAM " + actionName + " Operation")
     action.triggered.connect(lambda: FreeCADGui.runCommand(command, 0))
 
     return action
