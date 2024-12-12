@@ -57,7 +57,7 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
 Command = PathOpGui.SetupOperation('TurnRough',
                                    PathTurnRough.Create,
                                    TaskPanelOpPage,
-                                   'Path-TurnRough',
+                                   'CAM-TurnRough',
                                    QtCore.QT_TRANSLATE_NOOP("PathTurnRough", "Turn Rough"),
                                    QtCore.QT_TRANSLATE_NOOP("PathTurnRough",
                                                             "Creates a Path Turning Roughing object from a features of a base object"),

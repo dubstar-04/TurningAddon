@@ -55,7 +55,7 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
 Command = PathOpGui.SetupOperation('TurnProfile',
                                    PathTurnProfile.Create,
                                    TaskPanelOpPage,
-                                   'Path-TurnProfile',
+                                   'CAM-TurnProfile',
                                    QtCore.QT_TRANSLATE_NOOP("PathTurnProfile", "Turn Profile"),
                                    QtCore.QT_TRANSLATE_NOOP("PathTurnProfile",
                                                             "Creates a Path Turning Profile object from a features of a base object"),

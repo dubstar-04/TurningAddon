@@ -201,9 +201,9 @@ class TurnToolHelperPanel():
 class CommandPathTurnToolHelper:
 		
     def GetResources(self):
-        return {'Pixmap': 'Path-TurnToolHelper',
-                'MenuText': QtCore.QT_TRANSLATE_NOOP("Path", "Derive toolbit parameters from isocode"),
-                'ToolTip': QtCore.QT_TRANSLATE_NOOP("Path", "Derive toolbit parameters from isocode")}
+        return {'Pixmap': 'CAM-TurnToolHelper',
+                'MenuText': QtCore.QT_TRANSLATE_NOOP("CAM", "Derive toolbit parameters from isocode"),
+                'ToolTip': QtCore.QT_TRANSLATE_NOOP("CAM", "Derive toolbit parameters from isocode")}
 	
     def Activated(self):
         panel = TurnToolHelperPanel()
@@ -212,7 +212,7 @@ class CommandPathTurnToolHelper:
 
 if FreeCAD.GuiUp:
     # register the FreeCAD command
-    FreeCADGui.addCommand('Path_TurnToolHelper', CommandPathTurnToolHelper())
+    FreeCADGui.addCommand('CAM_TurnToolHelper', CommandPathTurnToolHelper())
 
 
 
