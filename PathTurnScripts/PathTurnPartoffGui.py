@@ -59,7 +59,7 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
 Command = PathOpGui.SetupOperation('TurnPartoff',
                                    PathTurnPartoff.Create,
                                    TaskPanelOpPage,
-                                   'Path-TurnPartoff',
+                                   'CAM-TurnPartoff',
                                    QtCore.QT_TRANSLATE_NOOP("PathTurnPartoff", "Turn Part"),
                                    QtCore.QT_TRANSLATE_NOOP("PathTurnPartoff",
                                                             "Creates a Path Turning Part object from a features of a base object"),
