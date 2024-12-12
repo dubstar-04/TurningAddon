@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
 <svg
    xmlns:dc="http://purl.org/dc/elements/1.1/"
    xmlns:cc="http://creativecommons.org/ns#"
@@ -14,8 +12,8 @@
    height="64px"
    id="svg2816"
    version="1.1"
-   inkscape:version="0.92.4 5da689c313, 2019-01-14"
-   sodipodi:docname="Path-TurnProfile.svg">
+   inkscape:version="1.0.1 (3bc2e813f5, 2020-09-07)"
+   sodipodi:docname="CAM-TurnPart.svg">
   <defs
      id="defs2818">
     <linearGradient
@@ -902,7 +900,8 @@
        x1="33"
        y1="45"
        x2="33"
-       y2="39" />
+       y2="39"
+       gradientTransform="translate(8)" />
     <linearGradient
        inkscape:collect="always"
        xlink:href="#linearGradient3915"
@@ -911,7 +910,8 @@
        y1="52"
        x2="13"
        y2="44"
-       gradientUnits="userSpaceOnUse" />
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="translate(8)" />
   </defs>
   <sodipodi:namedview
      id="base"
@@ -921,8 +921,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="10.8"
-     inkscape:cx="8.8964582"
-     inkscape:cy="30.807436"
+     inkscape:cx="26.211273"
+     inkscape:cy="31.177806"
      inkscape:current-layer="layer1"
      showgrid="true"
      inkscape:document-units="px"
@@ -934,14 +934,15 @@
      inkscape:snap-bbox-midpoints="true"
      inkscape:object-paths="true"
      inkscape:object-nodes="true"
-     inkscape:window-width="2512"
+     inkscape:window-width="2560"
      inkscape:window-height="1376"
-     inkscape:window-x="48"
+     inkscape:window-x="0"
      inkscape:window-y="27"
      inkscape:window-maximized="1"
      inkscape:snap-global="true"
      showguides="true"
-     inkscape:guide-bbox="true">
+     inkscape:guide-bbox="true"
+     inkscape:document-rotation="0">
     <inkscape:grid
        type="xygrid"
        id="grid3127"
@@ -991,14 +992,14 @@
        id="rect963"
        width="16"
        height="43"
-       x="5"
+       x="13"
        y="10" />
     <rect
        style="fill:url(#linearGradient1010);fill-opacity:1;stroke:#0b0000;stroke-width:2;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        id="rect965"
        width="23"
        height="30"
-       x="21"
+       x="29"
        y="16" />
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:2,1;stroke-dashoffset:0"
@@ -1007,18 +1008,8 @@
        inkscape:connector-curvature="0" />
     <path
        style="fill:none;stroke:#8ae234;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="M 4,57 H 57"
-       id="path973-3"
-       inkscape:connector-curvature="0" />
-    <path
-       style="fill:none;stroke:#8ae234;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="M 23,53 H 57"
+       d="M 10,60 V 34"
        id="path973-6"
-       inkscape:connector-curvature="0" />
-    <path
-       style="fill:none;stroke:#8ae234;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="M 23,49 H 57"
-       id="path973-7"
        inkscape:connector-curvature="0" />
   </g>
 </svg>
