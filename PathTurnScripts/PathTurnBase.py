@@ -37,7 +37,7 @@ if FreeCAD.GuiUp:
 
 from liblathe.base.point import Point
 from liblathe.base.segment import Segment
-from liblathe.base.tool import Tool
+from liblathe.tool.tool import Tool
 
 __title__ = "Path Turn Base Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -139,7 +139,7 @@ class ObjectOp(PathOp.ObjectOp):
         stock_plane_length = obj.StartDepth.Value - obj.FinalDepth.Value
         stock_plane_width = stockBB.XLength / 2
         stock_plane = Part.makePlane(stock_plane_length, stock_plane_width,
-                                     FreeCAD.Vector(-stock_plane_width, 0, stock_z_pos), FreeCAD.Vector(0, -1, 0))
+                                     FreeCAD.Vector(0, 0, stock_z_pos), FreeCAD.Vector(0, -1, 0))
         return stock_plane
 
     def get_part_outline(self):
@@ -161,7 +161,7 @@ class ObjectOp(PathOp.ObjectOp):
         z_ref = modelBB.ZMax + (plane_length - modelBB.ZLength) / 2
 
         # create a plane larger than the part
-        cut_plane = Part.makePlane(plane_length, plane_width, FreeCAD.Vector(-plane_width, 0, z_ref), FreeCAD.Vector(0, -1, 0))
+        cut_plane = Part.makePlane(plane_length, plane_width, FreeCAD.Vector(0, 0, z_ref), FreeCAD.Vector(0, -1, 0))
         # Cut the part section from the cut plane
         path_area = cut_plane.cut(part_silhoutte)
 
@@ -178,8 +178,8 @@ class ObjectOp(PathOp.ObjectOp):
             if edge_in:
                 part_edges.append(edge)
                 vert = edge.Vertexes
-                pt1 = Point(vert[0].X, vert[0].Y, vert[0].Z)
-                pt2 = Point(vert[-1].X, vert[-1].Y, vert[-1].Z)
+                pt1 = Point(vert[0].X, vert[0].Z)
+                pt2 = Point(vert[-1].X, vert[-1].Z)
                 seg = Segment(pt1, pt2)
 
                 if isinstance(edge.Curve, Part.Circle):
