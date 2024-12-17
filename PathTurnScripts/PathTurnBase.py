@@ -92,6 +92,7 @@ class ObjectOp(PathOp.ObjectOp):
         if obj.StartDepth.Value <= obj.FinalDepth.Value:
             raise RuntimeError(translate('PathTurn', "Start depth is equal or less than final depth"))
 
+        self.endOffset = 0
         self.startOffset = 0
         self.endOffset = 0
         self.allowGrooving = obj.AllowGrooving
