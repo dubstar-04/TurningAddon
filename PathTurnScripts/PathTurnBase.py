@@ -30,6 +30,8 @@ import Path.Op.Base as PathOp
 import PathScripts.PathUtils as PathUtils
 # import PathScripts.PathGeom as PathGeom
 
+import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
+
 from PySide import QtCore
 
 if FreeCAD.GuiUp:
@@ -116,6 +118,7 @@ class ObjectOp(PathOp.ObjectOp):
         props = {}
         props['min_dia'] = self.minDia
         props['extra_dia'] = self.maxDia - self.stock.Shape.BoundBox.XLength
+        props['end_offset'] = self.endOffset
         props['start_offset'] = self.startOffset
         props['end_offset'] = self.endOffset
         props['allow_grooving'] = self.allowGrooving
@@ -201,33 +204,58 @@ class ObjectOp(PathOp.ObjectOp):
         # Part.show(path_profile, 'Final_pass')
         return part_segments
 
+    def get_tool_shape(self, obj):
+        '''
+        Get Tool Shape
+        '''
+        opTool = obj.ToolController.Tool
+
+        toolShape = opTool.Shape
+        toolBB = toolShape.BoundBox
+        tool_plane = Part.makePlane(toolBB.ZLength, toolBB.XLength, FreeCAD.Vector(toolBB.XMin, toolBB.Center.y, toolBB.ZMin), FreeCAD.Vector(0, -1, 0))
+        # get a section through the tool origin on the XZ Plane
+        sections = Path.Area().add(toolShape).makeSections(mode=0, heights=[0.0], project=True, plane=tool_plane)
+        tool_silhoutte = sections[0].setParams(Offset=0.0).getShape()
+        tool_edges = tool_silhoutte.Edges
+
+        #tool_profile = Part.makeCompound(tool_edges)
+        #Part.show(tool_profile, 'Tool_2d')
+        return self.get_segments_from_edges(tool_edges)
+
+    def get_segments_from_edges(self, edges):
+        """Convert part edges to liblathe segments"""
+        segments = []
+
+        for edge in edges:
+            vert = edge.Vertexes
+            # skip edges that are on the X axis
+            if vert[0].X == 0 and vert[-1].X == 0:
+                continue
+
+            pt1 = Point(vert[0].X, vert[0].Z)
+            pt2 = Point(vert[-1].X, vert[-1].Z)
+            seg = Segment(pt1, pt2)
+
+            if isinstance(edge.Curve, Part.Circle):
+                angle = edge.LastParameter - edge.FirstParameter
+                direction = edge.Curve.Axis.y
+                # print('bulge angle', direction, angle * direction)
+                # TODO: set the correct sign for the bulge +-
+                seg.set_bulge(angle * direction)
+
+            segments.append(seg)
+
+        return segments
+
     def generate_gcode(self, obj):
         '''
         Base function to generate gcode for the OP by writing path command to self.commandlist
         Calls operations op_generate_gcode.
         '''
-        opTool = obj.ToolController.Tool
 
-        # only toolbits are supported
-        #if isinstance(opTool, Path.Tool):
-        #    raise RuntimeError(translate('PathTurn', "Path Turn: Legacy Tools Not Supported "))
-
-        # create a liblathe tool and assign the toolbit parameters
+        # create a liblathe tool and assign the toolbit segments representing the shape
         turnTool = Tool()
-
-        # TODO: set some sensible default values or raise error if attribute not available
-
-        if hasattr(opTool, "TipAngle"):
-            turnTool.set_tip_angle(opTool.TipAngle.Value)
-
-        if hasattr(opTool, "EdgeLength"):
-            turnTool.set_edge_length(opTool.EdgeLength.Value)
-
-        if hasattr(opTool, "TipRadius"):
-            turnTool.set_nose_radius(opTool.TipRadius.Value)
-
-        if hasattr(opTool, "Rotation"):
-            turnTool.set_rotation(opTool.Rotation.Value)
+        turnTool.set_tool_from_segments(self.get_tool_shape(obj))
 
         self.op_generate_gcode(obj, turnTool)
 
