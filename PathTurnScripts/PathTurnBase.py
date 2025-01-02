@@ -172,7 +172,7 @@ class ObjectOp(PathOp.ObjectOp):
         part_edges = []
         part_segments = []
 
-        # interate through the edges and check if each is inside the bound_face
+        # iterate through the edges and check if each is inside the bound_face
         for edge in path_area.Edges:
             edge_in = True
             for vertex in edge.Vertexes:
