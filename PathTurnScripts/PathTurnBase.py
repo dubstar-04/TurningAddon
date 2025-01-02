@@ -181,28 +181,10 @@ class ObjectOp(PathOp.ObjectOp):
 
             if edge_in:
                 part_edges.append(edge)
-                vert = edge.Vertexes
-                pt1 = Point(vert[0].X, vert[0].Z)
-                pt2 = Point(vert[-1].X, vert[-1].Z)
-                seg = Segment(pt1, pt2)
-
-                if isinstance(edge.Curve, Part.Circle):
-                    line1 = Part.makeLine(edge.Curve.Location, edge.Vertexes[0].Point)
-                    line2 = Part.makeLine(edge.Curve.Location, edge.Vertexes[-1].Point)
-                    part_edges.append(line1)
-                    part_edges.append(line2)
-
-                    angle = edge.LastParameter - edge.FirstParameter
-                    direction = edge.Curve.Axis.y
-                    # print('bulge angle', direction, angle * direction)
-                    # TODO: set the correct sign for the bulge +-
-                    seg.set_bulge(angle * direction)
-
-                part_segments.append(seg)
 
         # path_profile = Part.makeCompound(part_edges)
         # Part.show(path_profile, 'Final_pass')
-        return part_segments
+        return self.get_segments_from_edges(part_edges)
 
     def get_tool_shape(self, obj):
         '''
