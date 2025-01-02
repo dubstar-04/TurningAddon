@@ -63,17 +63,6 @@ class ObjectTurnRough(PathTurnBase.ObjectOp):
             pathCommand = Path.Command(command.get_movement(), command.get_params())
             self.commandlist.append(pathCommand)
 
-    def opSetDefaultValues(self, obj, job):
-        obj.OpStartDepth = job.Stock.Shape.BoundBox.ZMax
-        obj.OpFinalDepth = job.Stock.Shape.BoundBox.ZMin
-        print('opSetDefaultValues:', obj.OpStartDepth.Value, obj.OpFinalDepth.Value)
-
-    def opUpdateDepths(self, obj):
-        obj.OpStartDepth = obj.OpStockZMax
-        obj.OpFinalDepth = obj.OpStockZMin
-        print('opUpdateDepths:', obj.OpStartDepth.Value, obj.OpFinalDepth.Value)
-
-
 def SetupProperties():
     setup = []
     setup.append("StepOver")

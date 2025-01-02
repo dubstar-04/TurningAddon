@@ -110,6 +110,16 @@ class ObjectOp(PathOp.ObjectOp):
         self.part_outline = self.get_part_outline()
         self.generate_gcode(obj)
 
+    def opSetDefaultValues(self, obj, job):
+        obj.OpStartDepth = job.Stock.Shape.BoundBox.ZMax
+        obj.OpFinalDepth = job.Stock.Shape.BoundBox.ZMin
+        print('opSetDefaultValues:', obj.OpStartDepth.Value, obj.OpFinalDepth.Value)
+
+    def opUpdateDepths(self, obj):
+        obj.OpStartDepth = obj.OpStockZMax
+        obj.OpFinalDepth = obj.OpStockZMin
+        print('opUpdateDepths:', obj.OpStartDepth.Value, obj.OpFinalDepth.Value)
+
     def getProps(self, obj):
         # TODO: use the start and final depths
         # print('getProps - Start Depth: ', obj.OpStartDepth.Value, 'Final Depth: ', obj.OpFinalDepth.Value)
