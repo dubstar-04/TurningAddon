@@ -44,22 +44,22 @@ def translate(context, text, disambig=None):
 class ObjectTurnRough(PathTurnBase.ObjectOp):
     '''Proxy class for turning roughing operations.'''
 
-    def op_generate_gcode(self, obj, turnTool):
+    def opGenerateGCode(self, obj, turnTool):
         '''
         Generate GCode for the op
         '''
-        RoughOP = LLP.RoughOP()
-        RoughOP.set_params(self.getProps(obj))
+        roughOP = LLP.roughOP()
+        roughOP.set_params(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stock_silhoutte.BoundBox)
-        RoughOP.add_stock(stockBoundbox)
+        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stockPlane.BoundBox)
+        roughOP.add_stock(stockBoundbox)
 
-        RoughOP.add_part_edges(self.part_outline)
-        RoughOP.add_tool(turnTool)
+        roughOP.add_part_edges(self.partOutline)
+        roughOP.add_tool(turnTool)
 
-        PathCode = RoughOP.get_gcode()
+        pathCode = roughOP.get_gcode()
 
-        for command in PathCode:
+        for command in pathCode:
             pathCommand = Path.Command(command.get_movement(), command.get_params())
             self.commandlist.append(pathCommand)
 

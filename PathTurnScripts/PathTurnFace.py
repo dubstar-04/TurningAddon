@@ -48,7 +48,7 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
         '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
         return PathTurnBase.PathOp.FeatureDiameters | PathTurnBase.PathOp.FeatureTool | PathTurnBase.PathOp.FeatureDepths | PathTurnBase.PathOp.FeatureNoFinalDepth | PathTurnBase.PathOp.FeatureCoolant
 
-    def op_generate_gcode(self, obj, turnTool):
+    def opGenerateGCode(self, obj, turnTool):
         '''
         Generate GCode for the op
         '''
@@ -56,15 +56,15 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
         facingOP = LLF.FaceOP()
         facingOP.set_params(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stock_silhoutte.BoundBox)
+        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stockPlane.BoundBox)
         facingOP.add_stock(stockBoundbox)
 
-        facingOP.add_part_edges(self.part_outline)
+        facingOP.add_part_edges(self.partOutline)
         facingOP.add_tool(turnTool)
 
-        PathCode = facingOP.get_gcode()
+        pathCode = facingOP.get_gcode()
 
-        for command in PathCode:
+        for command in pathCode:
             pathCommand = Path.Command(command.get_movement(), command.get_params())
             self.commandlist.append(pathCommand)
 

@@ -44,22 +44,22 @@ def translate(context, text, disambig=None):
 class ObjectTurnProfile(PathTurnBase.ObjectOp):
     '''Proxy class for turning profile operations.'''
 
-    def op_generate_gcode(self, obj, turnTool):
+    def opGenerateGCode(self, obj, turnTool):
         '''
         Generate GCode for the op
         '''
         profileOP = LLP.ProfileOP()
         profileOP.set_params(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stock_silhoutte.BoundBox)
+        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stockPlane.BoundBox)
         profileOP.add_stock(stockBoundbox)
 
-        profileOP.add_part_edges(self.part_outline)
+        profileOP.add_part_edges(self.partOutline)
         profileOP.add_tool(turnTool)
 
-        PathCode = profileOP.get_gcode()
+        pathCode = profileOP.get_gcode()
 
-        for command in PathCode:
+        for command in pathCode:
             pathCommand = Path.Command(command.get_movement(), command.get_params())
             self.commandlist.append(pathCommand)
 

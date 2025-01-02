@@ -114,9 +114,9 @@ class ObjectOp(PathOp.ObjectOp):
         obj.Path.Commands = []
 
         print("Process Geometry")
-        self.stock_silhoutte = self.get_stock_silhoutte()
-        self.part_outline = self.get_part_outline()
-        self.generate_gcode(obj)
+        self.stockPlane = self.getStockPlane()
+        self.partOutline = self.getPartOutline()
+        self.generateGCode(obj)
 
     def opSetDefaultValues(self, obj, job):
         obj.OpStartDepth = job.Stock.Shape.BoundBox.ZMax
@@ -142,57 +142,53 @@ class ObjectOp(PathOp.ObjectOp):
         props['clearance'] = parentJob.SetupSheet.SafeHeightOffset.Value
         return props
 
-    def get_stock_silhoutte(self):
+    def getStockPlane(self):
         '''
         Get Stock Silhoutte
         '''
-        stock_plane_length = self.startDepth - self.finalDepth
-        stock_plane_width = (self.maxDia - self.minDia) / 2
-        stock_plane = Part.makePlane(stock_plane_length, stock_plane_width,
+        stockPlaneLength = self.startDepth - self.finalDepth
+        stockPlaneWidth = (self.maxDia - self.minDia) / 2
+        stockPlane = Part.makePlane(stockPlaneLength, stockPlaneWidth,
                                      FreeCAD.Vector(self.minDia * 0.5, 0, self.finalDepth), FreeCAD.Vector(0, 1, 0))
-        return stock_plane
+        return stockPlane
 
-    def get_part_outline(self):
+    def getPartOutline(self):
         '''
         Get Part Outline
         '''
         # TODO: Revisit the edge extraction and find a more elegant method
         model = self.model[0].Shape
         # get a section through the part origin on the XZ Plane
-        sections = Path.Area().add(model).makeSections(mode=0, heights=[0.0], project=True, plane=self.stock_silhoutte)
-        part_silhoutte = sections[0].setParams(Offset=0.0).getShape()
+        sections = Path.Area().add(model).makeSections(mode=0, heights=[0.0], project=True, plane=self.stockPlane)
+        partSection = sections[0].setParams(Offset=0.0).getShape()
         # get an offset section larger than the part section
-        part_bound_face = sections[0].setParams(Offset=0.1).getShape()
+        partBoundFace = sections[0].setParams(Offset=0.1).getShape()
 
         # ensure the cutplane is larger than the part or segments will be missed
         modelBB = model.BoundBox
-        plane_length = modelBB.ZLength * 1.5
-        plane_width = (modelBB.XLength / 2) * 1.5
-        z_ref = modelBB.ZMax + (plane_length - modelBB.ZLength) / 2
+        partPlaneLength = modelBB.ZLength * 1.5
+        partPlaneWidth = (modelBB.XLength / 2) * 1.5
+        zRef = modelBB.ZMax + (partPlaneLength - modelBB.ZLength) / 2
 
         # create a plane larger than the part
-        cut_plane = Part.makePlane(plane_length, plane_width, FreeCAD.Vector(0, 0, z_ref), FreeCAD.Vector(0, -1, 0))
-        # Part.show(cut_plane, 'cut_plane')
+        cutPlane = Part.makePlane(partPlaneLength, partPlaneWidth, FreeCAD.Vector(0, 0, zRef), FreeCAD.Vector(0, -1, 0))
+        # Part.show(cutPlane, 'cutPlane')
         # Cut the part section from the cut plane
-        path_area = cut_plane.cut(part_silhoutte)
+        partArea = cutPlane.cut(partSection)
 
-        part_edges = []
+        partEdges = []
 
         # iterate through the edges and check if each is inside the bound_face
-        for edge in path_area.Edges:
-            edge_in = True
-            for vertex in edge.Vertexes:
-                if not part_bound_face.isInside(vertex.Point, 0.1, True):
-                    edge_in = False
+        for edge in partArea.Edges:
+             for vertex in edge.Vertexes:
+                if partBoundFace.isInside(vertex.Point, 0.1, True):
+                    partEdges.append(edge)
 
-            if edge_in:
-                part_edges.append(edge)
-
-        # path_profile = Part.makeCompound(part_edges)
+        # path_profile = Part.makeCompound(partEdges)
         # Part.show(path_profile, 'Final_pass')
-        return self.get_segments_from_edges(part_edges)
+        return self.getSegmentsFromEdges(partEdges)
 
-    def get_tool_shape(self, obj):
+    def getToolShape(self, obj):
         '''
         Get Tool Shape
         '''
@@ -200,24 +196,24 @@ class ObjectOp(PathOp.ObjectOp):
 
         toolShape = opTool.Shape
         toolBB = toolShape.BoundBox
-        tool_plane = Part.makePlane(toolBB.ZLength, toolBB.XLength, FreeCAD.Vector(toolBB.XMin, toolBB.Center.y, toolBB.ZMin), FreeCAD.Vector(0, -1, 0))
+        toolPlane = Part.makePlane(toolBB.ZLength, toolBB.XLength, FreeCAD.Vector(toolBB.XMin, toolBB.Center.y, toolBB.ZMin), FreeCAD.Vector(0, -1, 0))
         # get a section through the tool origin on the XZ Plane
-        sections = Path.Area().add(toolShape).makeSections(mode=0, heights=[0.0], project=True, plane=tool_plane)
-        tool_silhoutte = sections[0].setParams(Offset=0.0).getShape()
-        tool_edges = tool_silhoutte.Edges
+        sections = Path.Area().add(toolShape).makeSections(mode=0, heights=[0.0], project=True, plane=toolPlane)
+        toolShape = sections[0].setParams(Offset=0.0).getShape()
+        toolEdges = toolShape.Edges
 
-        #tool_profile = Part.makeCompound(tool_edges)
+        #tool_profile = Part.makeCompound(toolEdges)
         #Part.show(tool_profile, 'Tool_2d')
-        return self.get_segments_from_edges(tool_edges, True)
+        return self.getSegmentsFromEdges(toolEdges, True)
 
-    def get_segments_from_edges(self, edges, allow_x_aligned=False):
+    def getSegmentsFromEdges(self, edges, allowOnXAxis=False):
         """Convert part edges to liblathe segments"""
         segments = []
 
         for edge in edges:
             vert = edge.Vertexes
             # skip edges that are on the X axis
-            if allow_x_aligned is False:
+            if allowOnXAxis is False:
                 startX = round(vert[0].X)
                 endX = round(vert[-1].X)
                 if startX == 0 and endX == 0:
@@ -238,20 +234,20 @@ class ObjectOp(PathOp.ObjectOp):
 
         return segments
 
-    def generate_gcode(self, obj):
+    def generateGCode(self, obj):
         '''
         Base function to generate gcode for the OP by writing path command to self.commandlist
-        Calls operations op_generate_gcode.
+        Calls operations opGenerateGCode.
         '''
 
         # create a liblathe tool and assign the toolbit segments representing the shape
         turnTool = Tool()
-        turnTool.set_tool_from_segments(self.get_tool_shape(obj))
+        turnTool.set_tool_from_segments(self.getToolShape(obj))
 
-        self.op_generate_gcode(obj, turnTool)
+        self.opGenerateGCode(obj, turnTool)
 
-    def op_generate_gcode(self, obj, turnTool):
-        '''op_generate_gcode(obj) ... overwrite to set initial default values.
+    def opGenerateGCode(self, obj, turnTool):
+        '''opGenerateGCode(obj) ... overwrite to set initial default values.
         Called after the receiver has been fully created with all properties.
         Should be overwritten by subclasses.'''
         pass  # pylint: disable=unnecessary-pass
