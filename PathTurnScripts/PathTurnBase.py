@@ -208,17 +208,20 @@ class ObjectOp(PathOp.ObjectOp):
 
         #tool_profile = Part.makeCompound(tool_edges)
         #Part.show(tool_profile, 'Tool_2d')
-        return self.get_segments_from_edges(tool_edges)
+        return self.get_segments_from_edges(tool_edges, True)
 
-    def get_segments_from_edges(self, edges):
+    def get_segments_from_edges(self, edges, allow_x_aligned=False):
         """Convert part edges to liblathe segments"""
         segments = []
 
         for edge in edges:
             vert = edge.Vertexes
             # skip edges that are on the X axis
-            if vert[0].X == 0 and vert[-1].X == 0:
-                continue
+            if allow_x_aligned is False:
+                startX = round(vert[0].X)
+                endX = round(vert[-1].X)
+                if startX == 0 and endX == 0:
+                    continue
 
             pt1 = Point(vert[0].X, vert[0].Z)
             pt2 = Point(vert[-1].X, vert[-1].Z)
