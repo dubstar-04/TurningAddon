@@ -87,15 +87,18 @@ class ObjectOp(PathOp.ObjectOp):
         self.tool = None
         self.minDia = obj.MinDiameter.Value
         self.maxDia = obj.MaxDiameter.Value
+        self.startDepth = obj.StartDepth.Value
+        self.finalDepth = obj.FinalDepth.Value
 
         if self.minDia >= self.maxDia:
             raise RuntimeError(translate('PathTurn', "Minimum diameter is equal or greater than maximum diameter"))
 
+        if self.minDia < 0 or self.maxDia < 0:
+            raise RuntimeError(translate('PathTurn', "Diamater values must be positive"))
+
         if obj.StartDepth.Value <= obj.FinalDepth.Value:
             raise RuntimeError(translate('PathTurn', "Start depth is equal or less than final depth"))
 
-        self.endOffset = 0
-        self.startOffset = 0
         self.endOffset = 0
         self.allowGrooving = obj.AllowGrooving
         self.stepOver = obj.StepOver.Value
@@ -106,7 +109,7 @@ class ObjectOp(PathOp.ObjectOp):
         obj.Path.Commands = []
 
         print("Process Geometry")
-        self.stock_silhoutte = self.get_stock_silhoutte(obj)
+        self.stock_silhoutte = self.get_stock_silhoutte()
         self.part_outline = self.get_part_outline()
         self.generate_gcode(obj)
 
@@ -121,16 +124,10 @@ class ObjectOp(PathOp.ObjectOp):
         print('opUpdateDepths:', obj.OpStartDepth.Value, obj.OpFinalDepth.Value)
 
     def getProps(self, obj):
-        # TODO: use the start and final depths
         # print('getProps - Start Depth: ', obj.OpStartDepth.Value, 'Final Depth: ', obj.OpFinalDepth.Value)
         parentJob = PathUtils.findParentJob(obj)
 
         props = {}
-        props['min_dia'] = self.minDia
-        props['extra_dia'] = self.maxDia - self.stock.Shape.BoundBox.XLength
-        props['end_offset'] = self.endOffset
-        props['start_offset'] = self.startOffset
-        props['end_offset'] = self.endOffset
         props['allow_grooving'] = self.allowGrooving
         props['step_over'] = self.stepOver
         props['finish_passes'] = self.finishPasses
@@ -140,20 +137,14 @@ class ObjectOp(PathOp.ObjectOp):
         props['clearance'] = parentJob.SetupSheet.SafeHeightOffset.Value
         return props
 
-    def get_stock_silhoutte(self, obj):
+    def get_stock_silhoutte(self):
         '''
         Get Stock Silhoutte
         '''
-        stockBB = self.stock.Shape.BoundBox
-        stock_z_pos = stockBB.ZMax
-
-        self.startOffset = obj.StartDepth.Value - stockBB.ZMax
-        self.endOffset = stockBB.ZMin - obj.FinalDepth.Value
-
-        stock_plane_length = obj.StartDepth.Value - obj.FinalDepth.Value
-        stock_plane_width = stockBB.XLength / 2
+        stock_plane_length = self.startDepth - self.finalDepth
+        stock_plane_width = (self.maxDia - self.minDia) / 2
         stock_plane = Part.makePlane(stock_plane_length, stock_plane_width,
-                                     FreeCAD.Vector(0, 0, stock_z_pos), FreeCAD.Vector(0, -1, 0))
+                                     FreeCAD.Vector(self.minDia * 0.5, 0, self.finalDepth), FreeCAD.Vector(0, 1, 0))
         return stock_plane
 
     def get_part_outline(self):
@@ -176,6 +167,7 @@ class ObjectOp(PathOp.ObjectOp):
 
         # create a plane larger than the part
         cut_plane = Part.makePlane(plane_length, plane_width, FreeCAD.Vector(0, 0, z_ref), FreeCAD.Vector(0, -1, 0))
+        # Part.show(cut_plane, 'cut_plane')
         # Cut the part section from the cut plane
         path_area = cut_plane.cut(part_silhoutte)
 
