@@ -170,7 +170,6 @@ class ObjectOp(PathOp.ObjectOp):
         path_area = cut_plane.cut(part_silhoutte)
 
         part_edges = []
-        part_segments = []
 
         # iterate through the edges and check if each is inside the bound_face
         for edge in path_area.Edges:
