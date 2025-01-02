@@ -80,6 +80,11 @@ class ObjectOp(PathOp.ObjectOp):
         obj.FinishPasses = 2
         obj.StockToLeave = 0
 
+        # hide properties that are not required for turning operations
+        for op in ["OpStartDepth", "OpFinalDepth", "OpToolDiameter", "OpStockZMax", "OpStockZMin"]:
+            if hasattr(obj, op):
+                obj.setEditorMode(op, 2)  # hide property
+
     def opExecute(self, obj):
         '''opExecute(obj) ... processes all Base features
         '''
