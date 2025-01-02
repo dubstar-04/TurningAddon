@@ -44,9 +44,9 @@ def translate(context, text, disambig=None):
 class ObjectTurnFace(PathTurnBase.ObjectOp):
     '''Proxy class for turning facing operations.'''
 
-    # def opFeatures(self, obj):
-    #    '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
-    #    return PathTurnBase.PathOp.FeatureDiameters | PathTurnBase.PathOp.FeatureTool | PathTurnBase.PathOp.FeatureDepths | PathTurnBase.PathOp.FeatureNoFinalDepth | PathTurnBase.PathOp.FeatureCoolant
+    def opFeatures(self, obj):
+        '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
+        return PathTurnBase.PathOp.FeatureDiameters | PathTurnBase.PathOp.FeatureTool | PathTurnBase.PathOp.FeatureDepths | PathTurnBase.PathOp.FeatureNoFinalDepth | PathTurnBase.PathOp.FeatureCoolant
 
     def op_generate_gcode(self, obj, turnTool):
         '''
