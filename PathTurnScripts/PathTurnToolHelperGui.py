@@ -1,3 +1,27 @@
+# -*- coding: utf-8 -*-
+
+# ***************************************************************************
+# *                                                                         *
+# *   Copyright (c) 2025 Daniel Wood <s.d.wood.82@gmail.com>                *
+# *                                                                         *
+# *   This program is free software; you can redistribute it and/or modify  *
+# *   it under the terms of the GNU Lesser General Public License (LGPL)    *
+# *   as published by the Free Software Foundation; either version 2 of     *
+# *   the License, or (at your option) any later version.                   *
+# *   for detail see the LICENCE text file.                                 *
+# *                                                                         *
+# *   This program is distributed in the hope that it will be useful,       *
+# *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+# *   GNU Library General Public License for more details.                  *
+# *                                                                         *
+# *   You should have received a copy of the GNU Library General Public     *
+# *   License along with this program; if not, write to the Free Software   *
+# *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
+# *   USA                                                                   *
+# *                                                                         *
+# ***************************************************************************
+
 from PySide import QtGui, QtCore
 from PySide.QtGui import QApplication, QDialog, QMainWindow
 
@@ -10,7 +34,7 @@ class TurnToolHelperPanel():
 
         self.form = self.getForm()
 
-        self.tip_angle = {
+        self.tipAngle = {
             "A": 85,  # Parallelogram (85 degree)
             "B": 82,  # Parallelogram (82 degree)
             "C": 80,    # Rhombic (80 degree)
@@ -31,7 +55,7 @@ class TurnToolHelperPanel():
             "X": None   # Special Shape
         }
 
-        self.shape_size = {
+        self.shapeSize = {
             "C": {"03": 3.97, "04": 4.76, "05": 5.56, "06": 6.35, "08": 7.94, \
             "09": 9.525, "12": 12.7, "16": 15.875, "19": 19.05, "22": 22.225, \
             "25": 25.4},
@@ -51,7 +75,7 @@ class TurnToolHelperPanel():
             "X" : {}
         }
 
-        self.nose_radius = {
+        self.noseRadius = {
             "00": 0,  # sharp
             "V3": 0.03,
             "V5": 0.05,
@@ -68,116 +92,116 @@ class TurnToolHelperPanel():
         }
 
         #Load UI Components
-        self.shape_cb = self.form.shape_cb
-        self.size_cb = self.form.size_cb
-        self.radius_cb = self.form.radius_cb
-        self.direction_cb = self.form.direction_cb
+        self.shapeComboBox = self.form.shapeComboBox
+        self.sizeComboBox = self.form.sizeComboBox
+        self.radiusComboBox = self.form.radiusComboBox
+        self.directionComboBox = self.form.directionComboBox
 
-        # self.shape_val = self.form.shape_val
-        self.size_val = self.form.size_val
-        # self.rotation_val = self.form.rotation_val
-        self.tipangle_val = self.form.tipangle_val
-        self.radius_val = self.form.radius_val
-        # self.direction_val = self.form.direction_val
-        self.result_val = self.form.result_val
-        
+        # self.shapeLabel = self.form.shapeLabel
+        self.sizelabel = self.form.sizelabel
+        # self.rotationLabel = self.form.rotationLabel
+        self.tipangleLabel = self.form.tipangleLabel
+        self.radiusLabel = self.form.radiusLabel
+        # self.directionLabel = self.form.directionLabel
+        self.resultLabel = self.form.resultLabel
+
 
 
         #connect
-        self.shape_cb.currentIndexChanged.connect(self.load_shape_size)
+        self.shapeComboBox.currentIndexChanged.connect(self.loadShapeSize)
 
-        self.shape_cb.currentIndexChanged.connect(self.load_tool_data)
-        self.size_cb.currentIndexChanged.connect(self.load_tool_data)
-        self.radius_cb.currentIndexChanged.connect(self.load_tool_data)
-        self.direction_cb.currentIndexChanged.connect(self.load_tool_data)
+        self.shapeComboBox.currentIndexChanged.connect(self.loadToolData)
+        self.sizeComboBox.currentIndexChanged.connect(self.loadToolData)
+        self.radiusComboBox.currentIndexChanged.connect(self.loadToolData)
+        self.directionComboBox.currentIndexChanged.connect(self.loadToolData)
 
-        self.load_shape_size(0)
-		
+        self.loadShapeSize(0)
+
     def getForm(self):
         """getForm() ... return UI"""
         # return FreeCADGui.PySideUic.loadUi(":/panels/DlgTurnToolHelper.ui")
         turnUi = PathTurnHelpers.getResourcePath("DlgTurnToolHelper.ui")
         return FreeCADGui.PySideUic.loadUi(turnUi)
 
-    def load_tool_data(self):
-        """ 
+    def loadToolData(self):
+        """
         Load all tool data and create a tool string
         """
-        if self.size_cb.currentText():
-            _shape = self.shape_cb.currentText()
-            _size = self.size_cb.currentText()
-            _radius = self.radius_cb.currentText()
-            _direction = self.direction_cb.currentText()
-            _size_val = self.get_edge_length(_shape, _size)
-            _radius_val = self.get_radius_value(_radius)
-            _tip_angle = self.get_tip_angle(_shape)
+        if self.sizeComboBox.currentText():
+            _shape = self.shapeComboBox.currentText()
+            _size = self.sizeComboBox.currentText()
+            _radius = self.radiusComboBox.currentText()
+            _direction = self.directionComboBox.currentText()
+            _sizelabel = self.getEdgeLength(_shape, _size)
+            _radiusLabel = self.getRadiusValue(_radius)
+            _tip_angle = self.getTipAngle(_shape)
 
             # print('tool data', _shape, _size, _radius, _direction)
-            # self.shape_val.setText(_shape)
-            self.size_val.setText(str(_size_val))
-            self.tipangle_val.setText(str(_tip_angle))
+            # self.shapeLabel.setText(_shape)
+            self.sizelabel.setText(str(_sizelabel))
+            self.tipangleLabel.setText(str(_tip_angle))
 
             if _shape == "X":
                 _radius = "-"
                 _direction = "-"
-                self.radius_val.setText("-")
-                # self.direction_val.setText("-")
+                self.radiusLabel.setText("-")
+                # self.directionLabel.setText("-")
             else:
-                self.radius_val.setText(str(_radius_val))
-                # self.direction_val.setText(_direction)
+                self.radiusLabel.setText(str(_radiusLabel))
+                # self.directionLabel.setText(_direction)
 
-            tool_string = "{shape}---{size}--{radius}--{direction}".format(shape = _shape, size = _size, \
+            toolString  = "{shape}---{size}--{radius}--{direction}".format(shape = _shape, size = _size, \
                                                                 radius = _radius, direction = _direction)
-            self.result_val.setText(tool_string)
+            self.resultLabel.setText(toolString )
 
-    def get_edge_length(self, _shape, _length ):
+    def getEdgeLength(self, _shape, _length ):
         """
         Return the edge length for the tool
         """
 
         try:
-            edgeLength = self.shape_size[_shape][_length]
+            edgeLength = self.shapeSize[_shape][_length]
             return edgeLength
         except(KeyError):
             return "-"
 
-    def get_radius_value(self, radius):
+    def getRadiusValue(self, radius):
         """
         Return the nose radius for the tool
         """
 
         try:
-            _radius = self.nose_radius[radius]
+            _radius = self.noseRadius[radius]
             return _radius
         except(KeyError):
             return "-"
 
-    def get_tip_angle(self, shape):
+    def getTipAngle(self, shape):
         """
         Return the tip angle for the tool
         """
 
         try:
-            _tip_angle = self.tip_angle[shape]
+            _tip_angle = self.tipAngle[shape]
             return _tip_angle
         except(KeyError):
             return "-"
 
-    def load_shape_size(self, index):
+    def loadShapeSize(self, index):
         """
         Load the sizes for the selected tool shape
         """
-        shape = self.shape_cb.itemText(index)
-        shape_size = self.shape_size[shape]
-        self.size_cb.clear()
+        shape = self.shapeComboBox.itemText(index)
+        shape_size = self.shapeSize[shape]
+        self.sizeComboBox.clear()
 
         if shape == "X":
-            self.size_cb.addItem("-")
+            self.sizeComboBox.addItem("-")
         else:
-            for key in shape_size: 
-                self.size_cb.addItem(key)
+            for key in shape_size:
+                self.sizeComboBox.addItem(key)
 
-    def setup_ui(self):
+    def setupUi(self):
         pass
 
     def show(self):
@@ -190,21 +214,21 @@ class TurnToolHelperPanel():
 
     def accept(self):
         self.quit()
-        
+
     def quit(self):
         FreeCADGui.Control.closeDialog(self)
 
     def reset(self):
         pass
-		
-		
+
+
 class CommandPathTurnToolHelper:
-		
+
     def GetResources(self):
         return {'Pixmap': 'CAM-TurnToolHelper',
                 'MenuText': QtCore.QT_TRANSLATE_NOOP("CAM", "Derive toolbit parameters from isocode"),
                 'ToolTip': QtCore.QT_TRANSLATE_NOOP("CAM", "Derive toolbit parameters from isocode")}
-	
+
     def Activated(self):
         panel = TurnToolHelperPanel()
         panel.show()

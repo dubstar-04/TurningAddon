@@ -2,7 +2,7 @@
 <package format="1">
   <name>Turning Addon</name>
   <description>A FreeCAD CAM Addon to encourage the development of CNC turning functionality for the CAM workbench</description>
-  <version>0.3</version>
+  <version>0.4</version>
   <maintainer email="s.d.wood.82@googlemail.com">Daniel Wood</maintainer>
   <license file="LICENSE">LGPL-2.1</license>
   <url type="repository" branch="master">https://github.com/dubstar-04/TurningAddon</url>
@@ -12,7 +12,8 @@
     <workbench>
       <icon>Gui/Resources/Icons/CAM-TurningAddon.svg</icon>
       <freecadmin>1.0.0</freecadmin>
+      <!-- Python package dependencies (no support for version information) -->
+      <depend>liblathe</depend>
     </workbench>
   </content>
-
 </package>

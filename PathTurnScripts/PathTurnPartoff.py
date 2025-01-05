@@ -44,34 +44,24 @@ def translate(context, text, disambig=None):
 class ObjectTurnPart(PathTurnBase.ObjectOp):
     '''Proxy class for turning Part operations.'''
 
-    def op_generate_gcode(self, obj, turnTool):
+    def opGenerateGCode(self, obj, turnTool):
         '''
         Generate GCode for the op
         '''
-        PartOP = LLP.PartoffOP()
-        PartOP.set_params(self.getProps(obj))
+        partOp = LLP.PartoffOP()
+        partOp.setParams(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stock_silhoutte.BoundBox)
-        PartOP.add_stock(stockBoundbox)
+        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stockPlane.BoundBox)
+        partOp.add_stock(stockBoundbox)
 
-        PartOP.add_part_edges(self.part_outline)
-        PartOP.add_tool(turnTool)
+        partOp.addPartSegments(self.partOutline)
+        partOp.add_tool(turnTool)
 
-        PathCode = PartOP.get_gcode()
+        pathCode = partOp.getGCode()
 
-        for command in PathCode:
-            pathCommand = Path.Command(command.get_movement(), command.get_params())
+        for command in pathCode:
+            pathCommand = Path.Command(command.get_movement(), command.getParams())
             self.commandlist.append(pathCommand)
-
-    def opSetDefaultValues(self, obj, job):
-        obj.OpStartDepth = job.Stock.Shape.BoundBox.ZMax
-        obj.OpFinalDepth = job.Stock.Shape.BoundBox.ZMin
-
-    def opUpdateDepths(self, obj):
-        obj.OpStartDepth = obj.OpStockZMax
-        obj.OpFinalDepth = obj.OpStockZMin
-        print('opSetDefaultValues:', obj.OpStartDepth.Value, obj.OpFinalDepth.Value)
-
 
 def SetupProperties():
     setup = []
