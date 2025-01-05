@@ -228,7 +228,7 @@ class ObjectOp(PathOp.ObjectOp):
                 direction = edge.Curve.Axis.y
                 # print('bulge angle', direction, angle * direction)
                 # TODO: set the correct sign for the bulge +-
-                seg.set_bulge(angle * direction)
+                seg.setBulge(angle * direction)
 
             segments.append(seg)
 

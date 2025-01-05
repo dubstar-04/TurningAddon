@@ -49,18 +49,18 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
         Generate GCode for the op
         '''
         profileOP = LLP.ProfileOP()
-        profileOP.set_params(self.getProps(obj))
+        profileOP.setParams(self.getProps(obj))
 
         stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stockPlane.BoundBox)
         profileOP.add_stock(stockBoundbox)
 
-        profileOP.add_part_edges(self.partOutline)
+        profileOP.addPartSegments(self.partOutline)
         profileOP.add_tool(turnTool)
 
-        pathCode = profileOP.get_gcode()
+        pathCode = profileOP.getGCode()
 
         for command in pathCode:
-            pathCommand = Path.Command(command.get_movement(), command.get_params())
+            pathCommand = Path.Command(command.get_movement(), command.getParams())
             self.commandlist.append(pathCommand)
 
 

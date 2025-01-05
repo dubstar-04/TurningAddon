@@ -49,18 +49,18 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
         Generate GCode for the op
         '''
         partOp = LLP.PartoffOP()
-        partOp.set_params(self.getProps(obj))
+        partOp.setParams(self.getProps(obj))
 
         stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stockPlane.BoundBox)
         partOp.add_stock(stockBoundbox)
 
-        partOp.add_part_edges(self.partOutline)
+        partOp.addPartSegments(self.partOutline)
         partOp.add_tool(turnTool)
 
-        pathCode = partOp.get_gcode()
+        pathCode = partOp.getGCode()
 
         for command in pathCode:
-            pathCommand = Path.Command(command.get_movement(), command.get_params())
+            pathCommand = Path.Command(command.get_movement(), command.getParams())
             self.commandlist.append(pathCommand)
 
 def SetupProperties():
