@@ -12,7 +12,8 @@
     <workbench>
       <icon>Gui/Resources/Icons/CAM-TurningAddon.svg</icon>
       <freecadmin>1.0.0</freecadmin>
+      <!-- Python package dependencies (no support for version information) -->
+      <depend>liblathe</depend>
     </workbench>
   </content>
-
 </package>
