@@ -34,6 +34,11 @@ geometry or placement invalidates its cached result. Complex curved models take
 longer to extract initially, but tool and cutting-parameter changes reuse the
 verified geometry.
 
+Part and tool profile extraction is shared in
+[`PathTurnAddonHelpers.py`](PathTurnScripts/PathTurnAddonHelpers.py).
+[`PathTurnBase.py`](PathTurnScripts/PathTurnBase.py) handles operation properties,
+input validation, depth setup and toolpath generation.
+
 ## Requirements
 * FreeCAD v1.0 or later with the CAM workbench
 * Path Toolbits (Legacy tools are not supported)
