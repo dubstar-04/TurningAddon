@@ -45,6 +45,10 @@ where possible, are checked before use, and are reused for faster updates.
 3. Restart FreeCAD and activate the CAM workbench.
 4. Use **CAM -> CAM Addons -> Turning Addon** to create turning operations.
 
+The bundled ISO inserts use the XZ turning plane. When updating older tools,
+replace any copied ISO shapes in your tool library, restart FreeCAD, and recreate
+existing toolbits so they use the corrected geometry.
+
 The add-on uses normal Python package discovery; it does not add a bundled
 library or another source checkout to `sys.path`. If startup reports a missing
 LibLathe package, install it into FreeCAD's Python environment and restart.
