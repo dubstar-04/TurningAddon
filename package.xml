@@ -12,6 +12,7 @@
     <workbench>
       <icon>Gui/Resources/Icons/CAM-TurningAddon.svg</icon>
       <freecadmin>1.0.0</freecadmin>
+      <depend>liblathe</depend>
     </workbench>
   </content>
 

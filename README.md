@@ -6,9 +6,8 @@ A FreeCAD CAM Addon to encourage the development of CNC turning functionality fo
 ## Description
 This addon appears under **CAM -> CAM Addons -> Turning Addon** and allows the creation of
 turning paths for use with a CNC lathe. The menu is restored whenever the CAM
-workbench is activated. This addon includes a pinned version of
-[LibLathe](https://github.com/dubstar-04/LibLathe) as a submodule; the standalone
-operations require that version, rather than a separately installed newer library.
+workbench is activated. It uses an externally installed
+[LibLathe](https://github.com/dubstar-04/LibLathe) library; no library is bundled.
 
 ## Features
 * Turning Roughing operation
@@ -16,20 +15,43 @@ operations require that version, rather than a separately installed newer librar
 * Turning Profiling operation
 * Turning Parting operation
 
+Turning uses positive radial X coordinates and the operation's minimum/maximum
+diameters and start/final depths as stock limits. Tools use their actual XZ
+insert section, including its existing orientation, rather than an inferred ISO
+shape. Position the tool geometry appropriately for the XZ turning plane.
+Profiles may contain straight lines and circular arcs; tool sections must form
+one closed outline.
+
 ## Requirements
 * FreeCAD v1.0 or later with the CAM workbench
 * Path Toolbits (Legacy tools are not supported)
 * Python3
 * Qt5
+* LibLathe 0.0.7, installed in the Python environment used by FreeCAD
 
 ## Installation
-1. Clone this repository with `git clone --recurse-submodules` into your
+1. Clone this repository or extract its source ZIP into your
    [FreeCAD `Mod/` directory](https://www.freecadweb.org/wiki/Installing_more_workbenches).
-   Source ZIP downloads do not include the LibLathe submodule.
-2. Restart FreeCAD and activate the CAM workbench.
-3. Use **CAM -> CAM Addons -> Turning Addon** to create turning operations.
+2. Install LibLathe through your system package manager or PyPI, using the same
+   Python environment as FreeCAD. The Addon Manager dependency is `liblathe`.
+   For a matching system Python:
 
-Note: If the LibLathe folder inside the addon is empty or missing you may need to add the submodule manually: `git submodule update --init --recursive`
+   ```sh
+   python3 -m pip install --user "liblathe==0.0.7"
+   ```
+
+   For the FreeCAD Flatpak, use its Python interpreter rather than the host's:
+
+   ```sh
+   flatpak run --command=python org.freecad.FreeCAD -m pip install --user "liblathe==0.0.7"
+   ```
+
+3. Restart FreeCAD and activate the CAM workbench.
+4. Use **CAM -> CAM Addons -> Turning Addon** to create turning operations.
+
+The add-on uses normal Python package discovery; it does not add a bundled
+library or another source checkout to `sys.path`. If startup reports a missing
+LibLathe package, install it into FreeCAD's Python environment and restart.
 
 ## Feedback
 If you have feedback or need to report bugs please participate on the related [Path Forum](https://forum.freecadweb.org/viewtopic.php?f=15&t=30563&start=0).

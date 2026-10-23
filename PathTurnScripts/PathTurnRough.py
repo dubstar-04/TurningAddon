@@ -49,18 +49,18 @@ class ObjectTurnRough(PathTurnBase.ObjectOp):
         Generate GCode for the op
         '''
         RoughOP = LLP.RoughOP()
-        RoughOP.set_params(self.getProps(obj))
+        RoughOP.setParams(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stock_silhoutte.BoundBox)
+        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(obj)
         RoughOP.add_stock(stockBoundbox)
 
-        RoughOP.add_part_edges(self.part_outline)
+        RoughOP.addPartSegments(self.part_outline)
         RoughOP.add_tool(turnTool)
 
-        PathCode = RoughOP.get_gcode()
+        PathCode = RoughOP.getGCode()
 
         for command in PathCode:
-            pathCommand = Path.Command(command.get_movement(), command.get_params())
+            pathCommand = Path.Command(command.get_movement(), command.getParams())
             self.commandlist.append(pathCommand)
 
     def opSetDefaultValues(self, obj, job):
