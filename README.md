@@ -52,6 +52,8 @@ one closed outline.
 The add-on uses normal Python package discovery; it does not add a bundled
 library or another source checkout to `sys.path`. If startup reports a missing
 LibLathe package, install it into FreeCAD's Python environment and restart.
+On startup, the add-on prints the loaded LibLathe version and module path in
+FreeCAD's Report view so you can identify which installation is being used.
 
 ## Feedback
 If you have feedback or need to report bugs please participate on the related [Path Forum](https://forum.freecadweb.org/viewtopic.php?f=15&t=30563&start=0).
