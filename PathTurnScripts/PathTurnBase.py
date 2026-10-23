@@ -23,8 +23,10 @@
 # ***************************************************************************
 
 import math
+from collections import OrderedDict
 
 import FreeCAD
+import MeshPart
 import Part
 import Path
 import Path.Log as PathLog
@@ -63,6 +65,8 @@ else:
 
 class ObjectOp(PathOp.ObjectOp):
     '''Base class for proxy objects of all turning operations.'''
+
+    _rotational_profiles = OrderedDict()
 
     def opFeatures(self, obj):
         '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
@@ -154,42 +158,248 @@ class ObjectOp(PathOp.ObjectOp):
         return stock_plane
 
     def get_part_outline(self):
-        '''
-        Get Part Outline
-        '''
-        # TODO: Revisit the edge extraction and find a more elegant method
-        model = self.model[0].Shape
-        # get a section through the part origin on the XZ Plane
-        sections = Path.Area().add(model).makeSections(mode=0, heights=[0.0], project=True, plane=self.stock_silhoutte)
-        if not sections:
-            raise ValueError("Turning model has no XZ section")
-        part_silhoutte = sections[0].setParams(Offset=0.0).getShape()
-        # get an offset section larger than the part section
-        part_bound_face = sections[0].setParams(Offset=0.1).getShape()
+        models = tuple(base.Shape for base in self.model)
+        if not models:
+            raise ValueError("Turning requires a solid model")
+        hashes = tuple(shape.hashCode() for shape in models)
+        cached = ObjectOp._rotational_profiles.get(hashes)
+        if (cached is not None and hashes == cached[0]
+                and all(shape.isSame(old) for shape, old in zip(models, cached[1]))):
+            profile = cached[2]
+        else:
+            model = models[0] if len(models) == 1 else Part.makeCompound(models)
+            profile = self.getRotationalProfile(model)
+            cached = (hashes, models, profile)
+            ObjectOp._rotational_profiles[hashes] = cached
+        ObjectOp._rotational_profiles.move_to_end(hashes)
+        if len(ObjectOp._rotational_profiles) > 4:
+            ObjectOp._rotational_profiles.popitem(last=False)
+        self._rotational_profile_cache = cached
 
-        # ensure the cutplane is larger than the part or segments will be missed
-        modelBB = model.BoundBox
-        plane_length = modelBB.ZLength * 1.5
-        plane_width = (modelBB.XLength / 2) * 1.5
-        z_ref = modelBB.ZMax + (plane_length - modelBB.ZLength) / 2
-
-        # create a plane larger than the part
-        cut_plane = Part.makePlane(plane_length, plane_width, FreeCAD.Vector(0, 0, z_ref), FreeCAD.Vector(0, -1, 0))
-        # Cut the part section from the cut plane
-        path_area = cut_plane.cut(part_silhoutte)
-
-        part_edges = []
-        for edge in path_area.Edges:
-            if all(part_bound_face.isInside(vertex.Point, 0.1, True) for vertex in edge.Vertexes):
-                part_edges.append(edge)
-        if not part_edges:
-            raise ValueError("Turning model has no usable profile edges")
-        segments = self.getSegmentsFromEdges(Part.Wire(part_edges).OrderedEdges)
+        edges = [
+            edge.copy() for edge in profile.OuterWire.Edges
+            if not (isinstance(edge.Curve, Part.Line)
+                    and all(abs(vertex.Point.x) <= 1e-7 for vertex in edge.Vertexes))
+        ]
+        wires = Part.sortEdges(edges, 1e-9)
+        if len(wires) != 1:
+            raise ValueError("Turning model must have one connected outer profile")
+        segments = self.getSegmentsFromEdges(Part.Wire(wires[0]).OrderedEdges)
         if not segments:
             raise ValueError("Turning model has no profile away from the spindle axis")
         if segments[0].start.Z < segments[-1].end.Z:
             segments = [Segment(seg.end, seg.start, -seg.bulge) for seg in reversed(segments)]
         return segments
+
+    def getRotationalProfile(self, model, tolerance=0.01):
+        if not math.isfinite(tolerance) or tolerance < 1e-6:
+            raise ValueError("Turning profile tolerance must be finite and at least 0.000001 mm")
+        if model.isNull() or not model.Solids or not model.isValid():
+            raise ValueError("Turning requires a valid solid model")
+        box = model.BoundBox
+        radius = math.hypot(max(abs(box.XMin), abs(box.XMax)),
+                            max(abs(box.YMin), abs(box.YMax)))
+        padding = max(1.0, tolerance * 2)
+        plane = Part.makePlane(
+            box.ZLength + 2 * padding, radius + padding,
+            FreeCAD.Vector(0, 0, box.ZMin - padding), FreeCAD.Vector(0, 1, 0))
+        profile = self.getSectionProfile(model.common(plane))
+        if profile is not None and self.profileContainsModel(profile, model):
+            return profile
+
+        # Radial projection sees every mesh face, including features hidden in any one view.
+        for deflection in (tolerance / 8, tolerance / 32):
+            projected = self.getRadialMeshProjection(model, deflection)
+            profile = self.getPositiveProfile(projected, plane)
+            if profile is not None and self.profileContainsModel(profile, model):
+                return profile
+        raise RuntimeError(
+            f"Cannot construct a containing turning profile within {tolerance:g} mm")
+
+    def getSectionProfile(self, section):
+        faces = []
+        for edge in section.Edges:
+            curve = edge.Curve
+            first, last = edge.FirstParameter, edge.LastParameter
+            parameters = [first, last]
+            if isinstance(curve, Part.Circle):
+                phase = math.atan2(curve.YAxis.z, curve.XAxis.z)
+                parameters = [first] + [
+                    phase + index * math.pi
+                    for index in range(math.ceil((first - phase) / math.pi),
+                                       math.floor((last - phase) / math.pi) + 1)
+                    if first + 1e-10 < phase + index * math.pi < last - 1e-10
+                ] + [last]
+            elif not isinstance(curve, Part.Line):
+                return None
+            for begin, finish in zip(parameters, parameters[1:]):
+                start, end = edge.valueAt(begin), edge.valueAt(finish)
+                middle = edge.valueAt((begin + finish) / 2)
+                if (abs(start.z - end.z) <= 1e-7
+                        or max(start.x, middle.x, end.x) <= 1e-7):
+                    continue
+                boundary = [curve.toShape(begin, finish)]
+                if start.z > end.z:
+                    start, end = end, start
+                    boundary[0].reverse()
+                # Fill each monotonic section edge to the axis; union keeps only the outside.
+                points = [end, FreeCAD.Vector(0, 0, end.z),
+                          FreeCAD.Vector(0, 0, start.z), start]
+                for point, following in zip(points, points[1:]):
+                    if (following - point).Length > 1e-7:
+                        boundary.append(Part.makeLine(point, following))
+                faces.append(Part.Face(Part.Wire(boundary)))
+        if not faces:
+            return None
+        profile = faces[0].multiFuse(faces[1:]).removeSplitter() if len(faces) > 1 else faces[0]
+        if len(profile.Faces) != 1:
+            return None
+        return Part.Face(profile.Faces[0].OuterWire)
+
+    def getPositiveProfile(self, projected, plane):
+        filled = Part.makeCompound([Part.Face(face.OuterWire) for face in projected.Faces])
+        if filled.isNull() or not filled.Faces:
+            return None
+        clipped = filled.common(plane).removeSplitter()
+        if len(clipped.Faces) != 1:
+            return None
+        profile = Part.Face(clipped.Faces[0].OuterWire)
+        if not any(isinstance(edge.Curve, Part.Line)
+                   and all(abs(vertex.Point.x) <= 1e-7 for vertex in edge.Vertexes)
+                   for edge in profile.Edges):
+            return None
+        return profile
+
+    def profileContainsModel(self, profile, model):
+        if not profile.isValid():
+            return False
+        envelope = profile.revolve(FreeCAD.Vector(), FreeCAD.Vector(0, 0, 1), 360)
+        if not envelope.isValid() or not envelope.Solids:
+            return False
+        remaining = model.cut(envelope)
+        return remaining.isValid() and not remaining.Faces
+
+    def getRadialMeshProjection(self, model, deflection):
+        mesh = MeshPart.meshFromShape(
+            Shape=model.copy(), LinearDeflection=deflection,
+            AngularDeflection=0.5, Relative=False)
+        vertices, facets = mesh.Topology
+        edges = {
+            tuple(sorted((facet[i], facet[(i + 1) % 3])))
+            for facet in facets for i in range(3)
+        }
+        spans = []
+        for first, last in edges:
+            start, end = vertices[first], vertices[last]
+            if abs(start.z - end.z) <= 1e-7:
+                continue
+            if start.z > end.z:
+                start, end = end, start
+            pending = [(start, end)]
+            while pending:
+                start, end = pending.pop()
+                first_radius = math.hypot(start.x, start.y)
+                last_radius = math.hypot(end.x, end.y)
+                middle = (start + end) / 2
+                middle_radius = math.hypot(middle.x, middle.y)
+                # Twice the midpoint gap bounds the convex radial interpolation error.
+                if first_radius + last_radius - 2 * middle_radius > deflection:
+                    if middle == start or middle == end:
+                        raise RuntimeError("Turning profile exceeds available geometry precision")
+                    pending.extend(((start, middle), (middle, end)))
+                    continue
+                if max(first_radius, last_radius) <= 1e-7:
+                    continue
+                spans.append([(start.z, first_radius, end.z, last_radius)])
+        if not spans:
+            raise ValueError("Turning model has no usable mesh profile")
+        while len(spans) > 1:
+            spans = [
+                self.mergeRadialProfiles(spans[index], spans[index + 1])
+                if index + 1 < len(spans) else spans[index]
+                for index in range(0, len(spans), 2)
+            ]
+        outline = []
+        for first_z, first_radius, last_z, last_radius in spans[0]:
+            if outline and abs(outline[-1].z - first_z) > 1e-7:
+                raise ValueError("Turning model must have a connected axial profile")
+            for z, radius in ((first_z, first_radius), (last_z, last_radius)):
+                point = FreeCAD.Vector(radius, 0, z)
+                if not outline or (point - outline[-1]).Length > 1e-7:
+                    outline.append(point)
+        outline = self.simplifyRadialProfile(outline, deflection / 2)
+        outline = [FreeCAD.Vector(0, 0, outline[0].z)] + outline + [
+            FreeCAD.Vector(0, 0, outline[-1].z)]
+        face = Part.Face(Part.makePolygon(outline + [outline[0]]))
+        return Path.Area().add(face).setParams(
+            FitArcs=True, Accuracy=deflection / 2, Deflection=deflection,
+            CleanDistance=deflection / 2, Offset=4 * deflection, JoinType=1).getShape()
+
+    def simplifyRadialProfile(self, points, tolerance):
+        keep = {0, len(points) - 1}
+        pending = [(0, len(points) - 1)]
+        while pending:
+            first, last = pending.pop()
+            start, end = points[first], points[last]
+            dx, dz = end.x - start.x, end.z - start.z
+            length_squared = dx * dx + dz * dz
+            greatest = tolerance * tolerance
+            furthest = None
+            for index in range(first + 1, last):
+                x, z = points[index].x - start.x, points[index].z - start.z
+                fraction = (max(0, min(1, (x * dx + z * dz) / length_squared))
+                            if length_squared else 0)
+                distance_squared = (x - fraction * dx) ** 2 + (z - fraction * dz) ** 2
+                if distance_squared > greatest:
+                    greatest, furthest = distance_squared, index
+            if furthest is not None:
+                keep.add(furthest)
+                pending.extend(((first, furthest), (furthest, last)))
+        return [points[index] for index in sorted(keep)]
+
+    def mergeRadialProfiles(self, first, second):
+        merged = []
+        i = j = 0
+        z = min(first[0][0], second[0][0])
+        while i < len(first) or j < len(second):
+            while i < len(first) and first[i][2] <= z:
+                i += 1
+            while j < len(second) and second[j][2] <= z:
+                j += 1
+            active = []
+            boundaries = []
+            for spans, index in ((first, i), (second, j)):
+                if index < len(spans):
+                    start, start_radius, end, end_radius = spans[index]
+                    if start <= z:
+                        boundaries.append(end)
+                        active.append((start, start_radius, end, end_radius))
+                    else:
+                        boundaries.append(start)
+            if not boundaries:
+                break
+            end = min(boundaries)
+            values = []
+            for start, start_radius, finish, finish_radius in active:
+                slope = (finish_radius - start_radius) / (finish - start)
+                values.append((start_radius + slope * (z - start),
+                               start_radius + slope * (end - start)))
+            if len(values) == 2:
+                left = values[0][0] - values[1][0]
+                right = values[0][1] - values[1][1]
+                if (left < 0 < right) or (right < 0 < left):
+                    fraction = left / (left - right)
+                    crossing = z + fraction * (end - z)
+                    radius = values[0][0] + fraction * (values[0][1] - values[0][0])
+                    merged.append((z, max(value[0] for value in values), crossing, radius))
+                    merged.append((crossing, radius, end, max(value[1] for value in values)))
+                else:
+                    merged.append((z, max(value[0] for value in values),
+                                   end, max(value[1] for value in values)))
+            elif values:
+                merged.append((z, values[0][0], end, values[0][1]))
+            z = end
+        return merged
 
     def getToolShape(self, obj):
         toolShape = obj.ToolController.Tool.Shape
