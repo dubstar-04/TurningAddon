@@ -14,9 +14,14 @@ workbench is activated. It uses an externally installed
 * Turning Facing operation
 * Turning Profiling operation
 * Turning Parting operation
+* Turn Tool Helper: add C, D, S and T inserts and tool controllers to a CAM job
 
 Paths follow the part's full rotating outline. Profiles use fast native extraction
 where possible, are checked before use, and are reused for faster updates.
+
+In **Turn Tool Helper**, choose a job and insert parameters, then **Add to job**.
+Set feeds and spindle speed in the new controller before use. Other shapes and
+sharp noses (`00`) remain reference-only.
 
 ## Requirements
 * FreeCAD v1.0 or later with the CAM workbench

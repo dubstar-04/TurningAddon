@@ -1,13 +1,26 @@
+import json
+from pathlib import Path
+
 from PySide import QtGui, QtCore
-from PySide.QtGui import QApplication, QDialog, QMainWindow
 
 import FreeCAD, FreeCADGui
+import Part
+import Path.Main.Job as PathJob
+import Path.Tool.Controller as PathToolController
+import PathScripts.PathUtils as PathUtils
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
+import PathTurnScripts.PathTurnToolBit as PathTurnToolBit
+
+
+translate = FreeCAD.Qt.translate
+
 
 class TurnToolHelperPanel():
     def __init__(self):
+        """Initialize the ISO lookup and creation controls for the active document."""
 
+        self.document = FreeCAD.ActiveDocument
         self.form = self.getForm()
 
         self.tip_angle = {
@@ -80,8 +93,13 @@ class TurnToolHelperPanel():
         self.radius_val = self.form.radius_val
         # self.direction_val = self.form.direction_val
         self.result_val = self.form.result_val
-        
-
+        self.job_cb = self.form.job_cb
+        self.status_label = self.form.status_label
+        self.add_button = self.form.buttonBox.addButton(
+            translate("CAM", "Add to job"), QtGui.QDialogButtonBox.ActionRole)
+        self.add_button.clicked.connect(self.add_tool)
+        self.radius_cb.setCurrentText("04")
+        self.direction_cb.setCurrentText("R")
 
         #connect
         self.shape_cb.currentIndexChanged.connect(self.load_shape_size)
@@ -90,7 +108,9 @@ class TurnToolHelperPanel():
         self.size_cb.currentIndexChanged.connect(self.load_tool_data)
         self.radius_cb.currentIndexChanged.connect(self.load_tool_data)
         self.direction_cb.currentIndexChanged.connect(self.load_tool_data)
+        self.job_cb.currentIndexChanged.connect(self.update_add_state)
 
+        self.load_jobs()
         self.load_shape_size(0)
 		
     def getForm(self):
@@ -129,6 +149,169 @@ class TurnToolHelperPanel():
             tool_string = "{shape}---{size}--{radius}--{direction}".format(shape = _shape, size = _size, \
                                                                 radius = _radius, direction = _direction)
             self.result_val.setText(tool_string)
+        self.update_add_state()
+
+    def load_jobs(self):
+        """List jobs, preferring the selected job or its selected child object."""
+        self.job_cb.addItem(translate("CAM", "Select a CAM job"), None)
+        jobs = PathJob.Instances()
+        selected_jobs = {
+            job.Name
+            for obj in FreeCADGui.Selection.getSelection()
+            if obj.Document == self.document
+            for job in [PathUtils.findParentJob(obj)]
+            if job in jobs
+        }
+        for job in jobs:
+            self.job_cb.addItem("{} ({})".format(job.Label, job.Name), job.Name)
+        if len(selected_jobs) == 1:
+            self.job_cb.setCurrentIndex(self.job_cb.findData(selected_jobs.pop()))
+        elif len(jobs) == 1:
+            self.job_cb.setCurrentIndex(1)
+
+    def get_job(self):
+        """Return the chosen job only while its original document remains active."""
+        if self.document is None or FreeCAD.ActiveDocument != self.document:
+            return None
+        name = self.job_cb.currentData()
+        job = self.document.getObject(name) if name else None
+        if job is not None and hasattr(job, "Proxy") and isinstance(job.Proxy, PathJob.ObjectJob):
+            return job
+        return None
+
+    def creation_problem(self):
+        """Explain why the current selection cannot create a turning tool."""
+        if self.shape_cb.currentText() not in ("C", "D", "S", "T"):
+            return translate("CAM", "Tool creation supports C, D, S and T shapes. Other shapes are reference-only.")
+        if not self.size_cb.currentText():
+            return translate("CAM", "Choose an insert size.")
+        if self.get_radius_value(self.radius_cb.currentText()) <= 0:
+            return translate("CAM", "Sharp noses (00) are reference-only. Choose a non-zero nose radius.")
+        if self.get_job() is None:
+            return translate("CAM", "Choose a CAM job in the active document.")
+        if self.document.HasPendingTransaction:
+            return translate("CAM", "Finish the current document edit before adding a turning tool.")
+        return None
+
+    def update_add_state(self):
+        """Enable creation only for a supported selection and an available job."""
+        problem = self.creation_problem()
+        self.add_button.setEnabled(problem is None)
+        self.status_label.setText(problem or translate(
+            "CAM", "Add the insert and a new tool controller to the selected job."))
+
+    def get_tool_attributes(self):
+        """Apply the selected ISO dimensions and handedness to a bundled tool."""
+        shape = self.shape_cb.currentText()
+        tools = Path(__file__).resolve().parent.parent / "Tools"
+        with (tools / "Bit" / "iso_shape_{}.fctb".format(shape.lower())).open() as source:
+            attributes = json.load(source)
+        parameters = attributes["parameter"]
+        parameters["EdgeLength"] = "{} mm".format(
+            self.get_edge_length(shape, self.size_cb.currentText()))
+        parameters["TipAngle"] = "{} deg".format(self.get_tip_angle(shape))
+        parameters["TipRadius"] = "{} mm".format(
+            self.get_radius_value(self.radius_cb.currentText()))
+        rotation = FreeCAD.Units.Quantity(parameters["Rotation"]).Value
+        direction = self.direction_cb.currentText()
+        if direction == "L":
+            rotation = -rotation
+        elif direction == "N":
+            rotation = 0
+        parameters["Rotation"] = "{} deg".format(rotation)
+        attributes["name"] = self.result_val.text()
+        return attributes, tools / "Shape" / attributes["shape"]
+
+    def validate_template(self, shape_path, parameters):
+        """Reject failed template recomputes before cached solids can hide errors."""
+        if FreeCAD.Units.Quantity(parameters["TipRadius"]).Value <= 0:
+            raise ValueError(translate("CAM", "Tool creation requires a non-zero nose radius."))
+        template = FreeCAD.newDocument("TurningToolTemplate", hidden=True)
+        try:
+            template.load(str(shape_path))
+            bags = template.getObjectsByLabel("Attributes")
+            if len(bags) != 1:
+                raise ValueError(translate("CAM", "The insert template must have one Attributes object."))
+            for name, value in parameters.items():
+                setattr(bags[0], name, FreeCAD.Units.Quantity(value))
+            template.recompute()
+            errors = [
+                obj.getStatusString() for obj in template.Objects
+                if "Invalid" in obj.State
+            ]
+            if errors:
+                raise ValueError(translate(
+                    "CAM", "The selected insert dimensions cannot form a valid tool: ") + "; ".join(errors))
+            shape = template.Body.Shape
+            if shape.isNull() or not shape.isValid() or len(shape.Solids) != 1:
+                raise ValueError(translate("CAM", "The selected insert dimensions cannot form a valid solid."))
+            PathTurnHelpers.getToolSegments(shape)
+        finally:
+            FreeCAD.closeDocument(template.Name)
+            FreeCAD.setActiveDocument(self.document.Name)
+
+    def create_tool_controller(self, job):
+        """Create and attach a ToolBit and numbered controller in one undo step."""
+        if job.Document != FreeCAD.ActiveDocument:
+            raise ValueError(translate("CAM", "The target job must be in the active document."))
+        if job.Document.HasPendingTransaction:
+            raise ValueError(translate("CAM", "Finish the current document edit before adding a turning tool."))
+        attributes, shape_path = self.get_tool_attributes()
+        self.validate_template(shape_path, attributes["parameter"])
+        number = job.Proxy.nextToolNumber()
+        if number > 10000:
+            raise ValueError(translate("CAM", "The job has reached the maximum tool number (10000)."))
+        document = job.Document
+        # Native ToolBit body loading can commit transactions in the destination.
+        staging = FreeCAD.newDocument("TurningToolStaging", hidden=True)
+        staging.UndoMode = 0
+        try:
+            staged_tool = PathTurnToolBit.create_tool(shape_path, attributes, staging)
+            staging.recompute()
+            if staged_tool.Shape.isNull() or not staged_tool.Shape.isValid() or len(staged_tool.Shape.Solids) != 1:
+                raise ValueError(translate("CAM", "FreeCAD could not create a valid insert ToolBit."))
+            PathTurnHelpers.getToolSegments(staged_tool.Shape)
+            FreeCAD.setActiveDocument(document.Name)
+            document.openTransaction(translate("CAM", "Add turning tool"))
+            committed = False
+            try:
+                tool = document.copyObject(staged_tool, True)
+                if tool.ViewObject:
+                    tool.ViewObject.Visibility = False
+                controller = PathToolController.Create(
+                    name="TC: " + tool.Label, tool=tool, toolNumber=number)
+                job.Proxy.addToolController(controller)
+                document.recompute()
+                document.commitTransaction()
+                committed = True
+            finally:
+                if not committed:
+                    document.abortTransaction()
+        finally:
+            FreeCAD.closeDocument(staging.Name)
+            FreeCAD.setActiveDocument(document.Name)
+        return controller
+
+    def add_tool(self):
+        """Add the selected tool, reporting failures without leaving partial objects."""
+        try:
+            problem = self.creation_problem()
+            if problem:
+                raise ValueError(problem)
+            job = self.get_job()
+            controller = self.create_tool_controller(job)
+        except (OSError, ValueError, RuntimeError, Part.OCCError) as error:
+            message = str(error)
+            FreeCAD.Console.PrintError("Turning tool helper: {}\n".format(message))
+            self.status_label.setText(message)
+            QtGui.QMessageBox.warning(
+                self.form, translate("CAM", "Cannot add turning tool"), message)
+            return
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(controller)
+        self.status_label.setText(translate(
+            "CAM", "Added tool {number} to {job}. Set feeds and spindle speed in its controller before use.").format(
+                number=controller.ToolNumber, job=job.Label))
 
     def get_edge_length(self, _shape, _length ):
         """
@@ -201,11 +384,13 @@ class TurnToolHelperPanel():
 class CommandPathTurnToolHelper:
 		
     def GetResources(self):
+        """Describe the tool helper command in the CAM menu."""
         return {'Pixmap': 'CAM-TurnToolHelper',
-                'MenuText': QtCore.QT_TRANSLATE_NOOP("CAM", "Derive toolbit parameters from isocode"),
-                'ToolTip': QtCore.QT_TRANSLATE_NOOP("CAM", "Derive toolbit parameters from isocode")}
+                'MenuText': QtCore.QT_TRANSLATE_NOOP("CAM", "Turn Tool Helper"),
+                'ToolTip': QtCore.QT_TRANSLATE_NOOP("CAM", "Derive ISO insert parameters and add turning tools to a CAM job")}
 	
     def Activated(self):
+        """Open the modal ISO lookup and tool creation dialog."""
         panel = TurnToolHelperPanel()
         panel.show()
 
@@ -213,6 +398,3 @@ class CommandPathTurnToolHelper:
 if FreeCAD.GuiUp:
     # register the FreeCAD command
     FreeCADGui.addCommand('CAM_TurnToolHelper', CommandPathTurnToolHelper())
-
-
-
