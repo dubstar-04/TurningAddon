@@ -22,6 +22,8 @@
 # *                                                                         *
 # ***************************************************************************
 
+import math
+
 import FreeCAD
 import Part
 import Path
@@ -37,7 +39,7 @@ if FreeCAD.GuiUp:
 
 from liblathe.base.point import Point
 from liblathe.base.segment import Segment
-from liblathe.base.tool import Tool
+from liblathe.tool.tool import Tool
 
 __title__ = "Path Turn Base Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -108,15 +110,9 @@ class ObjectOp(PathOp.ObjectOp):
         self.generate_gcode(obj)
 
     def getProps(self, obj):
-        # TODO: use the start and final depths
-        # print('getProps - Start Depth: ', obj.OpStartDepth.Value, 'Final Depth: ', obj.OpFinalDepth.Value)
         parentJob = PathUtils.findParentJob(obj)
 
         props = {}
-        props['min_dia'] = self.minDia
-        props['extra_dia'] = self.maxDia - self.stock.Shape.BoundBox.XLength
-        props['start_offset'] = self.startOffset
-        props['end_offset'] = self.endOffset
         props['allow_grooving'] = self.allowGrooving
         props['step_over'] = self.stepOver
         props['finish_passes'] = self.finishPasses
@@ -130,16 +126,11 @@ class ObjectOp(PathOp.ObjectOp):
         '''
         Get Stock Silhoutte
         '''
-        stockBB = self.stock.Shape.BoundBox
-        stock_z_pos = stockBB.ZMax
-
-        self.startOffset = obj.StartDepth.Value - stockBB.ZMax
-        self.endOffset = stockBB.ZMin - obj.FinalDepth.Value
-
         stock_plane_length = obj.StartDepth.Value - obj.FinalDepth.Value
-        stock_plane_width = stockBB.XLength / 2
+        stock_plane_width = (obj.MaxDiameter.Value - obj.MinDiameter.Value) / 2
         stock_plane = Part.makePlane(stock_plane_length, stock_plane_width,
-                                     FreeCAD.Vector(-stock_plane_width, 0, stock_z_pos), FreeCAD.Vector(0, -1, 0))
+                                     FreeCAD.Vector(obj.MinDiameter.Value / 2, 0, obj.FinalDepth.Value),
+                                     FreeCAD.Vector(0, 1, 0))
         return stock_plane
 
     def get_part_outline(self):
@@ -150,6 +141,8 @@ class ObjectOp(PathOp.ObjectOp):
         model = self.model[0].Shape
         # get a section through the part origin on the XZ Plane
         sections = Path.Area().add(model).makeSections(mode=0, heights=[0.0], project=True, plane=self.stock_silhoutte)
+        if not sections:
+            raise ValueError("Turning model has no XZ section")
         part_silhoutte = sections[0].setParams(Offset=0.0).getShape()
         # get an offset section larger than the part section
         part_bound_face = sections[0].setParams(Offset=0.1).getShape()
@@ -161,73 +154,76 @@ class ObjectOp(PathOp.ObjectOp):
         z_ref = modelBB.ZMax + (plane_length - modelBB.ZLength) / 2
 
         # create a plane larger than the part
-        cut_plane = Part.makePlane(plane_length, plane_width, FreeCAD.Vector(-plane_width, 0, z_ref), FreeCAD.Vector(0, -1, 0))
+        cut_plane = Part.makePlane(plane_length, plane_width, FreeCAD.Vector(0, 0, z_ref), FreeCAD.Vector(0, -1, 0))
         # Cut the part section from the cut plane
         path_area = cut_plane.cut(part_silhoutte)
 
         part_edges = []
-        part_segments = []
-
-        # interate through the edges and check if each is inside the bound_face
         for edge in path_area.Edges:
-            edge_in = True
-            for vertex in edge.Vertexes:
-                if not part_bound_face.isInside(vertex.Point, 0.1, True):
-                    edge_in = False
-
-            if edge_in:
+            if all(part_bound_face.isInside(vertex.Point, 0.1, True) for vertex in edge.Vertexes):
                 part_edges.append(edge)
-                vert = edge.Vertexes
-                pt1 = Point(vert[0].X, vert[0].Y, vert[0].Z)
-                pt2 = Point(vert[-1].X, vert[-1].Y, vert[-1].Z)
-                seg = Segment(pt1, pt2)
+        if not part_edges:
+            raise ValueError("Turning model has no usable profile edges")
+        segments = self.getSegmentsFromEdges(Part.Wire(part_edges).OrderedEdges)
+        if not segments:
+            raise ValueError("Turning model has no profile away from the spindle axis")
+        if segments[0].start.Z < segments[-1].end.Z:
+            segments = [Segment(seg.end, seg.start, -seg.bulge) for seg in reversed(segments)]
+        return segments
 
-                if isinstance(edge.Curve, Part.Circle):
-                    line1 = Part.makeLine(edge.Curve.Location, edge.Vertexes[0].Point)
-                    line2 = Part.makeLine(edge.Curve.Location, edge.Vertexes[-1].Point)
-                    part_edges.append(line1)
-                    part_edges.append(line2)
+    def getToolShape(self, obj):
+        toolShape = obj.ToolController.Tool.Shape
+        box = toolShape.BoundBox
+        if box.XLength <= 0 or box.ZLength <= 0:
+            raise ValueError("Turning tool must have a non-zero XZ section")
+        plane = Part.makePlane(
+            box.ZLength, box.XLength,
+            FreeCAD.Vector(box.XMin, box.Center.y, box.ZMin), FreeCAD.Vector(0, -1, 0))
+        sections = Path.Area().add(toolShape).makeSections(
+            mode=0, heights=[0.0], project=True, plane=plane)
+        if not sections:
+            raise ValueError("Turning tool has no XZ section")
+        section = sections[0].setParams(Offset=0.0).getShape()
+        if len(section.Wires) != 1 or not section.Wires[0].isClosed():
+            raise ValueError("Turning tool must have one closed XZ insert profile")
+        return self.getSegmentsFromEdges(section.Wires[0].OrderedEdges, True)
 
-                    angle = edge.LastParameter - edge.FirstParameter
-                    direction = edge.Curve.Axis.y
-                    # print('bulge angle', direction, angle * direction)
-                    # TODO: set the correct sign for the bulge +-
-                    seg.set_bulge(angle * direction)
-
-                part_segments.append(seg)
-
-        # path_profile = Part.makeCompound(part_edges)
-        # Part.show(path_profile, 'Final_pass')
-        return part_segments
+    def getSegmentsFromEdges(self, edges, allowOnXAxis=False):
+        segments = []
+        for edge in edges:
+            curve = edge.Curve
+            if not isinstance(curve, (Part.Line, Part.Circle)):
+                raise ValueError("Turning profiles support only straight lines and circular arcs")
+            first, last = edge.FirstParameter, edge.LastParameter
+            if edge.Orientation == "Reversed":
+                first, last = last, first
+            start, end = edge.valueAt(first), edge.valueAt(last)
+            if (not allowOnXAxis and isinstance(curve, Part.Line)
+                    and math.isclose(start.x, 0, abs_tol=1e-7)
+                    and math.isclose(end.x, 0, abs_tol=1e-7)):
+                continue
+            parameters = [first, last]
+            if isinstance(curve, Part.Circle) and edge.isClosed():
+                parameters.insert(1, (first + last) / 2)
+            for begin, finish in zip(parameters, parameters[1:]):
+                start, end = edge.valueAt(begin), edge.valueAt(finish)
+                segment = Segment(Point(start.x, start.z), Point(end.x, end.z))
+                if isinstance(curve, Part.Circle):
+                    middle = edge.valueAt((begin + finish) / 2)
+                    cross = ((middle.x - start.x) * (end.z - start.z)
+                             - (middle.z - start.z) * (end.x - start.x))
+                    # LibLathe's positive bulge is clockwise in XZ.
+                    segment.setBulge(-math.copysign(abs(finish - begin), cross))
+                segments.append(segment)
+        return segments
 
     def generate_gcode(self, obj):
         '''
         Base function to generate gcode for the OP by writing path command to self.commandlist
         Calls operations op_generate_gcode.
         '''
-        opTool = obj.ToolController.Tool
-
-        # only toolbits are supported
-        #if isinstance(opTool, Path.Tool):
-        #    raise RuntimeError(translate('PathTurn', "Path Turn: Legacy Tools Not Supported "))
-
-        # create a liblathe tool and assign the toolbit parameters
         turnTool = Tool()
-
-        # TODO: set some sensible default values or raise error if attribute not available
-
-        if hasattr(opTool, "TipAngle"):
-            turnTool.set_tip_angle(opTool.TipAngle.Value)
-
-        if hasattr(opTool, "EdgeLength"):
-            turnTool.set_edge_length(opTool.EdgeLength.Value)
-
-        if hasattr(opTool, "TipRadius"):
-            turnTool.set_nose_radius(opTool.TipRadius.Value)
-
-        if hasattr(opTool, "Rotation"):
-            turnTool.set_rotation(opTool.Rotation.Value)
-
+        turnTool.set_tool_from_segments(self.getToolShape(obj))
         self.op_generate_gcode(obj, turnTool)
 
     def op_generate_gcode(self, obj, turnTool):

@@ -54,18 +54,18 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
         '''
         # self.clear_path()
         facingOP = LLF.FaceOP()
-        facingOP.set_params(self.getProps(obj))
+        facingOP.setParams(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(self.stock_silhoutte.BoundBox)
+        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(obj)
         facingOP.add_stock(stockBoundbox)
 
-        facingOP.add_part_edges(self.part_outline)
+        facingOP.addPartSegments(self.part_outline)
         facingOP.add_tool(turnTool)
 
-        PathCode = facingOP.get_gcode()
+        PathCode = facingOP.getGCode()
 
         for command in PathCode:
-            pathCommand = Path.Command(command.get_movement(), command.get_params())
+            pathCommand = Path.Command(command.get_movement(), command.getParams())
             self.commandlist.append(pathCommand)
 
     def opSetDefaultValues(self, obj, job):
