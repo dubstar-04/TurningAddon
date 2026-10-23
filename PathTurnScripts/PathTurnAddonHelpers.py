@@ -40,6 +40,7 @@ _rotational_profiles = OrderedDict()
 
 
 def getResourcePath(resName):
+    """Return the path to a named panel resource in the add-on."""
     # get this directory
     pathScripts = os.path.dirname(__file__)
     # get the parent directory
@@ -52,13 +53,22 @@ def getResourcePath(resName):
 
 
 def getliblatheBoundBox(operation):
+    """Convert operation diameter and depth limits to a LibLathe XZ bound box.
+
+    Diameter limits become radii; final and start depths bound the Z range.
+    """
     return BoundBox(
         Point(operation.MinDiameter.Value / 2, operation.FinalDepth.Value),
         Point(operation.MaxDiameter.Value / 2, operation.StartDepth.Value))
 
 
 def getPartOutline(models):
-    """Return LibLathe segments for an iterable of model shapes."""
+    """Return a connected, top-to-bottom LibLathe outline for model shapes.
+
+    Reuse the four most recent verified profiles across operations, excluding
+    straight spindle-axis edges from the returned outline. Reject empty models
+    and profiles that cannot form one connected cutting contour.
+    """
     models = tuple(models)
     if not models:
         raise ValueError("Turning requires a solid model")
@@ -93,7 +103,12 @@ def getPartOutline(models):
 
 
 def getRotationalProfile(model, tolerance=0.01):
-    """Return a verified positive-X envelope about the spindle's Z axis."""
+    """Return a verified positive-X face enclosing the model's rotation about Z.
+
+    Prefer an exact line/arc section; otherwise build a conservative radial mesh
+    envelope using the approximation allowance given by tolerance in millimetres.
+    Raise an error if the model is invalid or containment cannot be established.
+    """
     if not math.isfinite(tolerance) or tolerance < 1e-6:
         raise ValueError("Turning profile tolerance must be finite and at least 0.000001 mm")
     if model.isNull() or not model.Solids or not model.isValid():
@@ -120,6 +135,11 @@ def getRotationalProfile(model, tolerance=0.01):
 
 
 def getSectionProfile(section):
+    """Fill a positive-X meridional line/arc section toward the spindle axis.
+
+    Return one outer face, or None if the section contains unsupported curves,
+    has no usable edges, or cannot form a single connected face.
+    """
     faces = []
     for edge in section.Edges:
         curve = edge.Curve
@@ -161,6 +181,11 @@ def getSectionProfile(section):
 
 
 def getPositiveProfile(projected, plane):
+    """Fill projected face interiors and clip them to the positive-X workplane.
+
+    Return one outer face with a straight spindle-axis boundary, or None when
+    the clipped projection does not meet those requirements.
+    """
     filled = Part.makeCompound([Part.Face(face.OuterWire) for face in projected.Faces])
     if filled.isNull() or not filled.Faces:
         return None
@@ -176,6 +201,11 @@ def getPositiveProfile(projected, plane):
 
 
 def profileContainsModel(profile, model):
+    """Check that revolving the profile about Z contains the entire model.
+
+    Require a valid revolved solid and a valid cut remainder with no faces,
+    rather than accepting a volume tolerance that could hide small features.
+    """
     if not profile.isValid():
         return False
     envelope = profile.revolve(FreeCAD.Vector(), FreeCAD.Vector(0, 0, 1), 360)
@@ -186,6 +216,12 @@ def profileContainsModel(profile, model):
 
 
 def getRadialMeshProjection(model, deflection):
+    """Build an outward-offset XZ candidate from the model's radial mesh envelope.
+
+    Use deflection in millimetres for absolute meshing and radial interpolation
+    error. Merge axial spans, simplify the outline and add a conservative margin.
+    The caller must still verify containment against the complete solid model.
+    """
     mesh = MeshPart.meshFromShape(
         Shape=model.copy(), LinearDeflection=deflection,
         AngularDeflection=0.5, Relative=False)
@@ -243,6 +279,12 @@ def getRadialMeshProjection(model, deflection):
 
 
 def simplifyRadialProfile(points, tolerance):
+    """Simplify ordered XZ polyline points within the given distance tolerance.
+
+    Retain the endpoints and original point order using iterative subdivision.
+    Simplification alone does not guarantee an outward boundary; the caller
+    must add a margin and verify the final envelope.
+    """
     keep = {0, len(points) - 1}
     pending = [(0, len(points) - 1)]
     while pending:
@@ -266,6 +308,12 @@ def simplifyRadialProfile(points, tolerance):
 
 
 def mergeRadialProfiles(first, second):
+    """Return the upper envelope of two non-empty, ordered axial span lists.
+
+    Each span is (start_z, start_radius, end_z, end_radius), with start_z < end_z.
+    Spans within each input must not overlap. Split at crossings and preserve
+    axial gaps and radius steps.
+    """
     merged = []
     i = j = 0
     z = min(first[0][0], second[0][0])
@@ -311,7 +359,11 @@ def mergeRadialProfiles(first, second):
 
 
 def getToolSegments(toolShape):
-    """Extract LibLathe segments from the tool's closed XZ insert section."""
+    """Extract LibLathe segments from the tool shape's closed XZ projection.
+
+    Project at the shape's mid-Y plane, retaining its supplied orientation.
+    Require one closed outline with non-zero X and Z extents.
+    """
     box = toolShape.BoundBox
     if box.XLength <= 0 or box.ZLength <= 0:
         raise ValueError("Turning tool must have a non-zero XZ section")
@@ -329,6 +381,12 @@ def getToolSegments(toolShape):
 
 
 def getSegmentsFromEdges(edges, allowOnXAxis=False):
+    """Convert directed FreeCAD line/circle edges to LibLathe XZ segments.
+
+    Preserve orientation and clockwise-positive bulges, splitting full circles
+    into two arcs. Omit straight spindle-axis edges unless allowOnXAxis is True.
+    Raise ValueError for unsupported curve types.
+    """
     segments = []
     for edge in edges:
         curve = edge.Curve
