@@ -44,7 +44,7 @@ input validation, depth setup and toolpath generation.
 * Path Toolbits (Legacy tools are not supported)
 * Python3
 * Qt5
-* LibLathe 0.0.7, installed in the Python environment used by FreeCAD
+* LibLathe, installed in the Python environment used by FreeCAD
 
 ## Installation
 1. Clone this repository or extract its source ZIP into your
@@ -54,13 +54,13 @@ input validation, depth setup and toolpath generation.
    For a matching system Python:
 
    ```sh
-   python3 -m pip install --user "liblathe==0.0.7"
+   python3 -m pip install --user liblathe
    ```
 
    For the FreeCAD Flatpak, use its Python interpreter rather than the host's:
 
    ```sh
-   flatpak run --command=python org.freecad.FreeCAD -m pip install --user "liblathe==0.0.7"
+   flatpak run --command=python org.freecad.FreeCAD -m pip install --user liblathe
    ```
 
 3. Restart FreeCAD and activate the CAM workbench.
