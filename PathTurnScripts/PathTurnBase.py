@@ -79,6 +79,13 @@ class ObjectOp(PathOp.ObjectOp):
         obj.StepOver = FreeCAD.Units.Quantity(1.0, FreeCAD.Units.Length)
         obj.FinishPasses = 2
         obj.StockToLeave = 0
+        self.setEditorModes(obj, self.opFeatures(obj))
+
+    def setEditorModes(self, obj, features):
+        super().setEditorModes(obj, features)
+        for name in ("OpStartDepth", "OpFinalDepth", "OpToolDiameter", "OpStockZMax", "OpStockZMin"):
+            if hasattr(obj, name):
+                obj.setEditorMode(name, 2)
 
     def opExecute(self, obj):
         '''opExecute(obj) ... processes all Base features
@@ -91,11 +98,15 @@ class ObjectOp(PathOp.ObjectOp):
         if self.minDia >= self.maxDia:
             raise RuntimeError(translate('PathTurn', "Minimum diameter is equal or greater than maximum diameter"))
 
+        if self.minDia < 0 or self.maxDia < 0:
+            raise RuntimeError(translate('PathTurn', "Diameter values must be non-negative"))
+
         if obj.StartDepth.Value <= obj.FinalDepth.Value:
             raise RuntimeError(translate('PathTurn', "Start depth is equal or less than final depth"))
 
-        self.startOffset = 0
-        self.endOffset = 0
+        if not math.isfinite(obj.StepOver.Value) or obj.StepOver.Value <= 0:
+            raise RuntimeError(translate('PathTurn', "Stepover must be finite and positive"))
+
         self.allowGrooving = obj.AllowGrooving
         self.stepOver = obj.StepOver.Value
         self.finishPasses = obj.FinishPasses
@@ -108,6 +119,15 @@ class ObjectOp(PathOp.ObjectOp):
         self.stock_silhoutte = self.get_stock_silhoutte(obj)
         self.part_outline = self.get_part_outline()
         self.generate_gcode(obj)
+
+    def opSetDefaultValues(self, obj, job):
+        obj.OpStartDepth = job.Stock.Shape.BoundBox.ZMax
+        obj.OpFinalDepth = job.Stock.Shape.BoundBox.ZMin
+
+    def opUpdateDepths(self, obj):
+        obj.OpStartDepth = obj.OpStockZMax
+        obj.OpFinalDepth = obj.OpStockZMin
+        self.setEditorModes(obj, self.opFeatures(obj))
 
     def getProps(self, obj):
         parentJob = PathUtils.findParentJob(obj)

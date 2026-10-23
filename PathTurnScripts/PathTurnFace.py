@@ -44,9 +44,8 @@ def translate(context, text, disambig=None):
 class ObjectTurnFace(PathTurnBase.ObjectOp):
     '''Proxy class for turning facing operations.'''
 
-    # def opFeatures(self, obj):
-    #    '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
-    #    return PathTurnBase.PathOp.FeatureDiameters | PathTurnBase.PathOp.FeatureTool | PathTurnBase.PathOp.FeatureDepths | PathTurnBase.PathOp.FeatureNoFinalDepth | PathTurnBase.PathOp.FeatureCoolant
+    def opFeatures(self, obj):
+        return super().opFeatures(obj) | PathTurnBase.PathOp.FeatureNoFinalDepth
 
     def op_generate_gcode(self, obj, turnTool):
         '''
@@ -67,15 +66,6 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
         for command in PathCode:
             pathCommand = Path.Command(command.get_movement(), command.getParams())
             self.commandlist.append(pathCommand)
-
-    def opSetDefaultValues(self, obj, job):
-        obj.OpStartDepth = job.Stock.Shape.BoundBox.ZMax
-        obj.OpFinalDepth = job.Stock.Shape.BoundBox.ZMin
-        # obj.MaxDiameter = job.Stock.Shape.BoundBox.XMin # - job.SetupSheet.SafeHeightOffset.Value
-
-    def opUpdateDepths(self, obj):
-        obj.OpStartDepth = obj.OpStockZMax
-        obj.OpFinalDepth = obj.OpStockZMin
 
 
 def SetupProperties():
