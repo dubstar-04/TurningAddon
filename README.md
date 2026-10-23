@@ -15,8 +15,8 @@ workbench is activated. It uses an externally installed
 * Turning Profiling operation
 * Turning Parting operation
 
-Paths follow the part's full rotating outline. Profiles are checked before use and reused for
-faster updates.
+Paths follow the part's full rotating outline. Profiles use fast native extraction
+where possible, are checked before use, and are reused for faster updates.
 
 ## Requirements
 * FreeCAD v1.0 or later with the CAM workbench

@@ -105,9 +105,9 @@ def getPartOutline(models):
 def getRotationalProfile(model, tolerance=0.01):
     """Return a verified positive-X face enclosing the model's rotation about Z.
 
-    Prefer an exact line/arc section; otherwise build a conservative radial mesh
-    envelope using the approximation allowance given by tolerance in millimetres.
-    Raise an error if the model is invalid or containment cannot be established.
+    Prefer an exact line/arc section, then geometry-selected native sections,
+    before falling back to a conservative radial mesh envelope. Tolerance is the
+    approximation allowance in millimetres. Reject invalid or unverified models.
     """
     if not math.isfinite(tolerance) or tolerance < 1e-6:
         raise ValueError("Turning profile tolerance must be finite and at least 0.000001 mm")
@@ -120,9 +120,19 @@ def getRotationalProfile(model, tolerance=0.01):
     plane = Part.makePlane(
         box.ZLength + 2 * padding, radius + padding,
         FreeCAD.Vector(0, 0, box.ZMin - padding), FreeCAD.Vector(0, 1, 0))
-    profile = getSectionProfile(model.common(plane))
+    section = model.common(plane)
+    profile = getSectionProfile(section)
     if profile is not None and profileContainsModel(profile, model):
         return profile
+
+    try:
+        profile = getNativeProfile(model, section, plane, tolerance)
+    except Part.OCCError as error:
+        FreeCAD.Console.PrintWarning(
+            f"Turning native profile extraction failed; using mesh extraction: {error}\n")
+    else:
+        if profile is not None:
+            return profile
 
     # Radial projection sees every mesh face, including features hidden in any one view.
     for deflection in (tolerance / 8, tolerance / 32):
@@ -134,14 +144,66 @@ def getRotationalProfile(model, tolerance=0.01):
         f"Cannot construct a containing turning profile within {tolerance:g} mm")
 
 
-def getSectionProfile(section):
+def getNativeProfile(model, section, plane, tolerance):
+    """Try geometry-selected meridians and return a verified face, or None.
+
+    Align cylindrical and spherical feature centres with positive X, approximate
+    spline sections with native bi-arcs, and combine their outer profiles. Add
+    a tolerance-budgeted margin and require complete-model containment before
+    accepting a candidate; None requests the radial mesh fallback.
+    """
+    angles = {0.0}
+    for face in model.Faces:
+        surface = face.Surface
+        if isinstance(surface, (Part.Cylinder, Part.Sphere)):
+            center = surface.Center
+            if math.hypot(center.x, center.y) > 1e-7:
+                angles.add(round(-math.degrees(math.atan2(center.y, center.x)), 7))
+
+    profiles = []
+    for angle in sorted(angles):
+        if angle == 0:
+            meridian = section
+        else:
+            rotated = model.copy()
+            rotated.rotate(FreeCAD.Vector(), FreeCAD.Vector(0, 0, 1), angle)
+            meridian = rotated.common(plane)
+        profile = getSectionProfile(meridian, tolerance / 8)
+        if profile is None:
+            continue
+        profiles.append(profile)
+        merged = (profiles[0].multiFuse(profiles[1:]).removeSplitter()
+                  if len(profiles) > 1 else profiles[0])
+        if len(merged.Faces) != 1:
+            continue
+        # Square joins, bi-arc error and arc fitting share the existing allowance.
+        expanded = Path.Area().add(merged).setParams(
+            Offset=tolerance / 2, FitArcs=True,
+            Accuracy=tolerance / 16, JoinType=1).getShape()
+        candidate = getPositiveProfile(expanded, plane)
+        if candidate is not None and profileContainsModel(candidate, model):
+            return candidate
+    return None
+
+
+def getSectionProfile(section, tolerance=None):
     """Fill a positive-X meridional line/arc section toward the spindle axis.
 
-    Return one outer face, or None if the section contains unsupported curves,
-    has no usable edges, or cannot form a single connected face.
+    With a tolerance in millimetres, approximate trimmed B-spline edges using
+    native bi-arcs. Return one outer face, or None if the section is unsupported,
+    has no usable edges, or cannot form a single connected face. Approximate
+    sections require an outward margin and containment verification by the caller.
     """
-    faces = []
+    edges = []
     for edge in section.Edges:
+        if tolerance is not None and isinstance(edge.Curve, Part.BSplineCurve):
+            curve = edge.Curve.copy()
+            curve.segment(edge.FirstParameter, edge.LastParameter)
+            edges.extend(arc.toShape() for arc in curve.toBiArcs(tolerance))
+        else:
+            edges.append(edge)
+    faces = []
+    for edge in edges:
         curve = edge.Curve
         first, last = edge.FirstParameter, edge.LastParameter
         parameters = [first, last]
@@ -252,9 +314,10 @@ def getRadialMeshProjection(model, deflection):
                 continue
             if max(first_radius, last_radius) <= 1e-7:
                 continue
-            spans.append([(start.z, first_radius, end.z, last_radius)])
+            spans.append((start.z, first_radius, end.z, last_radius))
     if not spans:
         raise ValueError("Turning model has no usable mesh profile")
+    spans = [[span] for span in pruneRadialSpans(spans)]
     while len(spans) > 1:
         spans = [
             mergeRadialProfiles(spans[index], spans[index + 1])
@@ -276,6 +339,26 @@ def getRadialMeshProjection(model, deflection):
     return Path.Area().add(face).setParams(
         FitArcs=True, Accuracy=deflection / 2, Deflection=deflection,
         CleanDistance=deflection / 2, Offset=4 * deflection, JoinType=1).getShape()
+
+
+def pruneRadialSpans(spans):
+    """Discard duplicate and dominated linear spans without changing the envelope.
+
+    Spans are (start_z, start_radius, end_z, end_radius) tuples. Only compare
+    spans with identical Z limits: one that is no higher at either endpoint
+    cannot contribute to their upper envelope. Retain crossing spans.
+    """
+    groups = {}
+    for start, start_radius, end, end_radius in spans:
+        groups.setdefault((start, end), set()).add((start_radius, end_radius))
+    pruned = []
+    for (start, end), radii in groups.items():
+        highest = -math.inf
+        for start_radius, end_radius in sorted(radii, reverse=True):
+            if end_radius > highest:
+                pruned.append((start, start_radius, end, end_radius))
+                highest = end_radius
+    return pruned
 
 
 def simplifyRadialProfile(points, tolerance):
