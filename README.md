@@ -15,29 +15,8 @@ workbench is activated. It uses an externally installed
 * Turning Profiling operation
 * Turning Parting operation
 
-Turning uses positive radial X coordinates and the operation's minimum/maximum
-diameters and start/final depths as stock limits. Tools use their actual XZ
-insert section, including its existing orientation, rather than an inferred ISO
-shape. Position the tool geometry appropriately for the XZ turning plane.
-Tool sections may contain straight lines and circular arcs and must form one
-closed outline.
-
-All turning operations use the part's full rotational envelope about the Z axis,
-not a single viewing direction. This preserves material around partial features,
-which must be finished separately. Rotational line/arc profiles retain their
-original geometry. Other profiles use an adaptive radial mesh envelope with a
-0.01 mm approximation allowance, including a small outward/axial margin. Before
-accepting either profile, the add-on revolves it and checks that it contains the
-complete model. Unsupported or unverified profiles stop generation with an error.
-The four most recent profiles are cached across operations; changing the model
-geometry or placement invalidates its cached result. Complex curved models take
-longer to extract initially, but tool and cutting-parameter changes reuse the
-verified geometry.
-
-Part and tool profile extraction is shared in
-[`PathTurnAddonHelpers.py`](PathTurnScripts/PathTurnAddonHelpers.py).
-[`PathTurnBase.py`](PathTurnScripts/PathTurnBase.py) handles operation properties,
-input validation, depth setup and toolpath generation.
+Paths follow the part's full rotating outline. Profiles are checked before use and reused for
+faster updates.
 
 ## Requirements
 * FreeCAD v1.0 or later with the CAM workbench
