@@ -384,15 +384,18 @@ class TurnToolHelperPanel():
 class CommandPathTurnToolHelper:
 		
     def GetResources(self):
-        """Describe the tool helper command in the CAM menu."""
+        """Describe the tool library command in the CAM menu."""
         return {'Pixmap': 'CAM-TurnToolHelper',
-                'MenuText': QtCore.QT_TRANSLATE_NOOP("CAM", "Turn Tool Helper"),
-                'ToolTip': QtCore.QT_TRANSLATE_NOOP("CAM", "Derive ISO insert parameters and add turning tools to a CAM job")}
+                'MenuText': QtCore.QT_TRANSLATE_NOOP("CAM", "Turning Tool Library"),
+                'ToolTip': QtCore.QT_TRANSLATE_NOOP("CAM", "Manage native turning tool library membership")}
 	
     def Activated(self):
-        """Open the modal ISO lookup and tool creation dialog."""
-        panel = TurnToolHelperPanel()
-        panel.show()
+        """Open the library editor with access to the existing ISO helper."""
+        from ToolLibrary.gui import LibraryDialog
+
+        dialog = LibraryDialog(
+            FreeCADGui.getMainWindow(), iso_helper=lambda: TurnToolHelperPanel().show())
+        dialog.exec_()
 
 
 if FreeCAD.GuiUp:
