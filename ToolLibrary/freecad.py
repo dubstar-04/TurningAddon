@@ -3,8 +3,10 @@
 from copy import deepcopy
 from dataclasses import dataclass
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
+from tempfile import TemporaryDirectory
 from uuid import uuid4
 
 import FreeCAD
@@ -17,6 +19,7 @@ from .library import ToolEntry, ToolLibrary
 
 
 _STORES = ("local", "builtin")
+_ISO_UNITS = {"EdgeLength": "mm", "TipAngle": "deg", "TipRadius": "mm", "Rotation": "deg"}
 
 
 @dataclass
@@ -27,6 +30,84 @@ class LibrarySnapshot:
     attributes: dict
     tools: dict
     issues: tuple
+
+
+@dataclass
+class ToolBitSnapshot:
+    uri: str
+    attributes: dict
+    values: dict
+    shape_data: bytes
+
+
+def _iso_values(attributes):
+    if attributes.get("version") != 2 or not isinstance(attributes.get("parameter"), dict):
+        raise ValueError("Expected a version 2 ToolBit with ISO parameters.")
+    name = attributes.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("ToolBit name must be a non-empty string.")
+    values = {"name": name}
+    for field, unit in _ISO_UNITS.items():
+        raw = attributes["parameter"].get(field)
+        if isinstance(raw, bool) or not isinstance(raw, (str, int, float)):
+            raise ValueError(f"This editor requires the ISO parameter {field}.")
+        quantity = FreeCAD.Units.Quantity(raw)
+        if quantity.Unit not in (FreeCAD.Units.Quantity(f"1 {unit}").Unit, FreeCAD.Units.Quantity(1).Unit):
+            raise ValueError(f"Unexpected units for {field}.")
+        if not math.isfinite(quantity.Value):
+            raise ValueError(f"{field} must be finite.")
+        values[field] = quantity.Value
+    if values["EdgeLength"] <= 0 or values["TipRadius"] <= 0:
+        raise ValueError("Edge length and nose radius must be positive.")
+    if not 0 < values["TipAngle"] < 180:
+        raise ValueError("Tip angle must be between 0 and 180 degrees.")
+    return values
+
+
+def load_iso_tool(uri):
+    """Load stored ISO dimensions without inferring sizes or restricting shape names."""
+    uri = AssetUri(str(uri))
+    if uri.asset_type != "toolbit" or not cam_assets.exists(uri, store="local"):
+        raise ValueError("Only an existing user ToolBit can be edited in place.")
+    attributes = _read_object(uri)
+    values = _iso_values(attributes)
+    shape_uri = _reference("toolbitshape", attributes.get("shape"))
+    shape_data = cam_assets.get_raw(shape_uri, store=_STORES)
+    return ToolBitSnapshot(str(uri), attributes, values, shape_data)
+
+
+def save_iso_tool(snapshot, values):
+    """Update a shared ToolBit in place, preserving shape references and extra metadata."""
+    uri = AssetUri(snapshot.uri)
+    if uri.asset_type != "toolbit" or not cam_assets.exists(uri, store="local"):
+        raise ValueError("Only an existing user ToolBit can be edited in place.")
+    if _read_object(uri) != snapshot.attributes:
+        raise ValueError("ToolBit changed since loading. Reload before saving.")
+    shape_uri = _reference("toolbitshape", snapshot.attributes.get("shape"))
+    if cam_assets.get_raw(shape_uri, store=_STORES) != snapshot.shape_data:
+        raise ValueError("ToolShape changed since loading. Reload before saving.")
+    if set(values) != set(snapshot.values):
+        raise ValueError("Expected a name and all four ISO dimensions.")
+    attributes = deepcopy(snapshot.attributes)
+    attributes["name"] = values["name"]
+    for field, unit in _ISO_UNITS.items():
+        value = values[field]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"{field} must be a finite number.")
+        if value != snapshot.values[field]:
+            attributes["parameter"][field] = f"{value} {unit}"
+    updated_values = _iso_values(attributes)
+    if attributes == snapshot.attributes:
+        return snapshot
+    with TemporaryDirectory() as directory:
+        shape_path = Path(directory) / "insert.fcstd"
+        shape_path.write_bytes(snapshot.shape_data)
+        validate_iso_template(shape_path, attributes["parameter"])
+    cam_assets.add_raw(
+        uri.asset_type, uri.asset_id,
+        json.dumps(attributes, indent=2, allow_nan=False).encode("utf-8"), store="local",
+    )
+    return ToolBitSnapshot(snapshot.uri, attributes, updated_values, snapshot.shape_data)
 
 
 def library_location():
@@ -147,8 +228,11 @@ def validate_iso_template(shape_path, parameters):
         bags = template.getObjectsByLabel("Attributes")
         if len(bags) != 1:
             raise ValueError("The insert template must have one Attributes object.")
+        if not all(field in bags[0].PropertiesList for field in _ISO_UNITS):
+            raise ValueError("The ToolShape does not expose the supported ISO dimensions.")
         for name, value in parameters.items():
-            setattr(bags[0], name, FreeCAD.Units.Quantity(value))
+            if name in bags[0].PropertiesList:
+                setattr(bags[0], name, FreeCAD.Units.Quantity(value))
         template.recompute()
         errors = [obj.getStatusString() for obj in template.Objects if "Invalid" in obj.State]
         if errors:
@@ -190,6 +274,125 @@ def load_iso_form():
 
     path = Path(__file__).resolve().parent.parent / "Gui/Resources/panels/DlgTurnToolHelper.ui"
     return FreeCADGui.PySideUic.loadUi(str(path))
+
+
+def job_choices():
+    """Return active-document job identities and a selection-aware default."""
+    import Path.Main.Job as jobs
+
+    document = FreeCAD.ActiveDocument
+    available = jobs.Instances()
+    selected = set()
+    if FreeCAD.GuiUp:
+        import FreeCADGui
+        import PathScripts.PathUtils as utils
+
+        selected = {
+            job.Name
+            for obj in FreeCADGui.Selection.getSelection()
+            if obj.Document == document
+            for job in [utils.findParentJob(obj)]
+            if job in available
+        }
+    preferred = next(iter(selected)) if len(selected) == 1 else (
+        available[0].Name if len(available) == 1 else "")
+    return (
+        document.Name if document else None,
+        tuple((job.Name, job.Label) for job in available), preferred,
+    )
+
+
+def _job(document_name, job_name):
+    import Path.Main.Job as jobs
+
+    document = FreeCAD.ActiveDocument
+    if document is None or document.Name != document_name:
+        raise ValueError("Choose a CAM job in the active document.")
+    job = document.getObject(job_name) if job_name else None
+    if job is None or not hasattr(job, "Proxy") or not isinstance(job.Proxy, jobs.ObjectJob):
+        raise ValueError("Choose a CAM job in the active document.")
+    return job
+
+
+def job_add_problem(document_name, job_name, number):
+    """Report cheap job/number checks without loading geometry or mutating a job."""
+    try:
+        job = _job(document_name, job_name)
+    except ValueError as error:
+        return str(error)
+    if job.Document.HasPendingTransaction:
+        return "Finish the current document edit before adding a turning tool."
+    if type(number) is not int or not 1 <= number <= 10000:
+        return "The job tool number must be between 1 and 10000."
+    if any(controller.ToolNumber == number for controller in job.Tools.Group):
+        return f"Tool number {number} is already in use in this job. Renumber the library row first."
+    return None
+
+
+def add_to_job(entry, document_name, job_name):
+    """Copy a stored ToolBit into a job in one undo step, without changing its asset."""
+    import Part
+    import Path.Tool.Controller as controllers
+    from PathTurnScripts import PathTurnAddonHelpers as helpers
+    from PathTurnScripts import PathTurnToolBit as bridge
+
+    problem = job_add_problem(document_name, job_name, entry.number)
+    if problem:
+        raise ValueError(problem)
+    job = _job(document_name, job_name)
+    document = job.Document
+    uri = AssetUri(entry.tool_id)
+    if uri.asset_type != "toolbit":
+        raise ValueError("Select a ToolBit asset.")
+    attributes = _read_object(uri)
+    if attributes.get("version") != 2 or not isinstance(attributes.get("parameter"), dict):
+        raise ValueError("Expected a version 2 native ToolBit with parameters.")
+    shape_uri = _reference("toolbitshape", attributes.get("shape"))
+    shape_data = cam_assets.get_raw(shape_uri, store=_STORES)
+    with TemporaryDirectory() as directory:
+        shape_path = Path(directory) / (PurePosixPath(shape_uri.asset_id).name + ".fcstd")
+        shape_path.write_bytes(shape_data)
+        staging = FreeCAD.newDocument("TurningToolStaging", hidden=True)
+        staging.UndoMode = 0
+        try:
+            staged_tool = bridge.create_tool(shape_path, attributes, staging)
+            staging.recompute()
+            if any("Invalid" in obj.State for obj in staging.Objects):
+                raise ValueError("FreeCAD could not recompute the selected ToolBit.")
+            solid = staged_tool.Shape
+            if solid.isNull() or not solid.isValid() or len(solid.Solids) != 1:
+                raise ValueError("The selected ToolBit must form one valid solid.")
+            helpers.getToolSegments(solid)
+            FreeCAD.setActiveDocument(document.Name)
+            problem = job_add_problem(document_name, job_name, entry.number)
+            if problem:
+                raise ValueError(problem)
+            document.openTransaction("Add turning tool from library")
+            committed = False
+            try:
+                tool = document.copyObject(staged_tool, True)
+                if tool.ViewObject:
+                    tool.ViewObject.Visibility = False
+                controller = controllers.Create(
+                    name="TC: " + tool.Label, tool=tool, toolNumber=entry.number)
+                job.Proxy.addToolController(controller)
+                document.recompute()
+                document.commitTransaction()
+                committed = True
+            finally:
+                if not committed:
+                    document.abortTransaction()
+        except Part.OCCError as error:
+            raise ValueError(str(error)) from error
+        finally:
+            FreeCAD.closeDocument(staging.Name)
+            FreeCAD.setActiveDocument(document.Name)
+    if FreeCAD.GuiUp:
+        import FreeCADGui
+
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(controller)
+    return controller
 
 
 def load_library(uri):

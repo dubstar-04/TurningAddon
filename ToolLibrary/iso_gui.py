@@ -1,5 +1,7 @@
 """Reusable ISO selection controls without document or machining dependencies."""
 
+import math
+
 from PySide import QtCore, QtGui
 
 from . import iso
@@ -92,3 +94,66 @@ class IsoToolDialog(IsoToolPanel):
     def selection(self):
         return tuple(control.currentText() for control in (
             self.shape_cb, self.size_cb, self.radius_cb, self.direction_cb))
+
+
+class IsoToolEditDialog(QtGui.QDialog):
+    def __init__(self, values, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(translate("CAM", "Edit ISO ToolBit"))
+        self.resize(480, 320)
+        layout = QtGui.QVBoxLayout(self)
+        warning = QtGui.QLabel(translate(
+            "CAM", "This ToolBit may be shared. Saving affects every library that references it."))
+        warning.setWordWrap(True)
+        layout.addWidget(warning)
+        fields = QtGui.QFormLayout()
+        self.name = QtGui.QLineEdit(values["name"])
+        fields.addRow(translate("CAM", "Name"), self.name)
+        self.dimensions = {}
+        for field, label in (
+            ("EdgeLength", translate("CAM", "Edge length (mm)")),
+            ("TipRadius", translate("CAM", "Nose radius (mm)")),
+            ("TipAngle", translate("CAM", "Tip angle (deg)")),
+            ("Rotation", translate("CAM", "Rotation (deg)")),
+        ):
+            control = QtGui.QLineEdit(repr(values[field]))
+            validator = QtGui.QDoubleValidator(control)
+            validator.setLocale(QtCore.QLocale.c())
+            validator.setNotation(QtGui.QDoubleValidator.ScientificNotation)
+            control.setValidator(validator)
+            fields.addRow(label, control)
+            self.dimensions[field] = control
+            control.textChanged.connect(self._update_state)
+        layout.addLayout(fields)
+        self.problem = QtGui.QLabel()
+        self.problem.setWordWrap(True)
+        layout.addWidget(self.problem)
+        buttons = QtGui.QDialogButtonBox(
+            QtGui.QDialogButtonBox.Save | QtGui.QDialogButtonBox.Cancel)
+        self.save_button = buttons.button(QtGui.QDialogButtonBox.Save)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.name.textChanged.connect(self._update_state)
+        self._update_state()
+
+    def values(self):
+        return dict(
+            {field: float(control.text()) for field, control in self.dimensions.items()},
+            name=self.name.text(),
+        )
+
+    def _update_state(self):
+        try:
+            values = self.values()
+            valid = (
+                bool(values["name"].strip())
+                and all(math.isfinite(values[field]) for field in self.dimensions)
+                and values["EdgeLength"] > 0 and values["TipRadius"] > 0
+                and 0 < values["TipAngle"] < 180
+            )
+        except ValueError:
+            valid = False
+        self.save_button.setEnabled(valid)
+        self.problem.setText("" if valid else translate(
+            "CAM", "Enter a name, finite dimensions, positive lengths and a tip angle between 0 and 180 degrees."))
