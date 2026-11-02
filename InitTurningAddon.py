@@ -26,6 +26,10 @@ import FreeCAD
 import FreeCADGui
 from PySide import QtGui
 
+from PathTurnScripts import initialize
+
+initialize()
+
 # import all turning operations
 from PathTurnScripts import PathTurnFaceGui  # noqa: F401
 from PathTurnScripts import PathTurnPartoffGui  # noqa: F401
