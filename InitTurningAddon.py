@@ -111,6 +111,8 @@ def updateMenu(workbench):
 def createAction(menu, actionName):
     # space the actionName at caps
     text = re.sub(r"(\w)([A-Z])", r"\1 \2", actionName)
+    if actionName == "TurnToolHelper":
+        text = FreeCAD.Qt.translate("CAM", "Turning Tool Library")
     command = "CAM_" + actionName
     icon = "CAM-" + actionName + ".svg"
 
@@ -119,6 +121,8 @@ def createAction(menu, actionName):
     action.setText(text)
     action.setIcon(QtGui.QIcon(getIcon(icon)))
     action.setStatusTip("CAM " + actionName + " Operation")
+    if actionName == "TurnToolHelper":
+        action.setStatusTip(FreeCAD.Qt.translate("CAM", "Manage native turning tool library membership"))
     action.triggered.connect(lambda: FreeCADGui.runCommand(command, 0))
 
     return action
