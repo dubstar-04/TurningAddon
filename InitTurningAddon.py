@@ -35,7 +35,7 @@ from PathTurnScripts import PathTurnFaceGui  # noqa: F401
 from PathTurnScripts import PathTurnPartoffGui  # noqa: F401
 from PathTurnScripts import PathTurnProfileGui  # noqa: F401
 from PathTurnScripts import PathTurnRoughGui  # noqa: F401
-from PathTurnScripts import PathTurnToolHelperGui  # noqa: F401
+from PathTurnScripts import PathTurnToolLibraryGui  # noqa: F401
 import os
 import re
 
@@ -122,7 +122,7 @@ def createAction(menu, actionName):
     action.setIcon(QtGui.QIcon(getIcon(icon)))
     action.setStatusTip("CAM " + actionName + " Operation")
     if actionName == "TurnToolHelper":
-        action.setStatusTip(FreeCAD.Qt.translate("CAM", "Manage native turning tool library membership"))
+        action.setStatusTip(FreeCAD.Qt.translate("CAM", "Manage native turning tools and add them to a CAM job"))
     action.triggered.connect(lambda: FreeCADGui.runCommand(command, 0))
 
     return action

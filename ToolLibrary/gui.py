@@ -3,7 +3,7 @@
 from PySide import QtCore, QtGui
 
 from . import freecad as assets
-from .iso_gui import IsoToolDialog
+from .iso_gui import IsoToolDialog, IsoToolEditDialog
 from .library import ToolLibrary
 
 
@@ -11,10 +11,11 @@ translate = QtCore.QCoreApplication.translate
 
 
 class LibraryDialog(QtGui.QDialog):
-    def __init__(self, parent=None, iso_helper=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.snapshot = None
         self.table = ToolLibrary()
+        self.document_name = None
         self.setWindowTitle(translate("CAM", "Turning Tool Library") + "[*]")
         self.resize(720, 440)
         self.setMinimumSize(480, 320)
@@ -56,16 +57,40 @@ class LibraryDialog(QtGui.QDialog):
         self.add_button = self._button(
             "list-add", QtGui.QStyle.SP_FileDialogNewFolder,
             translate("CAM", "Add existing ToolBit"), self.add_tool)
+        self.edit_button = self._button(
+            "document-edit", QtGui.QStyle.SP_FileDialogContentsView,
+            translate("CAM", "Edit ToolBit"), self.edit_tool)
         self.remove_button = self._button(
             "list-remove", QtGui.QStyle.SP_TrashIcon,
             translate("CAM", "Remove from library"), self.remove_tool)
         self.renumber_button = self._button(
             "document-edit", QtGui.QStyle.SP_FileDialogDetailedView,
             translate("CAM", "Renumber tool"), self.renumber_tool)
-        for button in (self.new_tool_button, self.add_button, self.remove_button, self.renumber_button):
+        for button in (self.new_tool_button, self.add_button, self.edit_button, self.remove_button, self.renumber_button):
             actions.addWidget(button)
         actions.addStretch()
         layout.addLayout(actions)
+
+        job_row = QtGui.QHBoxLayout()
+        job_row.addWidget(QtGui.QLabel(translate("CAM", "Job")))
+        self.jobs = QtGui.QComboBox()
+        self.jobs.setSizeAdjustPolicy(QtGui.QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.jobs.setMinimumContentsLength(12)
+        job_row.addWidget(self.jobs, 1)
+        job_row.addWidget(self._button(
+            "view-refresh", QtGui.QStyle.SP_BrowserReload,
+            translate("CAM", "Reload CAM jobs"), self.refresh_jobs))
+        self.job_button = QtGui.QPushButton(translate("CAM", "Add to job"))
+        self.job_button.setIcon(QtGui.QIcon.fromTheme(
+            "list-add", self.style().standardIcon(QtGui.QStyle.SP_ArrowForward)))
+        self.job_button.setAutoDefault(False)
+        self.job_button.clicked.connect(self.add_to_job)
+        job_row.addWidget(self.job_button)
+        layout.addLayout(job_row)
+        self.job_status = QtGui.QLabel()
+        self.job_status.setWordWrap(True)
+        self.job_status.setTextFormat(QtCore.Qt.PlainText)
+        layout.addWidget(self.job_status)
 
         self.status = QtGui.QLabel()
         self.status.setWordWrap(True)
@@ -77,15 +102,12 @@ class LibraryDialog(QtGui.QDialog):
         self.save_button.setAutoDefault(False)
         self.save_button.clicked.connect(self.save_library)
         self.buttons.rejected.connect(self.reject)
-        if iso_helper is not None:
-            helper_button = self.buttons.addButton(
-                translate("CAM", "ISO tool helper..."), QtGui.QDialogButtonBox.ActionRole)
-            helper_button.setAutoDefault(False)
-            helper_button.clicked.connect(iso_helper)
         layout.addWidget(self.buttons)
         self.rows.itemSelectionChanged.connect(self._update_actions)
         self.libraries.currentIndexChanged.connect(self.open_library)
+        self.jobs.currentIndexChanged.connect(self._update_job_state)
         self._update_actions()
+        self.refresh_jobs()
         self.reload_libraries()
 
     def _button(self, icon, fallback, text, callback):
@@ -109,10 +131,58 @@ class LibraryDialog(QtGui.QDialog):
         selected = self._selected_number() is not None
         self.new_tool_button.setEnabled(editable)
         self.add_button.setEnabled(editable)
+        self.edit_button.setEnabled(editable and selected)
         self.remove_button.setEnabled(editable and selected)
         self.renumber_button.setEnabled(editable and selected)
         self.save_button.setEnabled(editable and self._dirty())
         self.setWindowModified(self._dirty())
+        self._update_job_state()
+
+    def _update_job_state(self):
+        number = self._selected_number()
+        if self.snapshot is None or number is None:
+            problem = translate("CAM", "Select a library tool.")
+        elif self.snapshot.issues:
+            problem = translate("CAM", "Resolve library dependency issues before adding to a job.")
+        else:
+            problem = assets.job_add_problem(self.document_name, self.jobs.currentData(), number)
+        self.job_button.setEnabled(problem is None)
+        self.job_status.setText(problem or "")
+        self.job_button.setToolTip(problem or translate("CAM", "Add the selected ToolBit using its library number"))
+
+    def refresh_jobs(self):
+        previous = self.jobs.currentData()
+        previous_document = self.document_name
+        try:
+            document, choices, preferred = assets.job_choices()
+        except (OSError, ValueError, RuntimeError) as error:
+            self._report_error(error)
+            return
+        self.jobs.blockSignals(True)
+        self.jobs.clear()
+        self.jobs.addItem(translate("CAM", "Select a CAM job"), None)
+        for name, label in choices:
+            self.jobs.addItem(f"{label} ({name})", name)
+        selected = previous if document == previous_document and self.jobs.findData(previous) > 0 else preferred
+        self.jobs.setCurrentIndex(max(0, self.jobs.findData(selected)))
+        self.document_name = document
+        self.jobs.blockSignals(False)
+        self._update_job_state()
+
+    def add_to_job(self):
+        if not self.job_button.isEnabled():
+            return
+        entry = self.table.get(self._selected_number())
+        try:
+            controller = assets.add_to_job(entry, self.document_name, self.jobs.currentData())
+        except (OSError, ValueError, RuntimeError) as error:
+            self._report_error(error)
+            self._update_job_state()
+            return
+        self._update_job_state()
+        self.status.setText(translate(
+            "CAM", "Added tool {number} to {job}. Set feeds and spindle speed in its controller before use.").format(
+                number=controller.ToolNumber, job=self.jobs.currentText()))
 
     def _render(self, selected_number=None):
         entries = self.table.entries
@@ -261,6 +331,38 @@ class LibraryDialog(QtGui.QDialog):
             return
         self._render(entry.number)
         self.status.setText(translate("CAM", "ToolBit saved; library membership has unsaved changes."))
+
+    def edit_tool(self):
+        if not self.edit_button.isEnabled():
+            return
+        number = self._selected_number()
+        entry = self.table.get(number)
+        try:
+            snapshot = assets.load_iso_tool(entry.tool_id)
+            dialog = IsoToolEditDialog(snapshot.values, self)
+            if dialog.exec_() != QtGui.QDialog.Accepted:
+                return
+            values = dialog.values()
+            if values == snapshot.values:
+                return
+            answer = QtGui.QMessageBox.question(
+                self, translate("CAM", "Edit shared ToolBit"),
+                translate("CAM", "Save changes to this ToolBit? Every library referencing it will use the updated definition."),
+                QtGui.QMessageBox.Yes | QtGui.QMessageBox.Cancel, QtGui.QMessageBox.Cancel,
+            )
+            if answer != QtGui.QMessageBox.Yes:
+                return
+            updated = assets.save_iso_tool(snapshot, values)
+        except (OSError, ValueError, RuntimeError) as error:
+            self._report_error(error)
+            return
+        for table in (self.table, self.snapshot.table):
+            for member in table.entries:
+                if member.tool_id == updated.uri:
+                    table.edit(member.number, name=updated.attributes["name"])
+        self.snapshot.tools[entry.tool_id] = updated.attributes
+        self._render(number)
+        self.status.setText(translate("CAM", "Shared ToolBit changes saved."))
 
     def remove_tool(self):
         if not self.remove_button.isEnabled():
