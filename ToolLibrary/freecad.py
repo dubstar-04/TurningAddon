@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 import json
 import os
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
 import FreeCAD
@@ -12,6 +12,7 @@ import Path.Preferences as preferences
 from Path.Tool.assets import AssetUri
 from Path.Tool.camassets import cam_assets
 
+from . import iso
 from .library import ToolEntry, ToolLibrary
 
 
@@ -103,6 +104,92 @@ def load_tool_entry(uri, number):
     if issues:
         raise ValueError("Cannot add ToolBit: " + "; ".join(issues))
     return entry
+
+
+def iso_tool_definition(shape, size, radius, direction):
+    """Apply supported ISO selections to the bundled native ToolBit definition."""
+    if shape not in ("C", "D", "S", "T"):
+        raise ValueError("Tool creation supports C, D, S and T shapes.")
+    if size not in iso.SHAPE_SIZES[shape]:
+        raise ValueError("Choose a supported insert size.")
+    if radius not in iso.NOSE_RADII or iso.NOSE_RADII[radius] <= 0:
+        raise ValueError("Tool creation requires a non-zero nose radius.")
+    if direction not in ("L", "R", "N"):
+        raise ValueError("Choose L, R or N insert direction.")
+    tools = Path(__file__).resolve().parent.parent / "Tools"
+    with (tools / "Bit" / f"iso_shape_{shape.lower()}.fctb").open() as source:
+        attributes = json.load(source)
+    parameters = attributes["parameter"]
+    parameters["EdgeLength"] = f"{iso.get_edge_length(shape, size)} mm"
+    parameters["TipAngle"] = f"{iso.get_tip_angle(shape)} deg"
+    parameters["TipRadius"] = f"{iso.get_radius_value(radius)} mm"
+    rotation = FreeCAD.Units.Quantity(parameters["Rotation"]).Value
+    if direction == "L":
+        rotation = -rotation
+    elif direction == "N":
+        rotation = 0
+    parameters["Rotation"] = f"{rotation} deg"
+    attributes["name"] = f"{shape}---{size}--{radius}--{direction}"
+    return attributes, tools / "Shape" / attributes["shape"]
+
+
+def validate_iso_template(shape_path, parameters):
+    """Check a recomputed solid and XZ profile without requiring an active job."""
+    import Part
+    from PathTurnScripts import PathTurnAddonHelpers as helpers
+
+    if FreeCAD.Units.Quantity(parameters["TipRadius"]).Value <= 0:
+        raise ValueError("Tool creation requires a non-zero nose radius.")
+    active = FreeCAD.ActiveDocument
+    template = FreeCAD.newDocument("TurningToolTemplate", hidden=True)
+    try:
+        template.load(str(shape_path))
+        bags = template.getObjectsByLabel("Attributes")
+        if len(bags) != 1:
+            raise ValueError("The insert template must have one Attributes object.")
+        for name, value in parameters.items():
+            setattr(bags[0], name, FreeCAD.Units.Quantity(value))
+        template.recompute()
+        errors = [obj.getStatusString() for obj in template.Objects if "Invalid" in obj.State]
+        if errors:
+            raise ValueError("The selected insert dimensions cannot form a valid tool: " + "; ".join(errors))
+        solid = template.Body.Shape
+        if solid.isNull() or not solid.isValid() or len(solid.Solids) != 1:
+            raise ValueError("The selected insert dimensions cannot form a valid solid.")
+        helpers.getToolSegments(solid)
+    except Part.OCCError as error:
+        raise ValueError(str(error)) from error
+    finally:
+        FreeCAD.closeDocument(template.Name)
+        FreeCAD.setActiveDocument(active.Name if active else "")
+
+
+def create_iso_tool(shape, size, radius, direction, number):
+    """Publish a validated native ToolBit; library membership is saved separately."""
+    attributes, shape_path = iso_tool_definition(shape, size, radius, direction)
+    tool_uri = AssetUri.build(asset_type="toolbit", asset_id=str(uuid4()))
+    shape_uri = _reference("toolbitshape", attributes["shape"])
+    entry = ToolEntry(number, str(tool_uri), attributes["name"], shape_uri.asset_id)
+    if cam_assets.exists(tool_uri, store=_STORES):
+        raise FileExistsError("The generated ToolBit identity is already in use.")
+    shape_data = shape_path.read_bytes()
+    shape_exists = cam_assets.exists(shape_uri, store=_STORES)
+    if shape_exists and cam_assets.get_raw(shape_uri, store=_STORES) != shape_data:
+        raise ValueError("An existing shape differs from the bundled template: " + str(shape_uri))
+    validate_iso_template(shape_path, attributes["parameter"])
+    tool_data = json.dumps(attributes, indent=2, allow_nan=False).encode("utf-8")
+    if not shape_exists:
+        cam_assets.add_raw(shape_uri.asset_type, shape_uri.asset_id, shape_data, store="local")
+    cam_assets.add_raw(tool_uri.asset_type, tool_uri.asset_id, tool_data, store="local")
+    return entry
+
+
+def load_iso_form():
+    """Load the shared insert form through FreeCAD's native Qt loader."""
+    import FreeCADGui
+
+    path = Path(__file__).resolve().parent.parent / "Gui/Resources/panels/DlgTurnToolHelper.ui"
+    return FreeCADGui.PySideUic.loadUi(str(path))
 
 
 def load_library(uri):
