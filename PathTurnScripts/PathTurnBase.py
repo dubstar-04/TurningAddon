@@ -106,7 +106,9 @@ class ObjectOp(PathOp.ObjectOp):
         self.stockToLeave = obj.StockToLeave
 
         # Clear any existing gcode
-        obj.Path.Commands = []
+        path = obj.Path
+        path.Commands = []
+        obj.Path = path
 
         self.part_outline = self.get_part_outline()
         self.generate_gcode(obj)
