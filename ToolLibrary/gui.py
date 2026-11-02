@@ -3,6 +3,7 @@
 from PySide import QtCore, QtGui
 
 from . import freecad as assets
+from .iso_gui import IsoToolDialog
 from .library import ToolLibrary
 
 
@@ -49,6 +50,9 @@ class LibraryDialog(QtGui.QDialog):
         layout.addWidget(self.rows, 1)
 
         actions = QtGui.QHBoxLayout()
+        self.new_tool_button = self._button(
+            "document-new", QtGui.QStyle.SP_FileIcon,
+            translate("CAM", "New ISO ToolBit"), self.create_iso_tool)
         self.add_button = self._button(
             "list-add", QtGui.QStyle.SP_FileDialogNewFolder,
             translate("CAM", "Add existing ToolBit"), self.add_tool)
@@ -58,7 +62,7 @@ class LibraryDialog(QtGui.QDialog):
         self.renumber_button = self._button(
             "document-edit", QtGui.QStyle.SP_FileDialogDetailedView,
             translate("CAM", "Renumber tool"), self.renumber_tool)
-        for button in (self.add_button, self.remove_button, self.renumber_button):
+        for button in (self.new_tool_button, self.add_button, self.remove_button, self.renumber_button):
             actions.addWidget(button)
         actions.addStretch()
         layout.addLayout(actions)
@@ -103,6 +107,7 @@ class LibraryDialog(QtGui.QDialog):
         writable = assets.library_location()["writable"]
         editable = self.snapshot is not None and not self.snapshot.issues and writable
         selected = self._selected_number() is not None
+        self.new_tool_button.setEnabled(editable)
         self.add_button.setEnabled(editable)
         self.remove_button.setEnabled(editable and selected)
         self.renumber_button.setEnabled(editable and selected)
@@ -241,6 +246,21 @@ class LibraryDialog(QtGui.QDialog):
             self._report_error(error)
             return
         self._render(entry.number)
+
+    def create_iso_tool(self):
+        if not self.new_tool_button.isEnabled():
+            return
+        try:
+            dialog = IsoToolDialog(assets.load_iso_form(), self)
+            if dialog.form.exec_() != QtGui.QDialog.Accepted:
+                return
+            entry = assets.create_iso_tool(*dialog.selection(), self.table.next_number)
+            self.table.add(entry)
+        except (OSError, ValueError, RuntimeError) as error:
+            self._report_error(error)
+            return
+        self._render(entry.number)
+        self.status.setText(translate("CAM", "ToolBit saved; library membership has unsaved changes."))
 
     def remove_tool(self):
         if not self.remove_button.isEnabled():
