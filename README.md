@@ -42,6 +42,20 @@ template where needed. Opening, previewing or cancelling does not change assets.
 The update preserves the ToolBit identity, unchanged dimensions and extra metadata;
 existing shared shapes and other ToolBits are left untouched.
 
+Model instances using templates without native `NoseCentre` support remain
+stored-origin-only, with their reference property read-only. They load without
+the missing-parameter warning; required dimensions are still validated. Saving
+an updated library ToolBit does not upgrade existing model instances.
+
+ISO ToolBits retain their exact shape template in saved documents. Copying or
+reopening preserves model-instance dimensions, mounting angle and reference;
+later property edits rebuild the geometry through FreeCAD's native mechanism.
+Extra native shape parameters, including `Diameter`, retain their instance
+values rather than reverting to template defaults during copy or restore.
+Library edits do not overwrite existing model instances. Previously saved
+documents without embedded templates need their referenced shape asset available
+on the first reopen; saving with this version embeds it for subsequent restores.
+
 ## Requirements
 * FreeCAD v1.1 or later with the CAM workbench
 * Path Toolbits (Legacy tools are not supported)

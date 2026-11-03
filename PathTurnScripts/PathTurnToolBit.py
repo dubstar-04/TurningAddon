@@ -1,5 +1,7 @@
 """Native ISO ToolBit types and creation across supported FreeCAD tool APIs."""
 
+from base64 import b64decode, b64encode
+
 import FreeCAD
 import Path.Tool.Bit as PathToolBit
 
@@ -34,6 +36,29 @@ if not hasattr(PathToolBit, "Factory"):
                         "App::PropertyBool"),
                 }
 
+            @classmethod
+            def get_expected_shape_parameters(cls):
+                return [name for name in super().get_expected_shape_parameters()
+                        if name != "NoseCentre"]
+
+            @property
+            def supports_nose_centre(self):
+                return "NoseCentre" in self._param_types
+
+            def get_parameter(self, name):
+                if name == "NoseCentre" and not self.supports_nose_centre:
+                    return False
+                return super().get_parameter(name)
+
+            def set_parameter(self, name, value):
+                if (name == "NoseCentre" and self._data is not None
+                        and not self.supports_nose_centre):
+                    if value:
+                        raise ValueError(FreeCAD.Qt.translate(
+                            "CAM", "This ToolShape does not support nose-centred geometry. Update its template before changing the reference."))
+                    return
+                super().set_parameter(name, value)
+
             @property
             def label(self):
                 """Return the insert type's translated display name."""
@@ -43,6 +68,46 @@ if not hasattr(PathToolBit, "Factory"):
         """Persist ISO tools on FreeCAD releases without a built-in ISO ToolBit."""
 
         SHAPE_CLASS = ToolBitShapeIso
+
+        def _update_tool_properties(self):
+            super()._update_tool_properties()
+            if not self._tool_bit_shape.supports_nose_centre:
+                self.obj.setEditorMode("NoseCentre", 1)
+
+        def __getstate__(self):
+            state = super().__getstate__()
+            data = self._tool_bit_shape._data
+            if data is not None:
+                state["_iso_template"] = b64encode(data).decode("ascii")
+            return state
+
+        def onDocumentRestored(self, obj):
+            from Path.Tool.assets import AssetUri, DummyAssetSerializer
+            from Path.Tool.camassets import cam_assets
+
+            shape_id = obj.ShapeID
+            parameters = {
+                name: obj.getPropertyByName(name)
+                for name in obj.PropertiesList
+                if obj.getGroupOfProperty(name) == "Shape"
+            }
+            encoded = getattr(self, "_iso_template", None)
+            data = (b64decode(encoded, validate=True) if encoded is not None else
+                    cam_assets.get_raw(
+                        AssetUri.build(asset_type="toolbitshape", asset_id=shape_id),
+                        store=("local", "builtin")))
+            shape = PathToolBit.ToolBitShape.from_bytes(
+                data, shape_id, dependencies=None, serializer=DummyAssetSerializer)
+            for name, value in parameters.items():
+                shape.set_parameter(name, value)
+            foreign_body = obj.BitBody and obj.BitBody.Document != obj.Document
+            if foreign_body:
+                obj.BitBody = None
+            super().onDocumentRestored(obj)
+            self._tool_bit_shape = shape
+            self._update_tool_properties()
+            if foreign_body:
+                self._update_visual_representation()
 
 
 def create_tool(shape_path, attributes, document):
