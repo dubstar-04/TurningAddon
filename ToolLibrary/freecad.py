@@ -95,6 +95,8 @@ def save_iso_tool(snapshot, values):
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             raise ValueError(f"{field} must be a finite number.")
         if value != snapshot.values[field]:
+            if field == "Rotation" and abs(value) > 360:
+                raise ValueError("Mounting angle must be between -360 and 360 degrees.")
             attributes["parameter"][field] = f"{value} {unit}"
     updated_values = _iso_values(attributes)
     if attributes == snapshot.attributes:
@@ -214,7 +216,7 @@ def iso_tool_definition(shape, size, radius, direction):
     return attributes, tools / "Shape" / attributes["shape"]
 
 
-def validate_iso_template(shape_path, parameters):
+def validate_iso_template(shape_path, parameters, *, preview=False):
     """Check a recomputed solid and XZ profile without requiring an active job."""
     import Part
     from PathTurnScripts import PathTurnAddonHelpers as helpers
@@ -241,11 +243,41 @@ def validate_iso_template(shape_path, parameters):
         if solid.isNull() or not solid.isValid() or len(solid.Solids) != 1:
             raise ValueError("The selected insert dimensions cannot form a valid solid.")
         helpers.getToolSegments(solid)
+        if preview:
+            box = solid.BoundBox
+            corners = [
+                FreeCAD.Vector(radial, box.Center.y, axial)
+                for radial, axial in (
+                    (box.XMin - 1, box.ZMin - 1),
+                    (box.XMax + 1, box.ZMin - 1),
+                    (box.XMax + 1, box.ZMax + 1),
+                    (box.XMin - 1, box.ZMax + 1),
+                )
+            ]
+            plane = Part.Face(Part.makePolygon(corners + [corners[0]]))
+            outlines = tuple(
+                tuple((point.x, point.z) for point in edge.discretize(Deflection=0.01))
+                for edge in solid.section(plane).Edges)
+            if not outlines:
+                raise ValueError("The ToolShape has no preview section.")
+            return outlines
     except Part.OCCError as error:
         raise ValueError(str(error)) from error
     finally:
         FreeCAD.closeDocument(template.Name)
         FreeCAD.setActiveDocument(active.Name if active else "")
+
+
+def iso_tool_preview(snapshot, values):
+    """Return plain XZ outlines from the stored shape without publishing assets."""
+    parameters = dict(snapshot.attributes["parameter"])
+    for field, unit in _ISO_UNITS.items():
+        parameters[field] = f"{values[field]} {unit}"
+    _iso_values(dict(snapshot.attributes, name=values["name"], parameter=parameters))
+    with TemporaryDirectory() as directory:
+        shape_path = Path(directory) / "insert.fcstd"
+        shape_path.write_bytes(snapshot.shape_data)
+        return validate_iso_template(shape_path, parameters, preview=True)
 
 
 def create_iso_tool(shape, size, radius, direction, number):

@@ -339,7 +339,9 @@ class LibraryDialog(QtGui.QDialog):
         entry = self.table.get(number)
         try:
             snapshot = assets.load_iso_tool(entry.tool_id)
-            dialog = IsoToolEditDialog(snapshot.values, self)
+            dialog = IsoToolEditDialog(
+                snapshot.values, self,
+                preview=lambda values: assets.iso_tool_preview(snapshot, values))
             if dialog.exec_() != QtGui.QDialog.Accepted:
                 return
             values = dialog.values()
