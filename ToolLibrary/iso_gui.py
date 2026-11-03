@@ -15,14 +15,20 @@ class ToolPreview(QtGui.QWidget):
         super().__init__(parent)
         self.outlines = ()
         self.nose_centre = None
+        self.fit_radius = 0.0
         self.x_flipped = False
         self.message = translate("CAM", "Updating preview...")
         self.setMinimumSize(240, 240)
         self.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
 
-    def set_outline(self, outlines, message="", *, nose_centre=None):
+    def set_outline(self, outlines, message="", *, nose_centre=None, fit_radius=None):
         self.outlines = outlines
         self.nose_centre = nose_centre
+        points = [point for edge in outlines for point in edge]
+        if nose_centre is not None:
+            points.append(nose_centre)
+        self.fit_radius = (fit_radius if fit_radius is not None else
+                           max((math.hypot(*point) for point in points), default=0.0))
         self.message = message
         self.update()
 
@@ -34,37 +40,34 @@ class ToolPreview(QtGui.QWidget):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
         palette = self.palette()
-        painter.fillRect(self.rect(), palette.base())
-        origin = QtCore.QPointF(self.width() / 2, self.height() / 2)
+        painter.fillRect(self.rect(), palette.window())
+        side = min(self.width(), self.height())
+        painter.translate((self.width() - side) / 2, (self.height() - side) / 2)
+        painter.fillRect(QtCore.QRectF(0, 0, side, side), palette.base())
+        origin = QtCore.QPointF(side / 2, side / 2)
         x_colour = QtGui.QColor("#cc3333")
         z_colour = QtGui.QColor("#3333cc")
         painter.setPen(QtGui.QPen(z_colour, 1.5))
-        painter.drawLine(QtCore.QPointF(8, origin.y()), QtCore.QPointF(self.width() - 8, origin.y()))
-        painter.drawLine(QtCore.QPointF(self.width() - 8, origin.y()),
-                         QtCore.QPointF(self.width() - 14, origin.y() - 3))
-        painter.drawLine(QtCore.QPointF(self.width() - 8, origin.y()),
-                         QtCore.QPointF(self.width() - 14, origin.y() + 3))
+        painter.drawLine(QtCore.QPointF(8, origin.y()), QtCore.QPointF(side - 8, origin.y()))
+        painter.drawLine(QtCore.QPointF(side - 8, origin.y()),
+                         QtCore.QPointF(side - 14, origin.y() - 3))
+        painter.drawLine(QtCore.QPointF(side - 8, origin.y()),
+                         QtCore.QPointF(side - 14, origin.y() + 3))
         painter.drawText(QtCore.QPointF(
-            self.width() - self.fontMetrics().horizontalAdvance("+Z") - 8, origin.y() - 8), "+Z")
+            side - self.fontMetrics().horizontalAdvance("+Z") - 8, origin.y() - 8), "+Z")
         painter.setPen(QtGui.QPen(x_colour, 1.5))
-        painter.drawLine(QtCore.QPointF(origin.x(), 8), QtCore.QPointF(origin.x(), self.height() - 8))
-        arrow_tip = self.height() - 8 if self.x_flipped else 8
-        arrow_tail = self.height() - 14 if self.x_flipped else 14
+        painter.drawLine(QtCore.QPointF(origin.x(), 8), QtCore.QPointF(origin.x(), side - 8))
+        arrow_tip = side - 8 if self.x_flipped else 8
+        arrow_tail = side - 14 if self.x_flipped else 14
         painter.drawLine(QtCore.QPointF(origin.x(), arrow_tip), QtCore.QPointF(origin.x() - 3, arrow_tail))
         painter.drawLine(QtCore.QPointF(origin.x(), arrow_tip), QtCore.QPointF(origin.x() + 3, arrow_tail))
-        painter.drawText(QtCore.QPointF(origin.x() + 8, self.height() - 12 if self.x_flipped else 20), "+X")
+        painter.drawText(QtCore.QPointF(origin.x() + 8, side - 12 if self.x_flipped else 20), "+X")
         painter.setPen(palette.text().color())
         if not self.outlines:
-            painter.drawText(QtCore.QRect(12, 12, self.width() // 2 - 28, self.height() // 2 - 28),
+            painter.drawText(QtCore.QRect(12, 12, side // 2 - 28, side // 2 - 28),
                              QtCore.Qt.AlignLeft | QtCore.Qt.TextWordWrap, self.message)
             return
-        points = [(0.0, 0.0)] + [point for edge in self.outlines for point in edge]
-        if self.nose_centre is not None:
-            points.append(self.nose_centre)
-        radial_extent = max(abs(point[0]) for point in points)
-        axial_extent = max(abs(point[1]) for point in points)
-        scale = min((self.width() / 2 - 32) / max(axial_extent, 1e-6),
-                    (self.height() / 2 - 32) / max(radial_extent, 1e-6))
+        scale = (side / 2 - 32) / max(self.fit_radius, 1e-6)
 
         def screen(point):
             radial, axial = point
