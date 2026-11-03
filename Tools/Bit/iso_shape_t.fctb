@@ -4,6 +4,8 @@
   "shape": "Iso_shape_T.fcstd",
   "parameter": {
     "NoseCentre": false,
+    "InsertCentre": false,
+    "TipTangent": false,
     "Diameter": "1.48 mm",
     "EdgeLength": "6.35 mm",
     "Rotation": "60.00 \u00b0",

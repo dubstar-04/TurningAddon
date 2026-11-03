@@ -34,23 +34,58 @@ if not hasattr(PathToolBit, "Factory"):
                     "NoseCentre": (
                         FreeCAD.Qt.translate("CAM", "Use nose centre as tool origin"),
                         "App::PropertyBool"),
+                    "InsertCentre": (
+                        FreeCAD.Qt.translate("CAM", "Use insert centre as tool origin"),
+                        "App::PropertyBool"),
+                    "TipTangent": (
+                        FreeCAD.Qt.translate("CAM", "Use tip tangent as tool origin"),
+                        "App::PropertyBool"),
+                    "ToolSide": (
+                        FreeCAD.Qt.translate("CAM", "Spindle side: Near (+X) or Far (-X)"),
+                        "App::PropertyString"),
                 }
 
             @classmethod
             def get_expected_shape_parameters(cls):
                 return [name for name in super().get_expected_shape_parameters()
-                        if name != "NoseCentre"]
+                        if name not in ("NoseCentre", "InsertCentre", "TipTangent", "ToolSide")]
 
             @property
             def supports_nose_centre(self):
                 return "NoseCentre" in self._param_types
 
+            @property
+            def supports_insert_centre(self):
+                return "InsertCentre" in self._param_types
+
+            @property
+            def supports_tip_tangent(self):
+                return "TipTangent" in self._param_types
+
             def get_parameter(self, name):
+                if name == "ToolSide":
+                    return self._params.get(name, "Near")
                 if name == "NoseCentre" and not self.supports_nose_centre:
+                    return False
+                if name == "InsertCentre" and not self.supports_insert_centre:
+                    return False
+                if name == "TipTangent" and not self.supports_tip_tangent:
                     return False
                 return super().get_parameter(name)
 
             def set_parameter(self, name, value):
+                if name == "ToolSide" and value not in ("Near", "Far"):
+                    raise ValueError("Tool side must be Near or Far")
+                if (name == "TipTangent" and self._data is not None
+                        and not self.supports_tip_tangent):
+                    if value:
+                        raise ValueError("This ToolShape does not support tip-tangent geometry. Update its template before changing the reference.")
+                    return
+                if (name == "InsertCentre" and self._data is not None
+                        and not self.supports_insert_centre):
+                    if value:
+                        raise ValueError("This ToolShape does not support insert-centred geometry. Update its template before changing the reference.")
+                    return
                 if (name == "NoseCentre" and self._data is not None
                         and not self.supports_nose_centre):
                     if value:
@@ -70,9 +105,17 @@ if not hasattr(PathToolBit, "Factory"):
         SHAPE_CLASS = ToolBitShapeIso
 
         def _update_tool_properties(self):
+            if not hasattr(self.obj, "ToolSide"):
+                self.obj.addProperty(
+                    "App::PropertyString", "ToolSide", "Attributes",
+                    FreeCAD.Qt.translate("CAM", "Spindle side: Near (+X) or Far (-X)"))
             super()._update_tool_properties()
             if not self._tool_bit_shape.supports_nose_centre:
                 self.obj.setEditorMode("NoseCentre", 1)
+            if not self._tool_bit_shape.supports_insert_centre:
+                self.obj.setEditorMode("InsertCentre", 1)
+            if not self._tool_bit_shape.supports_tip_tangent:
+                self.obj.setEditorMode("TipTangent", 1)
 
         def __getstate__(self):
             state = super().__getstate__()
@@ -86,11 +129,6 @@ if not hasattr(PathToolBit, "Factory"):
             from Path.Tool.camassets import cam_assets
 
             shape_id = obj.ShapeID
-            parameters = {
-                name: obj.getPropertyByName(name)
-                for name in obj.PropertiesList
-                if obj.getGroupOfProperty(name) == "Shape"
-            }
             encoded = getattr(self, "_iso_template", None)
             data = (b64decode(encoded, validate=True) if encoded is not None else
                     cam_assets.get_raw(
@@ -98,6 +136,11 @@ if not hasattr(PathToolBit, "Factory"):
                         store=("local", "builtin")))
             shape = PathToolBit.ToolBitShape.from_bytes(
                 data, shape_id, dependencies=None, serializer=DummyAssetSerializer)
+            parameters = {
+                name: obj.getPropertyByName(name)
+                for name in set(self.SHAPE_CLASS.schema()) | set(shape.get_parameters())
+                if name in obj.PropertiesList
+            }
             for name, value in parameters.items():
                 shape.set_parameter(name, value)
             foreign_body = obj.BitBody and obj.BitBody.Document != obj.Document

@@ -143,17 +143,39 @@ class ObjectOp(PathOp.ObjectOp):
         Base function to generate gcode for the OP by writing path command to self.commandlist
         Calls operations op_generate_gcode.
         '''
-        if getattr(obj.ToolController.Tool, "NoseCentre", False):
+        if (
+            getattr(obj.ToolController.Tool, "NoseCentre", False)
+            or getattr(obj.ToolController.Tool, "InsertCentre", False)
+            or getattr(obj.ToolController.Tool, "TipTangent", False)
+        ):
             from liblathe.version import __version__
             from packaging.version import Version
 
             if Version(__version__) < Version("0.0.8"):
                 raise RuntimeError(translate(
-                    "PathTurn", "Nose-centred tools require LibLathe 0.0.8 or later in FreeCAD's Python environment."))
+                    "PathTurn", "Compensated tool references require LibLathe 0.0.8 or later in FreeCAD's Python environment."))
         turnTool = Tool()
+        side = getattr(obj.ToolController.Tool, "ToolSide", "Near")
+        if side not in ("Near", "Far"):
+            raise RuntimeError(translate("PathTurn", "Tool side must be Near or Far."))
+        if side == "Far" and not hasattr(turnTool, "side"):
+            raise RuntimeError(translate(
+                "PathTurn", "Far-side tools require a LibLathe build with tool-side planning support."))
+        if hasattr(turnTool, "side"):
+            turnTool.side = side
         turnTool.set_tool_from_segments(
             PathTurnHelpers.getToolSegments(obj.ToolController.Tool.Shape))
-        self.op_generate_gcode(obj, turnTool)
+        if side == "Far":
+            from liblathe.op.base import reflect_x_segments
+
+            outline = self.part_outline
+            try:
+                self.part_outline = reflect_x_segments(outline)
+                self.op_generate_gcode(obj, turnTool)
+            finally:
+                self.part_outline = outline
+        else:
+            self.op_generate_gcode(obj, turnTool)
 
     def op_generate_gcode(self, obj, turnTool):
         '''op_generate_gcode(obj) ... overwrite to set initial default values.
