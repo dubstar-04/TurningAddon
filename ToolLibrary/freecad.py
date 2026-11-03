@@ -334,7 +334,19 @@ def validate_iso_template(shape_path, parameters, *, preview=False, with_referen
                     and math.hypot(edge.Curve.Center.x - expected[0],
                                    edge.Curve.Center.z - expected[1]) < 1e-4
                 ]
-                return {"outlines": outlines, "nose_centre": centres[0] if centres else None}
+                unrotated = section.copy()
+                unrotated.rotate(
+                    FreeCAD.Vector(), FreeCAD.Vector(0, 1, 0),
+                    -FreeCAD.Units.Quantity(bags[0].Rotation).Value)
+                bounds = unrotated.BoundBox
+                fit_radius = max(
+                    math.hypot(radial, axial)
+                    for radial in (bounds.XMin, bounds.XMax)
+                    for axial in (bounds.ZMin, bounds.ZMax))
+                return {
+                    "outlines": outlines, "nose_centre": centres[0] if centres else None,
+                    "fit_radius": fit_radius,
+                }
             return outlines
     except Part.OCCError as error:
         raise ValueError(str(error)) from error

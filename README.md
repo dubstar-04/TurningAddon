@@ -27,6 +27,8 @@ sharp noses (`00`) remain reference-only for ISO creation.
 angle, tool reference and native preview. Creation adds C/D/S/T ISO presets;
 editing prefills the saved values without inferring an ISO code. Numeric values
 and the name can be adjusted before confirming **Create ToolBit** or **Save**.
+The square preview keeps its axes centred and uses a consistent fit scale as the
+mounting angle changes, refitting when tool dimensions or the reference change.
 
 **Tool reference** offers **Stored origin** (the theoretical sharp tip in the bundled
 shapes) and **Nose centre**. The native `NoseCentre` parameter offsets the sketch
