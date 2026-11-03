@@ -102,6 +102,25 @@ def load_iso_tool(uri):
     return ToolBitSnapshot(str(uri), attributes, values, shape_data, reference_shape_data)
 
 
+def _updated_iso_definition(attributes, original_values, values):
+    if set(values) != set(original_values):
+        raise ValueError("Expected a name, tool reference and all four ISO dimensions.")
+    attributes = deepcopy(attributes)
+    attributes["name"] = values["name"]
+    if values["ToolReference"] not in ("StoredOrigin", "NoseCentre"):
+        raise ValueError("Unsupported turning tool reference.")
+    attributes["parameter"]["NoseCentre"] = values["ToolReference"] == "NoseCentre"
+    for field, unit in _ISO_UNITS.items():
+        value = values[field]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"{field} must be a finite number.")
+        if value != original_values[field]:
+            if field == "Rotation" and abs(value) > 360:
+                raise ValueError("Mounting angle must be between -360 and 360 degrees.")
+            attributes["parameter"][field] = f"{value} {unit}"
+    return attributes, _iso_values(attributes)
+
+
 def save_iso_tool(snapshot, values):
     """Update a shared ToolBit in place, preserving shape references and extra metadata."""
     uri = AssetUri(snapshot.uri)
@@ -112,28 +131,14 @@ def save_iso_tool(snapshot, values):
     shape_uri = _reference("toolbitshape", snapshot.attributes.get("shape"))
     if cam_assets.get_raw(shape_uri, store=_STORES) != snapshot.shape_data:
         raise ValueError("ToolShape changed since loading. Reload before saving.")
-    if set(values) != set(snapshot.values):
-        raise ValueError("Expected a name, tool reference and all four ISO dimensions.")
-    attributes = deepcopy(snapshot.attributes)
-    attributes["name"] = values["name"]
-    if values["ToolReference"] not in ("StoredOrigin", "NoseCentre"):
-        raise ValueError("Unsupported turning tool reference.")
-    attributes["parameter"]["NoseCentre"] = values["ToolReference"] == "NoseCentre"
+    attributes, updated_values = _updated_iso_definition(
+        snapshot.attributes, snapshot.values, values)
     shape_data = snapshot.shape_data
     if snapshot.reference_shape_data is not None:
         shape_data = snapshot.reference_shape_data
         if shape_data != snapshot.shape_data:
             stem = PurePosixPath(attributes["shape"]).stem
             attributes["shape"] = f"{stem}_{sha256(shape_data).hexdigest()}.fcstd"
-    for field, unit in _ISO_UNITS.items():
-        value = values[field]
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-            raise ValueError(f"{field} must be a finite number.")
-        if value != snapshot.values[field]:
-            if field == "Rotation" and abs(value) > 360:
-                raise ValueError("Mounting angle must be between -360 and 360 degrees.")
-            attributes["parameter"][field] = f"{value} {unit}"
-    updated_values = _iso_values(attributes)
     if attributes == snapshot.attributes:
         return snapshot
     with TemporaryDirectory() as directory:
@@ -340,25 +345,27 @@ def validate_iso_template(shape_path, parameters, *, preview=False, with_referen
 
 def iso_tool_preview(snapshot, values, *, with_references=False):
     """Return plain XZ outlines from the stored shape without publishing assets."""
-    parameters = dict(snapshot.attributes["parameter"])
-    if values["ToolReference"] not in ("StoredOrigin", "NoseCentre"):
-        raise ValueError("Unsupported turning tool reference.")
-    parameters["NoseCentre"] = values["ToolReference"] == "NoseCentre"
-    for field, unit in _ISO_UNITS.items():
-        parameters[field] = f"{values[field]} {unit}"
-    _iso_values(dict(snapshot.attributes, name=values["name"], parameter=parameters))
+    attributes, _ = _updated_iso_definition(snapshot.attributes, snapshot.values, values)
     with TemporaryDirectory() as directory:
         shape_path = Path(directory) / "insert.fcstd"
         shape_path.write_bytes(
             snapshot.reference_shape_data if snapshot.reference_shape_data is not None
             else snapshot.shape_data)
         return validate_iso_template(
-            shape_path, parameters, preview=True, with_references=with_references)
+            shape_path, attributes["parameter"], preview=True, with_references=with_references)
 
 
-def create_iso_tool(shape, size, radius, direction, number):
+def iso_tool_preset(shape, size, radius, direction):
+    """Return an unsaved native preset for the shared form and preview."""
+    attributes, shape_path = iso_tool_definition(shape, size, radius, direction)
+    return ToolBitSnapshot("", attributes, _iso_values(attributes), shape_path.read_bytes())
+
+
+def create_iso_tool(shape, size, radius, direction, number, *, values=None):
     """Publish a validated native ToolBit; library membership is saved separately."""
     attributes, shape_path = iso_tool_definition(shape, size, radius, direction)
+    if values is not None:
+        attributes, _ = _updated_iso_definition(attributes, _iso_values(attributes), values)
     tool_uri = AssetUri.build(asset_type="toolbit", asset_id=str(uuid4()))
     shape_uri = _reference("toolbitshape", attributes["shape"])
     if cam_assets.exists(tool_uri, store=_STORES):
@@ -372,20 +379,17 @@ def create_iso_tool(shape, size, radius, direction, number):
         if shape_exists and cam_assets.get_raw(shape_uri, store=_STORES) != shape_data:
             raise ValueError("An existing shape differs from the bundled template: " + str(shape_uri))
     entry = ToolEntry(number, str(tool_uri), attributes["name"], shape_uri.asset_id)
-    validate_iso_template(shape_path, attributes["parameter"])
+    nose_reference = attributes["parameter"]["NoseCentre"]
+    geometry = validate_iso_template(
+        shape_path, attributes["parameter"], preview=nose_reference,
+        with_references=nose_reference)
+    if nose_reference and geometry["nose_centre"] is None:
+        raise ValueError("The ToolShape has no supported active nose centre.")
     tool_data = json.dumps(attributes, indent=2, allow_nan=False).encode("utf-8")
     if not shape_exists:
         cam_assets.add_raw(shape_uri.asset_type, shape_uri.asset_id, shape_data, store="local")
     cam_assets.add_raw(tool_uri.asset_type, tool_uri.asset_id, tool_data, store="local")
     return entry
-
-
-def load_iso_form():
-    """Load the shared insert form through FreeCAD's native Qt loader."""
-    import FreeCADGui
-
-    path = Path(__file__).resolve().parent.parent / "Gui/Resources/panels/DlgTurnToolHelper.ui"
-    return FreeCADGui.PySideUic.loadUi(str(path))
 
 
 def job_choices():

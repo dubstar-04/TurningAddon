@@ -3,7 +3,7 @@
 from PySide import QtCore, QtGui
 
 from . import freecad as assets
-from .iso_gui import IsoToolDialog, IsoToolEditDialog
+from .iso_gui import IsoToolDialog
 from .library import ToolLibrary
 
 
@@ -321,10 +321,17 @@ class LibraryDialog(QtGui.QDialog):
         if not self.new_tool_button.isEnabled():
             return
         try:
-            dialog = IsoToolDialog(assets.load_iso_form(), self)
-            if dialog.form.exec_() != QtGui.QDialog.Accepted:
+            selection = ("C", "03", "04", "R")
+            preset = assets.iso_tool_preset(*selection)
+            dialog = IsoToolDialog(
+                preset.values, self, presets=selection,
+                definition=lambda selected: assets.iso_tool_preset(*selected).values,
+                preview=lambda values: assets.iso_tool_preview(
+                    assets.iso_tool_preset(*dialog.selection()), values, with_references=True))
+            if dialog.exec_() != QtGui.QDialog.Accepted:
                 return
-            entry = assets.create_iso_tool(*dialog.selection(), self.table.next_number)
+            entry = assets.create_iso_tool(
+                *dialog.selection(), self.table.next_number, values=dialog.values())
             self.table.add(entry)
         except (OSError, ValueError, RuntimeError) as error:
             self._report_error(error)
@@ -339,7 +346,7 @@ class LibraryDialog(QtGui.QDialog):
         entry = self.table.get(number)
         try:
             snapshot = assets.load_iso_tool(entry.tool_id)
-            dialog = IsoToolEditDialog(
+            dialog = IsoToolDialog(
                 snapshot.values, self,
                 preview=lambda values: assets.iso_tool_preview(snapshot, values, with_references=True))
             if dialog.exec_() != QtGui.QDialog.Accepted:

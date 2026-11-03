@@ -10,92 +10,6 @@ from . import iso
 translate = QtCore.QCoreApplication.translate
 
 
-class IsoToolPanel(QtCore.QObject):
-    selection_changed = QtCore.Signal()
-
-    tip_angle = iso.TIP_ANGLES
-    shape_size = iso.SHAPE_SIZES
-    nose_radius = iso.NOSE_RADII
-    get_edge_length = staticmethod(iso.get_edge_length)
-    get_radius_value = staticmethod(iso.get_radius_value)
-    get_tip_angle = staticmethod(iso.get_tip_angle)
-
-    def __init__(self, form):
-        super().__init__(form)
-        self.form = form
-        self.shape_cb = form.shape_cb
-        self.size_cb = form.size_cb
-        self.radius_cb = form.radius_cb
-        self.direction_cb = form.direction_cb
-        self.size_val = form.size_val
-        self.tipangle_val = form.tipangle_val
-        self.radius_val = form.radius_val
-        self.result_val = form.result_val
-
-        self.radius_cb.setCurrentText("04")
-        self.direction_cb.setCurrentText("R")
-        self.shape_cb.currentIndexChanged.connect(self.load_shape_size)
-        self.shape_cb.currentIndexChanged.connect(self.load_tool_data)
-        self.size_cb.currentIndexChanged.connect(self.load_tool_data)
-        self.radius_cb.currentIndexChanged.connect(self.load_tool_data)
-        self.direction_cb.currentIndexChanged.connect(self.load_tool_data)
-        self.load_shape_size(self.shape_cb.currentIndex())
-
-    def load_shape_size(self, index):
-        shape = self.shape_cb.itemText(index)
-        self.size_cb.clear()
-        self.size_cb.addItems(tuple(self.shape_size[shape]) if shape != "X" else ("-",))
-
-    def load_tool_data(self):
-        if self.size_cb.currentText():
-            shape = self.shape_cb.currentText()
-            size = self.size_cb.currentText()
-            radius = self.radius_cb.currentText()
-            direction = self.direction_cb.currentText()
-            self.size_val.setText(str(self.get_edge_length(shape, size)))
-            self.tipangle_val.setText(str(self.get_tip_angle(shape)))
-            if shape == "X":
-                radius = direction = "-"
-                self.radius_val.setText("-")
-            else:
-                self.radius_val.setText(str(self.get_radius_value(radius)))
-            self.result_val.setText(f"{shape}---{size}--{radius}--{direction}")
-        self.selection_changed.emit()
-
-    def definition_problem(self):
-        if self.shape_cb.currentText() not in ("C", "D", "S", "T"):
-            return translate("CAM", "Tool creation supports C, D, S and T shapes. Other shapes are reference-only.")
-        if not self.size_cb.currentText():
-            return translate("CAM", "Choose an insert size.")
-        if self.get_radius_value(self.radius_cb.currentText()) <= 0:
-            return translate("CAM", "Sharp noses (00) are reference-only. Choose a non-zero nose radius.")
-        return None
-
-
-class IsoToolDialog(IsoToolPanel):
-    def __init__(self, form, parent=None):
-        super().__init__(form)
-        form.setParent(parent, form.windowFlags())
-        form.setWindowTitle(translate("CAM", "New ISO ToolBit"))
-        form.job_label.hide()
-        form.job_cb.hide()
-        form.buttonBox.setStandardButtons(
-            QtGui.QDialogButtonBox.Ok | QtGui.QDialogButtonBox.Cancel)
-        self.create_button = form.buttonBox.button(QtGui.QDialogButtonBox.Ok)
-        self.create_button.setText(translate("CAM", "Create ToolBit"))
-        self.selection_changed.connect(self._update_state)
-        self._update_state()
-
-    def _update_state(self):
-        problem = self.definition_problem()
-        self.create_button.setEnabled(problem is None)
-        self.form.status_label.setText(problem or "")
-
-    def selection(self):
-        return tuple(control.currentText() for control in (
-            self.shape_cb, self.size_cb, self.radius_cb, self.direction_cb))
-
-
 class ToolPreview(QtGui.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -168,18 +82,46 @@ class ToolPreview(QtGui.QWidget):
         painter.drawLine(origin + QtCore.QPointF(0, -8), origin + QtCore.QPointF(0, 8))
 
 
-class IsoToolEditDialog(QtGui.QDialog):
-    def __init__(self, values, parent=None, *, preview=None):
+class IsoToolDialog(QtGui.QDialog):
+    def __init__(self, values, parent=None, *, preview=None, presets=None, definition=None):
         super().__init__(parent)
-        self.setWindowTitle(translate("CAM", "Edit ISO ToolBit"))
+        self.creating = presets is not None
+        self.definition_callback = definition
+        self.preset_problem = ""
+        self.setWindowTitle(translate(
+            "CAM", "New ISO ToolBit" if self.creating else "Edit ISO ToolBit"))
         self.resize(620, 560)
         self.original_rotation = values["Rotation"]
         self.preview_callback = preview
         layout = QtGui.QVBoxLayout(self)
-        warning = QtGui.QLabel(translate(
-            "CAM", "This ToolBit may be shared. Saving affects every library that references it."))
-        warning.setWordWrap(True)
-        layout.addWidget(warning)
+        if self.creating:
+            selectors = QtGui.QGridLayout()
+            self.shape_cb = QtGui.QComboBox()
+            self.shape_cb.addItems(("C", "D", "S", "T"))
+            self.shape_cb.setCurrentText(presets[0])
+            self.size_cb = QtGui.QComboBox()
+            self.size_cb.addItems(tuple(iso.SHAPE_SIZES[presets[0]]))
+            self.size_cb.setCurrentText(presets[1])
+            self.radius_cb = QtGui.QComboBox()
+            self.radius_cb.addItems(tuple(iso.NOSE_RADII))
+            self.radius_cb.setCurrentText(presets[2])
+            self.direction_cb = QtGui.QComboBox()
+            self.direction_cb.addItems(("L", "R", "N"))
+            self.direction_cb.setCurrentText(presets[3])
+            for column, (label, control) in enumerate((
+                (translate("CAM", "Shape"), self.shape_cb),
+                (translate("CAM", "Size"), self.size_cb),
+                (translate("CAM", "Nose code"), self.radius_cb),
+                (translate("CAM", "Direction"), self.direction_cb),
+            )):
+                selectors.addWidget(QtGui.QLabel(label), 0, column)
+                selectors.addWidget(control, 1, column)
+            layout.addLayout(selectors)
+        else:
+            warning = QtGui.QLabel(translate(
+                "CAM", "This ToolBit may be shared. Saving affects every library that references it."))
+            warning.setWordWrap(True)
+            layout.addWidget(warning)
         fields = QtGui.QFormLayout()
         self.name = QtGui.QLineEdit(values["name"])
         fields.addRow(translate("CAM", "Name"), self.name)
@@ -242,11 +184,44 @@ class IsoToolEditDialog(QtGui.QDialog):
         buttons = QtGui.QDialogButtonBox(
             QtGui.QDialogButtonBox.Save | QtGui.QDialogButtonBox.Cancel)
         self.save_button = buttons.button(QtGui.QDialogButtonBox.Save)
+        if self.creating:
+            self.save_button.setText(translate("CAM", "Create ToolBit"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
         self.name.textChanged.connect(self._update_state)
         self.reference.currentIndexChanged.connect(self._update_state)
+        if self.creating:
+            self.shape_cb.currentIndexChanged.connect(self._load_preset_sizes)
+            for control in (self.size_cb, self.radius_cb, self.direction_cb):
+                control.currentIndexChanged.connect(self._apply_preset)
+        self._update_state()
+
+    def selection(self):
+        return tuple(control.currentText() for control in (
+            self.shape_cb, self.size_cb, self.radius_cb, self.direction_cb))
+
+    def _load_preset_sizes(self):
+        self.size_cb.blockSignals(True)
+        self.size_cb.clear()
+        self.size_cb.addItems(tuple(iso.SHAPE_SIZES[self.shape_cb.currentText()]))
+        self.size_cb.blockSignals(False)
+        self._apply_preset()
+
+    def _apply_preset(self):
+        try:
+            values = self.definition_callback(self.selection())
+        except (OSError, ValueError, RuntimeError) as error:
+            self.preset_problem = str(error)
+        else:
+            self.preset_problem = ""
+            for field, control in self.dimensions.items():
+                control.blockSignals(True)
+                control.setText(repr(values[field]))
+                control.blockSignals(False)
+            self.name.blockSignals(True)
+            self.name.setText(values["name"])
+            self.name.blockSignals(False)
         self._update_state()
 
     def values(self):
@@ -264,7 +239,8 @@ class IsoToolEditDialog(QtGui.QDialog):
         try:
             values = self.values()
             valid = (
-                bool(values["name"].strip())
+                not self.preset_problem
+                and bool(values["name"].strip())
                 and values["ToolReference"] in ("StoredOrigin", "NoseCentre")
                 and all(math.isfinite(values[field]) for field in self.dimensions)
                 and values["EdgeLength"] > 0 and values["TipRadius"] > 0
@@ -282,7 +258,7 @@ class IsoToolEditDialog(QtGui.QDialog):
             if valid:
                 self.preview_timer.start()
         self.save_button.setEnabled(valid)
-        self.problem.setText("" if valid else translate(
+        self.problem.setText("" if valid else self.preset_problem or translate(
             "CAM", "Enter a name, positive lengths, a tip angle between 0 and 180 degrees, and a mounting angle between -360 and 360 degrees."))
 
     def _refresh_preview(self):
