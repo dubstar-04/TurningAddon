@@ -29,6 +29,9 @@ if not hasattr(PathToolBit, "Factory"):
                     "TipRadius": (
                         FreeCAD.Qt.translate("CAM", "Tip radius"),
                         "App::PropertyLength"),
+                    "NoseCentre": (
+                        FreeCAD.Qt.translate("CAM", "Use nose centre as tool origin"),
+                        "App::PropertyBool"),
                 }
 
             @property

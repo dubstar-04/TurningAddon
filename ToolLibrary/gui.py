@@ -341,15 +341,19 @@ class LibraryDialog(QtGui.QDialog):
             snapshot = assets.load_iso_tool(entry.tool_id)
             dialog = IsoToolEditDialog(
                 snapshot.values, self,
-                preview=lambda values: assets.iso_tool_preview(snapshot, values))
+                preview=lambda values: assets.iso_tool_preview(snapshot, values, with_references=True))
             if dialog.exec_() != QtGui.QDialog.Accepted:
                 return
             values = dialog.values()
-            if values == snapshot.values:
+            if values == snapshot.values and not snapshot.needs_reference_update:
                 return
+            confirmation = translate("CAM", "Save changes to this ToolBit? Every library referencing it will use the updated definition.")
+            if snapshot.needs_reference_update:
+                confirmation += "\n\n" + translate(
+                    "CAM", "This also adds the native tool reference parameter and uses an updated template where needed. Existing shared shapes will not be overwritten.")
             answer = QtGui.QMessageBox.question(
                 self, translate("CAM", "Edit shared ToolBit"),
-                translate("CAM", "Save changes to this ToolBit? Every library referencing it will use the updated definition."),
+                confirmation,
                 QtGui.QMessageBox.Yes | QtGui.QMessageBox.Cancel, QtGui.QMessageBox.Cancel,
             )
             if answer != QtGui.QMessageBox.Yes:
@@ -361,7 +365,8 @@ class LibraryDialog(QtGui.QDialog):
         for table in (self.table, self.snapshot.table):
             for member in table.entries:
                 if member.tool_id == updated.uri:
-                    table.edit(member.number, name=updated.attributes["name"])
+                    table.edit(
+                        member.number, name=updated.attributes["name"], shape=updated.shape_name)
         self.snapshot.tools[entry.tool_id] = updated.attributes
         self._render(number)
         self.status.setText(translate("CAM", "Shared ToolBit changes saved."))
