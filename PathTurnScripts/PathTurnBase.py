@@ -143,6 +143,13 @@ class ObjectOp(PathOp.ObjectOp):
         Base function to generate gcode for the OP by writing path command to self.commandlist
         Calls operations op_generate_gcode.
         '''
+        if getattr(obj.ToolController.Tool, "NoseCentre", False):
+            from liblathe.version import __version__
+            from packaging.version import Version
+
+            if Version(__version__) < Version("0.0.8"):
+                raise RuntimeError(translate(
+                    "PathTurn", "Nose-centred tools require LibLathe 0.0.8 or later in FreeCAD's Python environment."))
         turnTool = Tool()
         turnTool.set_tool_from_segments(
             PathTurnHelpers.getToolSegments(obj.ToolController.Tool.Shape))

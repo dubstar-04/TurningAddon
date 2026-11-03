@@ -3,6 +3,7 @@
   "name": "CCMT070204R",
   "shape": "Iso_shape_C.fcstd",
   "parameter": {
+    "NoseCentre": false,
     "Diameter": "1.48 mm",
     "EdgeLength": "6.35 mm",
     "Rotation": "45.00 \u00b0",

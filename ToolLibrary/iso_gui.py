@@ -100,13 +100,15 @@ class ToolPreview(QtGui.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.outlines = ()
+        self.nose_centre = None
         self.x_flipped = False
         self.message = translate("CAM", "Updating preview...")
         self.setMinimumSize(240, 240)
         self.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
 
-    def set_outline(self, outlines, message=""):
+    def set_outline(self, outlines, message="", *, nose_centre=None):
         self.outlines = outlines
+        self.nose_centre = nose_centre
         self.message = message
         self.update()
 
@@ -143,6 +145,8 @@ class ToolPreview(QtGui.QWidget):
                              QtCore.Qt.AlignLeft | QtCore.Qt.TextWordWrap, self.message)
             return
         points = [(0.0, 0.0)] + [point for edge in self.outlines for point in edge]
+        if self.nose_centre is not None:
+            points.append(self.nose_centre)
         radial_extent = max(abs(point[0]) for point in points)
         axial_extent = max(abs(point[1]) for point in points)
         scale = min((self.width() / 2 - 32) / max(axial_extent, 1e-6),
@@ -159,7 +163,9 @@ class ToolPreview(QtGui.QWidget):
             painter.drawPolyline(QtGui.QPolygonF([screen(point) for point in edge]))
         painter.setPen(QtGui.QPen(palette.highlight().color(), 2))
         painter.setBrush(palette.base())
-        painter.drawEllipse(origin, 4, 4)
+        painter.drawEllipse(origin, 5, 5)
+        painter.drawLine(origin + QtCore.QPointF(-8, 0), origin + QtCore.QPointF(8, 0))
+        painter.drawLine(origin + QtCore.QPointF(0, -8), origin + QtCore.QPointF(0, 8))
 
 
 class IsoToolEditDialog(QtGui.QDialog):
@@ -210,7 +216,10 @@ class IsoToolEditDialog(QtGui.QDialog):
                 fields.addRow(label, control)
             self.dimensions[field] = control
             control.textChanged.connect(self._update_state)
-        self.reference = QtGui.QLabel(translate("CAM", "Stored origin"))
+        self.reference = QtGui.QComboBox()
+        self.reference.addItem(translate("CAM", "Stored origin"), "StoredOrigin")
+        self.reference.addItem(translate("CAM", "Nose centre"), "NoseCentre")
+        self.reference.setCurrentIndex(self.reference.findData(values["ToolReference"]))
         fields.addRow(translate("CAM", "Tool reference"), self.reference)
         layout.addLayout(fields)
         self.preview = ToolPreview()
@@ -237,12 +246,14 @@ class IsoToolEditDialog(QtGui.QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
         self.name.textChanged.connect(self._update_state)
+        self.reference.currentIndexChanged.connect(self._update_state)
         self._update_state()
 
     def values(self):
         return dict(
             {field: float(control.text()) for field, control in self.dimensions.items()},
             name=self.name.text(),
+            ToolReference=self.reference.currentData(),
         )
 
     def _set_angle(self, angle):
@@ -254,6 +265,7 @@ class IsoToolEditDialog(QtGui.QDialog):
             values = self.values()
             valid = (
                 bool(values["name"].strip())
+                and values["ToolReference"] in ("StoredOrigin", "NoseCentre")
                 and all(math.isfinite(values[field]) for field in self.dimensions)
                 and values["EdgeLength"] > 0 and values["TipRadius"] > 0
                 and 0 < values["TipAngle"] < 180
@@ -278,10 +290,12 @@ class IsoToolEditDialog(QtGui.QDialog):
         if self.preview_callback is None or not self.save_button.isEnabled():
             return
         try:
-            outlines = self.preview_callback(self.values())
+            result = self.preview_callback(self.values())
         except (OSError, ValueError, RuntimeError) as error:
             self.preview.set_outline((), translate("CAM", "Preview unavailable"))
             self.preview.setToolTip(str(error))
+            self.save_button.setEnabled(False)
             return
         self.preview.setToolTip("")
-        self.preview.set_outline(outlines)
+        data = result if isinstance(result, dict) else {"outlines": result}
+        self.preview.set_outline(**data)
