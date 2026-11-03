@@ -162,10 +162,20 @@ class IsoToolDialog(QtGui.QDialog):
             self.dimensions[field] = control
             control.textChanged.connect(self._update_state)
         self.reference = QtGui.QComboBox()
-        self.reference.addItem(translate("CAM", "Stored origin"), "StoredOrigin")
-        self.reference.addItem(translate("CAM", "Nose centre"), "NoseCentre")
+        self.reference.addItem(translate("CAM", "Tip tangent"), "TipTangent")
+        self.reference.addItem(translate("CAM", "Tip"), "StoredOrigin")
+        self.reference.addItem(translate("CAM", "Tip centre"), "NoseCentre")
+        self.reference.addItem(translate("CAM", "Insert centre"), "InsertCentre")
         self.reference.setCurrentIndex(self.reference.findData(values["ToolReference"]))
         fields.addRow(translate("CAM", "Tool reference"), self.reference)
+        self.side = QtGui.QComboBox()
+        self.side.addItem(translate("CAM", "Near side (+X)"), "Near")
+        self.side.addItem(translate("CAM", "Far side (-X)"), "Far")
+        self.side.setCurrentIndex(self.side.findData(values.get("ToolSide", "Near")))
+        self.previous_side = self.side.currentData()
+        self.side.setToolTip(translate(
+            "CAM", "Switching side reflects the native mounting angle. The angle remains independently editable."))
+        fields.addRow(translate("CAM", "Spindle side"), self.side)
         layout.addLayout(fields)
         self.preview = ToolPreview()
         self.preview.setVisible(preview is not None)
@@ -194,6 +204,7 @@ class IsoToolDialog(QtGui.QDialog):
         layout.addWidget(buttons)
         self.name.textChanged.connect(self._update_state)
         self.reference.currentIndexChanged.connect(self._update_state)
+        self.side.currentIndexChanged.connect(self._change_side)
         if self.creating:
             self.shape_cb.currentIndexChanged.connect(self._load_preset_sizes)
             for control in (self.size_cb, self.radius_cb, self.direction_cb):
@@ -218,6 +229,8 @@ class IsoToolDialog(QtGui.QDialog):
             self.preset_problem = str(error)
         else:
             self.preset_problem = ""
+            if self.side.currentData() == "Far":
+                values["Rotation"] = self._reflected_angle(values["Rotation"])
             for field, control in self.dimensions.items():
                 control.blockSignals(True)
                 control.setText(repr(values[field]))
@@ -232,7 +245,26 @@ class IsoToolDialog(QtGui.QDialog):
             {field: float(control.text()) for field, control in self.dimensions.items()},
             name=self.name.text(),
             ToolReference=self.reference.currentData(),
+            ToolSide=self.side.currentData(),
         )
+
+    @staticmethod
+    def _reflected_angle(angle):
+        reflected = 180.0 - angle
+        return reflected - 360.0 if reflected > 180.0 else reflected
+
+    def _change_side(self):
+        side = self.side.currentData()
+        if side != self.previous_side:
+            self.previous_side = side
+            try:
+                angle = float(self.dimensions["Rotation"].text())
+            except ValueError:
+                pass
+            else:
+                if math.isfinite(angle) and abs(angle) <= 360:
+                    self.dimensions["Rotation"].setText(repr(self._reflected_angle(angle)))
+        self._update_state()
 
     def _set_angle(self, angle):
         self.dimensions["Rotation"].setText(repr(float(angle)))
@@ -244,7 +276,8 @@ class IsoToolDialog(QtGui.QDialog):
             valid = (
                 not self.preset_problem
                 and bool(values["name"].strip())
-                and values["ToolReference"] in ("StoredOrigin", "NoseCentre")
+                and values["ToolReference"] in ("StoredOrigin", "NoseCentre", "InsertCentre", "TipTangent")
+                and values["ToolSide"] in ("Near", "Far")
                 and all(math.isfinite(values[field]) for field in self.dimensions)
                 and values["EdgeLength"] > 0 and values["TipRadius"] > 0
                 and 0 < values["TipAngle"] < 180

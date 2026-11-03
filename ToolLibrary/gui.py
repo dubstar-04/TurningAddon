@@ -104,6 +104,7 @@ class LibraryDialog(QtGui.QDialog):
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
         self.rows.itemSelectionChanged.connect(self._update_actions)
+        self.rows.currentCellChanged.connect(self._update_actions)
         self.libraries.currentIndexChanged.connect(self.open_library)
         self.jobs.currentIndexChanged.connect(self._update_job_state)
         self._update_actions()

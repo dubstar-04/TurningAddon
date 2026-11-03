@@ -55,11 +55,16 @@ def getResourcePath(resName):
 def getliblatheBoundBox(operation):
     """Convert operation diameter and depth limits to a LibLathe XZ bound box.
 
-    Diameter limits become radii; final and start depths bound the Z range.
+    Diameter limits become signed radii; final and start depths bound the Z range.
     """
+    tool = getattr(getattr(operation, "ToolController", None), "Tool", None)
+    side = getattr(tool, "ToolSide", "Near")
+    if side not in ("Near", "Far"):
+        raise ValueError("Tool side must be Near or Far")
+    sign = -1 if side == "Far" else 1
     return BoundBox(
-        Point(operation.MinDiameter.Value / 2, operation.FinalDepth.Value),
-        Point(operation.MaxDiameter.Value / 2, operation.StartDepth.Value))
+        Point(sign * operation.MinDiameter.Value / 2, operation.FinalDepth.Value),
+        Point(sign * operation.MaxDiameter.Value / 2, operation.StartDepth.Value))
 
 
 def getPartOutline(models):
@@ -442,25 +447,20 @@ def mergeRadialProfiles(first, second):
 
 
 def getToolSegments(toolShape):
-    """Extract LibLathe segments from the tool shape's closed XZ projection.
+    """Extract LibLathe segments from the tool shape's closed XZ section.
 
-    Project at the shape's mid-Y plane, retaining its supplied orientation.
+    Section at the shape's mid-Y plane, retaining native lines and circular arcs.
     Require one closed outline with non-zero X and Z extents.
     """
     box = toolShape.BoundBox
     if box.XLength <= 0 or box.ZLength <= 0:
         raise ValueError("Turning tool must have a non-zero XZ section")
-    plane = Part.makePlane(
-        box.ZLength, box.XLength,
-        FreeCAD.Vector(box.XMin, box.Center.y, box.ZMin), FreeCAD.Vector(0, -1, 0))
-    sections = Path.Area().add(toolShape).makeSections(
-        mode=0, heights=[0.0], project=True, plane=plane)
-    if not sections:
+    wires = toolShape.slice(FreeCAD.Vector(0, 1, 0), box.Center.y)
+    if not wires:
         raise ValueError("Turning tool has no XZ section")
-    section = sections[0].setParams(Offset=0.0).getShape()
-    if len(section.Wires) != 1 or not section.Wires[0].isClosed():
+    if len(wires) != 1 or not wires[0].isClosed():
         raise ValueError("Turning tool must have one closed XZ insert profile")
-    return getSegmentsFromEdges(section.Wires[0].OrderedEdges, True)
+    return getSegmentsFromEdges(wires[0].OrderedEdges, True)
 
 
 def getSegmentsFromEdges(edges, allowOnXAxis=False):

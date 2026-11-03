@@ -43,7 +43,8 @@ class ToolBitSnapshot:
 
     @property
     def needs_reference_update(self):
-        return "NoseCentre" not in self.attributes["parameter"]
+        return any(name not in self.attributes["parameter"]
+                   for name in ("NoseCentre", "InsertCentre", "TipTangent"))
 
     @property
     def shape_name(self):
@@ -60,7 +61,19 @@ def _iso_values(attributes):
     nose_centre = attributes["parameter"].get("NoseCentre")
     if not isinstance(nose_centre, bool):
         raise ValueError("Expected the native NoseCentre boolean parameter.")
+    insert_centre = attributes["parameter"].get("InsertCentre", False)
+    tip_tangent = attributes["parameter"].get("TipTangent", False)
+    if (not isinstance(insert_centre, bool) or not isinstance(tip_tangent, bool)
+            or sum((nose_centre, insert_centre, tip_tangent)) > 1):
+        raise ValueError("Select exactly one native tool reference.")
     values = {"name": name, "ToolReference": "NoseCentre" if nose_centre else "StoredOrigin"}
+    if insert_centre:
+        values["ToolReference"] = "InsertCentre"
+    if tip_tangent:
+        values["ToolReference"] = "TipTangent"
+    values["ToolSide"] = attributes["parameter"].get("ToolSide", "Near")
+    if values["ToolSide"] not in ("Near", "Far"):
+        raise ValueError("Tool side must be Near or Far.")
     for field, unit in _ISO_UNITS.items():
         raw = attributes["parameter"].get(field)
         if isinstance(raw, bool) or not isinstance(raw, (str, int, float)):
@@ -95,21 +108,39 @@ def load_iso_tool(uri):
     shape_data = cam_assets.get_raw(shape_uri, store=_STORES)
     reference_shape_data = None
     filename = PurePosixPath(shape_uri.asset_id).name + ".fcstd"
-    if missing_reference and filename in {
-            f"Iso_shape_{shape}.fcstd" for shape in ("C", "D", "S", "T")}:
-        template = Path(__file__).resolve().parent.parent / "Tools" / "Shape" / filename
-        reference_shape_data = template.read_bytes()
+    if missing_reference or any(name not in parameters for name in ("InsertCentre", "TipTangent")):
+        stem = PurePosixPath(filename).stem
+        for shape in ("C", "D", "S", "T"):
+            base = f"Iso_shape_{shape}"
+            suffixes = stem.removeprefix(base + "_").split("_")
+            hashed = stem.startswith(base + "_") and all(
+                len(suffix) == 64 and all(char in "0123456789abcdef" for char in suffix)
+                for suffix in suffixes)
+            if stem == base or hashed:
+                template = Path(__file__).resolve().parent.parent / "Tools" / "Shape" / (base + ".fcstd")
+                reference_shape_data = template.read_bytes()
+                break
     return ToolBitSnapshot(str(uri), attributes, values, shape_data, reference_shape_data)
 
 
 def _updated_iso_definition(attributes, original_values, values):
+    original_values = dict(original_values)
+    original_values.setdefault("ToolSide", "Near")
+    values = dict(values)
+    values.setdefault("ToolSide", original_values["ToolSide"])
     if set(values) != set(original_values):
-        raise ValueError("Expected a name, tool reference and all four ISO dimensions.")
+        raise ValueError("Expected a name, tool reference, tool side and all four ISO dimensions.")
     attributes = deepcopy(attributes)
     attributes["name"] = values["name"]
-    if values["ToolReference"] not in ("StoredOrigin", "NoseCentre"):
+    if values["ToolReference"] not in ("StoredOrigin", "NoseCentre", "InsertCentre", "TipTangent"):
         raise ValueError("Unsupported turning tool reference.")
     attributes["parameter"]["NoseCentre"] = values["ToolReference"] == "NoseCentre"
+    attributes["parameter"]["InsertCentre"] = values["ToolReference"] == "InsertCentre"
+    attributes["parameter"]["TipTangent"] = values["ToolReference"] == "TipTangent"
+    if values["ToolSide"] not in ("Near", "Far"):
+        raise ValueError("Tool side must be Near or Far.")
+    if "ToolSide" in attributes["parameter"] or values["ToolSide"] != original_values["ToolSide"]:
+        attributes["parameter"]["ToolSide"] = values["ToolSide"]
     for field, unit in _ISO_UNITS.items():
         value = values[field]
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
@@ -144,12 +175,12 @@ def save_iso_tool(snapshot, values):
     with TemporaryDirectory() as directory:
         shape_path = Path(directory) / "insert.fcstd"
         shape_path.write_bytes(shape_data)
-        nose_reference = values["ToolReference"] == "NoseCentre"
+        nose_reference = values["ToolReference"] in ("NoseCentre", "TipTangent")
         geometry = validate_iso_template(
             shape_path, attributes["parameter"], preview=nose_reference,
             with_references=nose_reference)
         if nose_reference and geometry["nose_centre"] is None:
-            raise ValueError("The ToolShape has no supported active nose centre.")
+            raise ValueError("The ToolShape has no supported active nose centre for the selected reference.")
     if attributes["shape"] != snapshot.attributes["shape"]:
         updated_shape_uri = _reference("toolbitshape", attributes["shape"])
         if cam_assets.exists(updated_shape_uri, store=_STORES):
@@ -260,7 +291,7 @@ def iso_tool_definition(shape, size, radius, direction):
     parameters["TipAngle"] = f"{iso.get_tip_angle(shape)} deg"
     parameters["TipRadius"] = f"{iso.get_radius_value(radius)} mm"
     rotation = FreeCAD.Units.Quantity(parameters["Rotation"]).Value
-    if direction == "L":
+    if direction == "R":
         rotation = -rotation
     elif direction == "N":
         rotation = 0
@@ -285,11 +316,21 @@ def validate_iso_template(shape_path, parameters, *, preview=False, with_referen
             raise ValueError("The insert template must have one Attributes object.")
         if not all(field in bags[0].PropertiesList for field in (*_ISO_UNITS, "NoseCentre")):
             raise ValueError("The ToolShape does not expose the supported ISO dimensions.")
+        if parameters.get("InsertCentre", False) and "InsertCentre" not in bags[0].PropertiesList:
+            raise ValueError("This ToolShape does not support insert-centred geometry.")
+        if parameters.get("TipTangent", False) and "TipTangent" not in bags[0].PropertiesList:
+            raise ValueError("This ToolShape does not support tip-tangent geometry.")
+        if sum(bool(parameters.get(name, False)) for name in ("NoseCentre", "InsertCentre", "TipTangent")) > 1:
+            raise ValueError("Select exactly one native tool reference.")
         for name, value in parameters.items():
             if name in bags[0].PropertiesList:
-                if name == "NoseCentre":
+                if name in ("NoseCentre", "InsertCentre", "TipTangent"):
                     if not isinstance(value, bool):
-                        raise ValueError("NoseCentre must be a boolean.")
+                        raise ValueError(f"{name} must be a boolean.")
+                    setattr(bags[0], name, value)
+                elif name == "ToolSide":
+                    if value not in ("Near", "Far"):
+                        raise ValueError("Tool side must be Near or Far.")
                     setattr(bags[0], name, value)
                 else:
                     setattr(bags[0], name, FreeCAD.Units.Quantity(value))
@@ -326,6 +367,11 @@ def validate_iso_template(shape_path, parameters, *, preview=False, with_referen
                 distance = radius / math.sin(tip_angle / 2)
                 expected = ((0.0, 0.0) if bags[0].NoseCentre else
                             (distance * math.cos(angle), -distance * math.sin(angle)))
+                if getattr(bags[0], "TipTangent", False):
+                    cosine, sine = math.cos(angle), math.sin(angle)
+                    radial_sign = (1 if cosine > 1e-12 else -1 if cosine < -1e-12 else
+                                   -1 if getattr(bags[0], "ToolSide", "Near") == "Far" else 1)
+                    expected = (radius * radial_sign, radius * (-1 if sine > 1e-12 else 1))
                 centres = [
                     (edge.Curve.Center.x, edge.Curve.Center.z)
                     for edge in section.Edges
@@ -391,12 +437,12 @@ def create_iso_tool(shape, size, radius, direction, number, *, values=None):
         if shape_exists and cam_assets.get_raw(shape_uri, store=_STORES) != shape_data:
             raise ValueError("An existing shape differs from the bundled template: " + str(shape_uri))
     entry = ToolEntry(number, str(tool_uri), attributes["name"], shape_uri.asset_id)
-    nose_reference = attributes["parameter"]["NoseCentre"]
+    nose_reference = attributes["parameter"]["NoseCentre"] or attributes["parameter"].get("TipTangent", False)
     geometry = validate_iso_template(
         shape_path, attributes["parameter"], preview=nose_reference,
         with_references=nose_reference)
     if nose_reference and geometry["nose_centre"] is None:
-        raise ValueError("The ToolShape has no supported active nose centre.")
+        raise ValueError("The ToolShape has no supported active nose centre for the selected reference.")
     tool_data = json.dumps(attributes, indent=2, allow_nan=False).encode("utf-8")
     if not shape_exists:
         cam_assets.add_raw(shape_uri.asset_type, shape_uri.asset_id, shape_data, store="local")
@@ -448,8 +494,12 @@ def job_add_problem(document_name, job_name, number):
         job = _job(document_name, job_name)
     except ValueError as error:
         return str(error)
-    if job.Document.HasPendingTransaction:
-        return "Finish the current document edit before adding a turning tool."
+    if FreeCAD.GuiUp:
+        import FreeCADGui
+
+        gui_document = FreeCADGui.getDocument(job.Document.Name)
+        if gui_document.getInEdit() is not None or FreeCADGui.Control.activeDialog():
+            return "Finish the current document edit before adding a turning tool."
     if type(number) is not int or not 1 <= number <= 10000:
         return "The job tool number must be between 1 and 10000."
     if any(controller.ToolNumber == number for controller in job.Tools.Group):
