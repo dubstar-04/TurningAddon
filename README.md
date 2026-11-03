@@ -23,7 +23,12 @@ In **Turning Tool Library**, create a ToolBit, select a job, then **Add to job**
 Set feeds and spindle speed in the new controller before use. Other shapes and
 sharp noses (`00`) remain reference-only for ISO creation.
 
-**Edit ToolBit** offers **Stored origin** (the theoretical sharp tip in the bundled
+**New ISO ToolBit** and **Edit ToolBit** use the same form for dimensions, mounting
+angle, tool reference and native preview. Creation adds C/D/S/T ISO presets;
+editing prefills the saved values without inferring an ISO code. Numeric values
+and the name can be adjusted before confirming **Create ToolBit** or **Save**.
+
+**Tool reference** offers **Stored origin** (the theoretical sharp tip in the bundled
 shapes) and **Nose centre**. The native `NoseCentre` parameter offsets the sketch
 before the solid is built. The preview, LibLathe outline and simulation tool shape
 therefore share the same origin; no separate operation-side offset is applied.
