@@ -3,9 +3,7 @@
   "name": "DCMT070204R",
   "shape": "Iso_shape_D.fcstd",
   "parameter": {
-    "NoseCentre": false,
-    "InsertCentre": false,
-    "TipTangent": false,
+    "Compensation": "Tip Tangent",
     "Diameter": "3.77 mm",
     "EdgeLength": "6.35 mm",
     "Rotation": "45.00 \u00b0",

@@ -143,11 +143,7 @@ class ObjectOp(PathOp.ObjectOp):
         Base function to generate gcode for the OP by writing path command to self.commandlist
         Calls operations op_generate_gcode.
         '''
-        if (
-            getattr(obj.ToolController.Tool, "NoseCentre", False)
-            or getattr(obj.ToolController.Tool, "InsertCentre", False)
-            or getattr(obj.ToolController.Tool, "TipTangent", False)
-        ):
+        if obj.ToolController.Tool.Compensation != "Tip":
             from liblathe.version import __version__
             from packaging.version import Version
 

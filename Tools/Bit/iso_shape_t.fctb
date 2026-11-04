@@ -3,9 +3,7 @@
   "name": "TCMT110204R",
   "shape": "Iso_shape_T.fcstd",
   "parameter": {
-    "NoseCentre": false,
-    "InsertCentre": false,
-    "TipTangent": false,
+    "Compensation": "Tip Tangent",
     "Diameter": "1.48 mm",
     "EdgeLength": "6.35 mm",
     "Rotation": "60.00 \u00b0",
