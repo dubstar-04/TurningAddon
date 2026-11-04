@@ -50,13 +50,13 @@ class NativeToolBitTests(unittest.TestCase):
 
         application = QtGui.QApplication.instance() or QtGui.QApplication([])
         snapshot = assets.iso_tool_preset("C", "09", "04", "R")
-        for reference, label in (("TipTangent", "Tip tangent"), ("StoredOrigin", "Tip"), ("NoseCentre", "Tip centre"),
-                                 ("InsertCentre", "Insert centre")):
+        self.assertEqual(snapshot.values["Compensation"], "Tip Tangent")
+        for reference in ("Tip Tangent", "Tip", "Tip centre", "Insert centre"):
             with self.subTest(reference=reference):
-                dialog = IsoToolDialog(dict(snapshot.values, ToolReference=reference))
+                dialog = IsoToolDialog(dict(snapshot.values, Compensation=reference))
                 try:
-                    self.assertEqual(dialog.reference.currentText(), label)
-                    self.assertEqual(dialog.values()["ToolReference"], reference)
+                    self.assertEqual(dialog.reference.currentText(), reference)
+                    self.assertEqual(dialog.values()["Compensation"], reference)
                     self.assertEqual(dialog.reference.count(), 4)
                     self.assertEqual(dialog.reference.findText("Stored origin"), -1)
                     self.assertTrue(dialog.save_button.isEnabled())
@@ -160,20 +160,22 @@ class NativeToolBitTests(unittest.TestCase):
             finally:
                 dialog.reject()
 
-    def test_conflicting_or_invalid_reference_parameters_are_rejected(self):
+    def test_compensation_is_required_and_validated(self):
         from ToolLibrary import freecad as assets
 
         attributes, _ = assets.iso_tool_definition("C", "09", "04", "R")
-        for nose, insert in ((True, True), (False, "true"), (False, 1)):
-            with self.subTest(nose=nose, insert=insert):
-                attributes["parameter"].update(NoseCentre=nose, InsertCentre=insert)
-                with self.assertRaises(ValueError):
-                    assets._iso_values(attributes)
-        for nose, insert, tangent in ((True, False, True), (False, True, True), (False, False, "true")):
-            with self.subTest(nose=nose, insert=insert, tangent=tangent):
-                attributes["parameter"].update(NoseCentre=nose, InsertCentre=insert, TipTangent=tangent)
-                with self.assertRaises(ValueError):
-                    assets._iso_values(attributes)
+        attributes["parameter"].pop("Compensation")
+        with self.assertRaises(ValueError):
+            assets._iso_values(attributes)
+
+        for reference in ("Tip Tangent", "Tip", "Tip centre", "Insert centre"):
+            attributes, _ = assets.iso_tool_definition("C", "09", "04", "R")
+            attributes["parameter"]["Compensation"] = reference
+            self.assertEqual(assets._iso_values(attributes)["Compensation"], reference)
+        for reference in (None, "unknown", True, 0):
+            attributes["parameter"]["Compensation"] = reference
+            with self.assertRaises(ValueError):
+                assets._iso_values(attributes)
 
     def test_tip_tangent_native_datum_follows_mounting_and_side(self):
         import math
@@ -189,7 +191,8 @@ class NativeToolBitTests(unittest.TestCase):
                 document = FreeCAD.openDocument(str(path), hidden=True)
                 try:
                     bag = document.getObjectsByLabel("Attributes")[0]
-                    bag.TipTangent = True
+                    self.assertEqual(bag.Compensation, "Tip Tangent")
+                    bag.Compensation = "Tip Tangent"
                     for angle in (-360, -180, -135, -90, -45, 0, 45, 90, 135, 180, 270, 360):
                         for side in ("Near", "Far"):
                             with self.subTest(family=family, angle=angle, side=side):
@@ -221,6 +224,7 @@ class NativeToolBitTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         import FreeCAD
+        import Part
         from PathTurnScripts.PathTurnToolBit import create_tool
         from ToolLibrary import freecad as assets
 
@@ -229,12 +233,13 @@ class NativeToolBitTests(unittest.TestCase):
         try:
             with TemporaryDirectory() as directory:
                 for family, size in (("C", "09"), ("D", "07"), ("S", "09"), ("T", "11")):
-                    for reference in ("StoredOrigin", "NoseCentre", "InsertCentre", "TipTangent"):
+                    for reference in ("Tip", "Tip centre", "Insert centre", "Tip Tangent"):
                         for side in ("Near", "Far"):
                             with self.subTest(family=family, reference=reference, side=side):
                                 attributes, path = assets.iso_tool_definition(family, size, "04", "R")
+                                self.assertEqual(attributes["parameter"]["Compensation"], "Tip Tangent")
                                 original = assets._iso_values(attributes)
-                                values = dict(original, ToolReference=reference, ToolSide=side)
+                                values = dict(original, Compensation=reference, ToolSide=side)
                                 if side == "Far":
                                     angle = 180 - values["Rotation"]
                                     values["Rotation"] = angle - 360 if angle > 180 else angle
@@ -250,9 +255,8 @@ class NativeToolBitTests(unittest.TestCase):
                                 copied = copied_document.copyObject(tool, True)
                                 copied_document.recompute()
                                 self.assertAlmostEqual(copied.Diameter.Value, 17.25)
-                                self.assertEqual(copied.InsertCentre, reference == "InsertCentre")
-                                self.assertEqual(copied.NoseCentre, reference == "NoseCentre")
-                                self.assertEqual(copied.TipTangent, reference == "TipTangent")
+                                self.assertEqual(copied.Compensation, reference)
+                                self.assertEqual(copied.getTypeIdOfProperty("Compensation"), "App::PropertyEnumeration")
                                 FreeCAD.closeDocument(documents.pop())
                                 FreeCAD.setActiveDocument(document.Name)
                                 filename = directory + "/tool.fcstd"
@@ -264,58 +268,44 @@ class NativeToolBitTests(unittest.TestCase):
                                     documents.append(document.Name)
                                     tool = document.getObject(name)
                                     self.assertAlmostEqual(tool.Diameter.Value, 17.25)
-                                    self.assertEqual(tool.InsertCentre, reference == "InsertCentre")
-                                    self.assertEqual(tool.NoseCentre, reference == "NoseCentre")
-                                    self.assertEqual(tool.TipTangent, reference == "TipTangent")
+                                    self.assertEqual(tool.Compensation, reference)
+                                    self.assertEqual(tool.getEnumerationsOfProperty("Compensation"),
+                                                     ["Tip Tangent", "Tip", "Tip centre", "Insert centre"])
                                 self.assertLess(before.cut(tool.Shape).Volume + tool.Shape.cut(before).Volume, 1e-7)
                                 tool.EdgeLength = tool.EdgeLength.Value * 1.1
                                 document.recompute()
                                 self.assertTrue(tool.Shape.isValid())
                                 self.assertAlmostEqual(tool.Diameter.Value, 17.25)
-                                if reference == "InsertCentre":
+                                if reference == "Insert centre":
                                     centre = tool.Shape.CenterOfMass
                                     self.assertLess(math.hypot(centre.x, centre.z), 1e-4)
+                                tool.Compensation = "Tip centre"
+                                document.recompute()
+                                centres = [edge.Curve.Center for edge in tool.Shape.Edges
+                                           if isinstance(edge.Curve, Part.Circle)
+                                           and abs(edge.Curve.Radius - tool.TipRadius.Value) < 1e-4]
+                                self.assertLess(min(math.hypot(point.x, point.z) for point in centres), 1e-4)
+                                self.assertEqual(tool.Proxy._tool_bit_shape.get_parameter("Compensation"),
+                                                 "Tip centre")
+                                self.assertAlmostEqual(tool.Diameter.Value, 17.25)
                                 FreeCAD.closeDocument(documents.pop())
         finally:
             for name in reversed(documents):
                 FreeCAD.closeDocument(name)
             FreeCAD.setActiveDocument(active.Name if active else "")
 
-    def test_legacy_upgrade_preserves_shared_template_and_metadata(self):
+    def test_compensation_edit_preserves_shared_template_and_metadata(self):
         import json
-        from pathlib import Path
-        from tempfile import TemporaryDirectory
         from types import SimpleNamespace
         from unittest.mock import patch
 
-        import FreeCAD
         from ToolLibrary import freecad as assets
 
         attributes, path = assets.iso_tool_definition("C", "09", "04", "R")
-        attributes["parameter"].pop("InsertCentre")
-        attributes["parameter"].pop("TipTangent")
         attributes["parameter"]["Diameter"] = "0.5 in"
         attributes["attribute"]["custom"] = {"keep": [1, 2]}
-        active = FreeCAD.ActiveDocument
-        document = FreeCAD.openDocument(str(path), hidden=True)
-        try:
-            for axis, sign, trig in (("x", "-", "cos"), ("y", "", "sin")):
-                document.Sketch.setExpression(
-                    ".AttachmentOffset.Base." + axis,
-                    "<<Attributes>>.NoseCentre ? " + sign
-                    + "<<Attributes>>.TipRadius / sin(<<Attributes>>.TipAngle / 2) * "
-                    + trig + "(<<Attributes>>.Rotation) : 0 mm")
-            document.getObjectsByLabel("Attributes")[0].removeProperty("InsertCentre")
-            document.getObjectsByLabel("Attributes")[0].removeProperty("TipTangent")
-            document.recompute()
-            with TemporaryDirectory() as directory:
-                filename = Path(directory) / "legacy.fcstd"
-                document.saveAs(str(filename))
-                shape_data = filename.read_bytes()
-        finally:
-            FreeCAD.closeDocument(document.Name)
-            FreeCAD.setActiveDocument(active.Name if active else "")
-        uri = assets.AssetUri.build(asset_type="toolbit", asset_id="legacy-reference-test")
+        shape_data = path.read_bytes()
+        uri = assets.AssetUri.build(asset_type="toolbit", asset_id="compensation-test")
         shape_uri = assets._reference("toolbitshape", attributes["shape"])
         stored = {str(uri): json.dumps(attributes).encode(), str(shape_uri): shape_data}
         original = dict(stored)
@@ -327,17 +317,20 @@ class NativeToolBitTests(unittest.TestCase):
         )
         with patch.object(assets, "cam_assets", fake):
             snapshot = assets.load_iso_tool(uri)
-            values = dict(snapshot.values, ToolReference="TipTangent")
+            self.assertEqual(snapshot.values["Compensation"], "Tip Tangent")
+            values = dict(snapshot.values, Compensation="Tip centre")
             self.assertTrue(assets.iso_tool_preview(snapshot, values))
             self.assertEqual(stored, original)
             updated = assets.save_iso_tool(snapshot, values)
-            self.assertNotEqual(updated.attributes["shape"], attributes["shape"])
+            self.assertEqual(updated.attributes["shape"], attributes["shape"])
             self.assertEqual(stored[str(shape_uri)], shape_data)
             self.assertEqual(updated.attributes["attribute"], attributes["attribute"])
             self.assertEqual(updated.attributes["parameter"]["Diameter"], "0.5 in")
             reloaded = assets.load_iso_tool(uri)
-            self.assertFalse(reloaded.needs_reference_update)
-            self.assertEqual(reloaded.values["ToolReference"], "TipTangent")
+            self.assertEqual(reloaded.values["Compensation"], "Tip centre")
+            before_noop = dict(stored)
+            self.assertIs(assets.save_iso_tool(reloaded, reloaded.values), reloaded)
+            self.assertEqual(stored, before_noop)
 
 
 if __name__ == "__main__":

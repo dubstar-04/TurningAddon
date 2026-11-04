@@ -162,12 +162,12 @@ class IsoToolDialog(QtGui.QDialog):
             self.dimensions[field] = control
             control.textChanged.connect(self._update_state)
         self.reference = QtGui.QComboBox()
-        self.reference.addItem(translate("CAM", "Tip tangent"), "TipTangent")
-        self.reference.addItem(translate("CAM", "Tip"), "StoredOrigin")
-        self.reference.addItem(translate("CAM", "Tip centre"), "NoseCentre")
-        self.reference.addItem(translate("CAM", "Insert centre"), "InsertCentre")
-        self.reference.setCurrentIndex(self.reference.findData(values["ToolReference"]))
-        fields.addRow(translate("CAM", "Tool reference"), self.reference)
+        self.reference.addItem(translate("CAM", "Tip Tangent"), "Tip Tangent")
+        self.reference.addItem(translate("CAM", "Tip"), "Tip")
+        self.reference.addItem(translate("CAM", "Tip centre"), "Tip centre")
+        self.reference.addItem(translate("CAM", "Insert centre"), "Insert centre")
+        self.reference.setCurrentIndex(self.reference.findData(values["Compensation"]))
+        fields.addRow(translate("CAM", "Compensation"), self.reference)
         self.side = QtGui.QComboBox()
         self.side.addItem(translate("CAM", "Near side (+X)"), "Near")
         self.side.addItem(translate("CAM", "Far side (-X)"), "Far")
@@ -244,7 +244,7 @@ class IsoToolDialog(QtGui.QDialog):
         return dict(
             {field: float(control.text()) for field, control in self.dimensions.items()},
             name=self.name.text(),
-            ToolReference=self.reference.currentData(),
+            Compensation=self.reference.currentData(),
             ToolSide=self.side.currentData(),
         )
 
@@ -276,7 +276,7 @@ class IsoToolDialog(QtGui.QDialog):
             valid = (
                 not self.preset_problem
                 and bool(values["name"].strip())
-                and values["ToolReference"] in ("StoredOrigin", "NoseCentre", "InsertCentre", "TipTangent")
+                and values["Compensation"] in ("Tip Tangent", "Tip", "Tip centre", "Insert centre")
                 and values["ToolSide"] in ("Near", "Far")
                 and all(math.isfinite(values[field]) for field in self.dimensions)
                 and values["EdgeLength"] > 0 and values["TipRadius"] > 0

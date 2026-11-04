@@ -14,6 +14,7 @@ import FreeCAD
 import Path.Preferences as preferences
 from Path.Tool.assets import AssetUri
 from Path.Tool.camassets import cam_assets
+from PathTurnScripts.PathTurnToolBit import TOOL_REFERENCES, reference_from_parameters
 
 from . import iso
 from .library import ToolEntry, ToolLibrary
@@ -39,12 +40,6 @@ class ToolBitSnapshot:
     attributes: dict
     values: dict
     shape_data: bytes
-    reference_shape_data: bytes | None = None
-
-    @property
-    def needs_reference_update(self):
-        return any(name not in self.attributes["parameter"]
-                   for name in ("NoseCentre", "InsertCentre", "TipTangent"))
 
     @property
     def shape_name(self):
@@ -58,19 +53,7 @@ def _iso_values(attributes):
     name = attributes.get("name")
     if not isinstance(name, str) or not name.strip():
         raise ValueError("ToolBit name must be a non-empty string.")
-    nose_centre = attributes["parameter"].get("NoseCentre")
-    if not isinstance(nose_centre, bool):
-        raise ValueError("Expected the native NoseCentre boolean parameter.")
-    insert_centre = attributes["parameter"].get("InsertCentre", False)
-    tip_tangent = attributes["parameter"].get("TipTangent", False)
-    if (not isinstance(insert_centre, bool) or not isinstance(tip_tangent, bool)
-            or sum((nose_centre, insert_centre, tip_tangent)) > 1):
-        raise ValueError("Select exactly one native tool reference.")
-    values = {"name": name, "ToolReference": "NoseCentre" if nose_centre else "StoredOrigin"}
-    if insert_centre:
-        values["ToolReference"] = "InsertCentre"
-    if tip_tangent:
-        values["ToolReference"] = "TipTangent"
+    values = {"name": name, "Compensation": reference_from_parameters(attributes["parameter"])}
     values["ToolSide"] = attributes["parameter"].get("ToolSide", "Near")
     if values["ToolSide"] not in ("Near", "Far"):
         raise ValueError("Tool side must be Near or Far.")
@@ -97,30 +80,10 @@ def load_iso_tool(uri):
     if uri.asset_type != "toolbit" or not cam_assets.exists(uri, store="local"):
         raise ValueError("Only an existing user ToolBit can be edited in place.")
     attributes = _read_object(uri)
-    edit_attributes = attributes
-    parameters = attributes.get("parameter")
-    missing_reference = isinstance(parameters, dict) and "NoseCentre" not in parameters
-    if missing_reference:
-        edit_attributes = deepcopy(attributes)
-        edit_attributes["parameter"]["NoseCentre"] = False
-    values = _iso_values(edit_attributes)
+    values = _iso_values(attributes)
     shape_uri = _reference("toolbitshape", attributes.get("shape"))
     shape_data = cam_assets.get_raw(shape_uri, store=_STORES)
-    reference_shape_data = None
-    filename = PurePosixPath(shape_uri.asset_id).name + ".fcstd"
-    if missing_reference or any(name not in parameters for name in ("InsertCentre", "TipTangent")):
-        stem = PurePosixPath(filename).stem
-        for shape in ("C", "D", "S", "T"):
-            base = f"Iso_shape_{shape}"
-            suffixes = stem.removeprefix(base + "_").split("_")
-            hashed = stem.startswith(base + "_") and all(
-                len(suffix) == 64 and all(char in "0123456789abcdef" for char in suffix)
-                for suffix in suffixes)
-            if stem == base or hashed:
-                template = Path(__file__).resolve().parent.parent / "Tools" / "Shape" / (base + ".fcstd")
-                reference_shape_data = template.read_bytes()
-                break
-    return ToolBitSnapshot(str(uri), attributes, values, shape_data, reference_shape_data)
+    return ToolBitSnapshot(str(uri), attributes, values, shape_data)
 
 
 def _updated_iso_definition(attributes, original_values, values):
@@ -132,11 +95,9 @@ def _updated_iso_definition(attributes, original_values, values):
         raise ValueError("Expected a name, tool reference, tool side and all four ISO dimensions.")
     attributes = deepcopy(attributes)
     attributes["name"] = values["name"]
-    if values["ToolReference"] not in ("StoredOrigin", "NoseCentre", "InsertCentre", "TipTangent"):
+    if values["Compensation"] not in TOOL_REFERENCES:
         raise ValueError("Unsupported turning tool reference.")
-    attributes["parameter"]["NoseCentre"] = values["ToolReference"] == "NoseCentre"
-    attributes["parameter"]["InsertCentre"] = values["ToolReference"] == "InsertCentre"
-    attributes["parameter"]["TipTangent"] = values["ToolReference"] == "TipTangent"
+    attributes["parameter"]["Compensation"] = values["Compensation"]
     if values["ToolSide"] not in ("Near", "Far"):
         raise ValueError("Tool side must be Near or Far.")
     if "ToolSide" in attributes["parameter"] or values["ToolSide"] != original_values["ToolSide"]:
@@ -165,30 +126,17 @@ def save_iso_tool(snapshot, values):
     attributes, updated_values = _updated_iso_definition(
         snapshot.attributes, snapshot.values, values)
     shape_data = snapshot.shape_data
-    if snapshot.reference_shape_data is not None:
-        shape_data = snapshot.reference_shape_data
-        if shape_data != snapshot.shape_data:
-            stem = PurePosixPath(attributes["shape"]).stem
-            attributes["shape"] = f"{stem}_{sha256(shape_data).hexdigest()}.fcstd"
     if attributes == snapshot.attributes:
         return snapshot
     with TemporaryDirectory() as directory:
         shape_path = Path(directory) / "insert.fcstd"
         shape_path.write_bytes(shape_data)
-        nose_reference = values["ToolReference"] in ("NoseCentre", "TipTangent")
+        nose_reference = values["Compensation"] in ("Tip centre", "Tip Tangent")
         geometry = validate_iso_template(
             shape_path, attributes["parameter"], preview=nose_reference,
             with_references=nose_reference)
         if nose_reference and geometry["nose_centre"] is None:
             raise ValueError("The ToolShape has no supported active nose centre for the selected reference.")
-    if attributes["shape"] != snapshot.attributes["shape"]:
-        updated_shape_uri = _reference("toolbitshape", attributes["shape"])
-        if cam_assets.exists(updated_shape_uri, store=_STORES):
-            if cam_assets.get_raw(updated_shape_uri, store=_STORES) != shape_data:
-                raise ValueError("An existing shape differs from the bundled template: " + str(updated_shape_uri))
-        else:
-            cam_assets.add_raw(
-                updated_shape_uri.asset_type, updated_shape_uri.asset_id, shape_data, store="local")
     cam_assets.add_raw(
         uri.asset_type, uri.asset_id,
         json.dumps(attributes, indent=2, allow_nan=False).encode("utf-8"), store="local",
@@ -314,21 +262,20 @@ def validate_iso_template(shape_path, parameters, *, preview=False, with_referen
         bags = template.getObjectsByLabel("Attributes")
         if len(bags) != 1:
             raise ValueError("The insert template must have one Attributes object.")
-        if not all(field in bags[0].PropertiesList for field in (*_ISO_UNITS, "NoseCentre")):
-            raise ValueError("The ToolShape does not expose the supported ISO dimensions.")
-        if parameters.get("InsertCentre", False) and "InsertCentre" not in bags[0].PropertiesList:
-            raise ValueError("This ToolShape does not support insert-centred geometry.")
-        if parameters.get("TipTangent", False) and "TipTangent" not in bags[0].PropertiesList:
-            raise ValueError("This ToolShape does not support tip-tangent geometry.")
-        if sum(bool(parameters.get(name, False)) for name in ("NoseCentre", "InsertCentre", "TipTangent")) > 1:
-            raise ValueError("Select exactly one native tool reference.")
+        if not all(field in bags[0].PropertiesList for field in (*_ISO_UNITS, "Compensation")):
+            raise ValueError("The ToolShape must expose the ISO dimensions and Compensation.")
+        reference = reference_from_parameters(parameters)
+        if (
+            bags[0].getTypeIdOfProperty("Compensation") != "App::PropertyEnumeration"
+            or tuple(bags[0].getEnumerationsOfProperty("Compensation")) != TOOL_REFERENCES
+        ):
+            raise ValueError("The ToolShape must expose the supported compensation enumeration.")
+        bags[0].Compensation = reference
         for name, value in parameters.items():
+            if name == "Compensation":
+                continue
             if name in bags[0].PropertiesList:
-                if name in ("NoseCentre", "InsertCentre", "TipTangent"):
-                    if not isinstance(value, bool):
-                        raise ValueError(f"{name} must be a boolean.")
-                    setattr(bags[0], name, value)
-                elif name == "ToolSide":
+                if name == "ToolSide":
                     if value not in ("Near", "Far"):
                         raise ValueError("Tool side must be Near or Far.")
                     setattr(bags[0], name, value)
@@ -365,9 +312,9 @@ def validate_iso_template(shape_path, parameters, *, preview=False, with_referen
                 angle = math.radians(FreeCAD.Units.Quantity(bags[0].Rotation).Value)
                 tip_angle = math.radians(FreeCAD.Units.Quantity(bags[0].TipAngle).Value)
                 distance = radius / math.sin(tip_angle / 2)
-                expected = ((0.0, 0.0) if bags[0].NoseCentre else
+                expected = ((0.0, 0.0) if reference == "Tip centre" else
                             (distance * math.cos(angle), -distance * math.sin(angle)))
-                if getattr(bags[0], "TipTangent", False):
+                if reference == "Tip Tangent":
                     cosine, sine = math.cos(angle), math.sin(angle)
                     radial_sign = (1 if cosine > 1e-12 else -1 if cosine < -1e-12 else
                                    -1 if getattr(bags[0], "ToolSide", "Near") == "Far" else 1)
@@ -406,9 +353,7 @@ def iso_tool_preview(snapshot, values, *, with_references=False):
     attributes, _ = _updated_iso_definition(snapshot.attributes, snapshot.values, values)
     with TemporaryDirectory() as directory:
         shape_path = Path(directory) / "insert.fcstd"
-        shape_path.write_bytes(
-            snapshot.reference_shape_data if snapshot.reference_shape_data is not None
-            else snapshot.shape_data)
+        shape_path.write_bytes(snapshot.shape_data)
         return validate_iso_template(
             shape_path, attributes["parameter"], preview=True, with_references=with_references)
 
@@ -437,7 +382,7 @@ def create_iso_tool(shape, size, radius, direction, number, *, values=None):
         if shape_exists and cam_assets.get_raw(shape_uri, store=_STORES) != shape_data:
             raise ValueError("An existing shape differs from the bundled template: " + str(shape_uri))
     entry = ToolEntry(number, str(tool_uri), attributes["name"], shape_uri.asset_id)
-    nose_reference = attributes["parameter"]["NoseCentre"] or attributes["parameter"].get("TipTangent", False)
+    nose_reference = reference_from_parameters(attributes["parameter"]) in ("Tip centre", "Tip Tangent")
     geometry = validate_iso_template(
         shape_path, attributes["parameter"], preview=nose_reference,
         with_references=nose_reference)

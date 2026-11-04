@@ -50,14 +50,16 @@ It does not add internal boring support. Signed-side planning is experimental:
 existing defeature/clearance issues remain, and tiny native outline differences
 can materially change generated passes. These checks are not machining approval.
 
-**Tool reference** offers **Tip tangent** (the intersection of the X- and Z-parallel
+**Compensation** offers **Tip Tangent** (the intersection of the X- and Z-parallel
 nose-circle tangents toward the theoretical tip), **Tip** (the theoretical sharp
 tip), **Tip centre** (the centre of the active nose radius), and **Insert centre**
 (the nominal geometric centre of the C/D/S/T insert outline).
-The native `TipTangent`, `NoseCentre` and `InsertCentre` parameters
-select the sketch origin before the solid is built. The editor enables only the
-selected reference; at most one of these parameters may be true.
-Tip tangent follows the mounting-angle quadrant. At an axis-aligned tie, spindle
+The single native `Compensation` enumeration selects the sketch origin before
+the solid is built. Its dropdown is available in both the library editor and
+the model-instance property editor. New tools default to **Tip Tangent**;
+restored instances keep their saved selection. ToolBits and templates must expose
+the current `Compensation` enumeration.
+Tip Tangent follows the mounting-angle quadrant. At an axis-aligned tie, spindle
 side selects the radial tangent (toward the spindle), and the axial tangent is
 chuck-facing. Its origin is built into the native shape, not offset in the planner.
 The preview, LibLathe outline and simulation tool shape
@@ -66,21 +68,10 @@ The LibLathe outline uses the native mid-Y section to preserve rounded insert
 arcs without projection-induced straight chords.
 **Flip X view** only changes the preview. It does not change the saved tool or paths.
 
-Existing C/D/S/T ToolBits without `NoseCentre` open with **Tip** selected.
-Tools without `InsertCentre` retain their existing tip or tip-centre
-selection. Tools without `TipTangent` likewise retain their existing reference.
-Only confirming **Save** adds the native parameters and references an updated
-template where needed. Opening, previewing or cancelling does not change assets.
+Only confirming **Save** changes the stored ToolBit definition.
+Opening, previewing or cancelling does not change assets.
 The update preserves the ToolBit identity, unchanged dimensions and extra metadata;
 existing shared shapes and other ToolBits are left untouched.
-
-Model instances using templates without native `NoseCentre` support remain
-tip-only, with their reference property read-only. They load without
-the missing-parameter warning; required dimensions are still validated. Saving
-an updated library ToolBit does not upgrade existing model instances.
-Likewise, Insert centre is unavailable on model instances whose embedded template
-does not support it; use a newly created instance from the updated library tool.
-The same applies to Tip tangent on instances with an older embedded template.
 
 ISO ToolBits retain their exact shape template in saved documents. Copying or
 reopening preserves model-instance dimensions, mounting angle and reference;

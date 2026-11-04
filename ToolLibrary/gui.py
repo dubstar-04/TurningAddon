@@ -353,12 +353,9 @@ class LibraryDialog(QtGui.QDialog):
             if dialog.exec_() != QtGui.QDialog.Accepted:
                 return
             values = dialog.values()
-            if values == snapshot.values and not snapshot.needs_reference_update:
+            if values == snapshot.values:
                 return
             confirmation = translate("CAM", "Save changes to this ToolBit? Every library referencing it will use the updated definition.")
-            if snapshot.needs_reference_update:
-                confirmation += "\n\n" + translate(
-                    "CAM", "This also adds the native tool reference parameter and uses an updated template where needed. Existing shared shapes will not be overwritten.")
             answer = QtGui.QMessageBox.question(
                 self, translate("CAM", "Edit shared ToolBit"),
                 confirmation,
