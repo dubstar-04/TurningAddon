@@ -41,6 +41,7 @@ tip into the insert body: 0 degrees points along +Z, 90 along +X, 180 along -Z
 and 270 along -X. The preview has **+X down and +Z right**, away from the chuck;
 positive angles are clockwise in that view. The tip angle is the included angle
 between cutting edges, not this rotation.
+The library path is shown as a tooltip on the **Library** drop-down.
 
 **Tool post** selects physical **Front (+X)** or **Rear (-X)**, independently
 of rotation. Spindle speed and direction remain Tool Controller settings;
