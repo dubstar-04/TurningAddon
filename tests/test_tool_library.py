@@ -40,6 +40,34 @@ class ToolLibraryTests(unittest.TestCase):
                 operation()
             self.assertEqual(library.entries, entries)
 
+    def test_startup_requires_tool_side_api(self):
+        from types import ModuleType, SimpleNamespace
+        from unittest.mock import Mock, patch
+        from PathTurnScripts import initialize
+
+        library = ModuleType("liblathe")
+        library.__version__ = "0.0.8"
+        library.__file__ = "/test/liblathe/__init__.py"
+        tools = ModuleType("liblathe.tool.tool")
+        message = Mock()
+        modules = {
+            "FreeCAD": SimpleNamespace(Console=SimpleNamespace(PrintMessage=message)),
+            "liblathe": library,
+            "liblathe.tool": ModuleType("liblathe.tool"),
+            "liblathe.tool.tool": tools,
+        }
+        with patch.dict(sys.modules, modules):
+            with self.assertRaisesRegex(ImportError, "requires a LibLathe build with the ToolSide enum") as error:
+                initialize()
+            self.assertIn(library.__file__, str(error.exception))
+            tools.ToolSide = SimpleNamespace(NEAR=object())
+            with self.assertRaisesRegex(ImportError, "ToolSide.NEAR and ToolSide.FAR"):
+                initialize()
+            tools.ToolSide.FAR = object()
+            initialize()
+        self.assertIn(library.__file__, message.call_args.args[0])
+
+
 
 @unittest.skipUnless("FreeCAD" in sys.modules, "Requires the FreeCAD native runtime")
 class NativeToolBitTests(unittest.TestCase):
@@ -176,6 +204,40 @@ class NativeToolBitTests(unittest.TestCase):
             attributes["parameter"]["Compensation"] = reference
             with self.assertRaises(ValueError):
                 assets._iso_values(attributes)
+
+    def test_operation_maps_side_to_enum_and_restores_outline(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from liblathe.base.point import Point
+        from liblathe.base.segment import Segment
+        from liblathe.tool.tool import ToolSide
+        from PathTurnScripts import PathTurnBase
+
+        outline = [Segment(Point(12, 0), Point(10, -5), 0.2)]
+        insert = [Segment(Point(0, 0), Point(1, 1))]
+        proxy = SimpleNamespace(part_outline=outline)
+        for name, side, radial in (("Near", ToolSide.NEAR, 12), ("Far", ToolSide.FAR, -12)):
+            obj = SimpleNamespace(ToolController=SimpleNamespace(Tool=SimpleNamespace(
+                Compensation="Tip Tangent", ToolSide=name, Shape=object())))
+
+            def generate(operation, tool):
+                self.assertIs(tool.side, side)
+                self.assertEqual(proxy.part_outline[0].start.X, radial)
+                self.assertEqual(tool.get_segmentgroup().getSegments()[0].end.X, 1)
+                self.assertIs(operation, obj)
+
+            proxy.op_generate_gcode = generate
+            with patch.object(PathTurnBase.PathTurnHelpers, "getToolSegments", return_value=insert):
+                PathTurnBase.ObjectOp.generate_gcode(proxy, obj)
+                self.assertIs(proxy.part_outline, outline)
+
+                def fail_planning(*_arguments):
+                    raise RuntimeError("planning failed")
+
+                proxy.op_generate_gcode = fail_planning
+                with self.assertRaisesRegex(RuntimeError, "planning failed"):
+                    PathTurnBase.ObjectOp.generate_gcode(proxy, obj)
+                self.assertIs(proxy.part_outline, outline)
 
     def test_tip_tangent_native_datum_follows_mounting_and_side(self):
         import math
