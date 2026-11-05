@@ -58,10 +58,10 @@ def getliblatheBoundBox(operation):
     Diameter limits become signed radii; final and start depths bound the Z range.
     """
     tool = getattr(getattr(operation, "ToolController", None), "Tool", None)
-    side = getattr(tool, "ToolSide", "Near")
-    if side not in ("Near", "Far"):
-        raise ValueError("Tool side must be Near or Far")
-    sign = -1 if side == "Far" else 1
+    from .PathTurnToolBit import post_from_parameters
+
+    post = post_from_parameters({"ToolPost": tool.ToolPost if tool else None})
+    sign = -1 if post == "Rear" else 1
     return BoundBox(
         Point(sign * operation.MinDiameter.Value / 2, operation.FinalDepth.Value),
         Point(sign * operation.MaxDiameter.Value / 2, operation.StartDepth.Value))

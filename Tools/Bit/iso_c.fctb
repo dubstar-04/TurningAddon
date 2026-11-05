@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "name": "ISO C rhombic 80°",
+  "shape": "Iso_C.fcstd",
+  "shape-type": "TurningCustom",
+  "parameter": {
+    "EdgeLength": "12 - 12.7 mm",
+    "TipRadius": "04 - 0.4 mm",
+    "Thickness": "04 - 4.76 mm",
+    "Rotation": "135 deg",
+    "Compensation": "Tip Tangent",
+    "ToolPost": "Front"
+  },
+  "attribute": {
+    "description": "File-defined 80-degree rhombic turning insert with ISO coded dimensions."
+  }
+}

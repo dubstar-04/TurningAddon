@@ -1,13 +1,322 @@
 """Qt membership editor for native turning tool libraries."""
 
+import math
+
 from PySide import QtCore, QtGui
 
 from . import freecad as assets
-from .iso_gui import IsoToolDialog
 from .library import ToolLibrary
 
 
 translate = QtCore.QCoreApplication.translate
+
+
+class ToolPreview(QtGui.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.outlines = ()
+        self.nose_centre = None
+        self.active_tip = None
+        self.rotation = 0.0
+        self.fit_radius = 0.0
+        self.x_flipped = False
+        self.message = translate("CAM", "Updating preview...")
+        self.setMinimumSize(240, 240)
+        self.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+
+    def set_outline(self, outlines, message="", *, nose_centre=None, fit_radius=None, active_tip=None):
+        self.outlines = outlines
+        self.nose_centre = nose_centre
+        self.active_tip = active_tip
+        points = [point for edge in outlines for point in edge]
+        if nose_centre is not None:
+            points.append(nose_centre)
+        self.fit_radius = (fit_radius if fit_radius is not None else
+                           max((math.hypot(*point) for point in points), default=0.0))
+        self.message = message
+        self.update()
+
+    def set_x_flipped(self, flipped):
+        self.x_flipped = flipped
+        self.update()
+
+    def paintEvent(self, _event):
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        palette = self.palette()
+        painter.fillRect(self.rect(), palette.window())
+        side = min(self.width(), self.height())
+        painter.translate((self.width() - side) / 2, (self.height() - side) / 2)
+        painter.fillRect(QtCore.QRectF(0, 0, side, side), palette.base())
+        origin = QtCore.QPointF(side / 2, side / 2)
+        x_colour = QtGui.QColor("#cc3333")
+        z_colour = QtGui.QColor("#3333cc")
+        painter.setPen(QtGui.QPen(z_colour, 1.5))
+        painter.drawLine(QtCore.QPointF(8, origin.y()), QtCore.QPointF(side - 8, origin.y()))
+        painter.drawLine(QtCore.QPointF(side - 8, origin.y()),
+                         QtCore.QPointF(side - 14, origin.y() - 3))
+        painter.drawLine(QtCore.QPointF(side - 8, origin.y()),
+                         QtCore.QPointF(side - 14, origin.y() + 3))
+        painter.drawText(QtCore.QPointF(
+            side - self.fontMetrics().horizontalAdvance("+Z") - 8, origin.y() - 8), "+Z")
+        painter.setPen(QtGui.QPen(x_colour, 1.5))
+        painter.drawLine(QtCore.QPointF(origin.x(), 8), QtCore.QPointF(origin.x(), side - 8))
+        arrow_tip = 8 if self.x_flipped else side - 8
+        arrow_tail = 14 if self.x_flipped else side - 14
+        painter.drawLine(QtCore.QPointF(origin.x(), arrow_tip), QtCore.QPointF(origin.x() - 3, arrow_tail))
+        painter.drawLine(QtCore.QPointF(origin.x(), arrow_tip), QtCore.QPointF(origin.x() + 3, arrow_tail))
+        painter.drawText(QtCore.QPointF(origin.x() + 8, 20 if self.x_flipped else side - 12), "+X")
+        painter.setPen(palette.text().color())
+        if not self.outlines:
+            painter.drawText(QtCore.QRect(12, 12, side // 2 - 28, side // 2 - 28),
+                             QtCore.Qt.AlignLeft | QtCore.Qt.TextWordWrap, self.message)
+            return
+        scale = (side / 2 - 32) / max(self.fit_radius, 1e-6)
+
+        def screen(point):
+            radial, axial = point
+            return QtCore.QPointF(
+                origin.x() + axial * scale,
+                origin.y() + radial * scale * (-1 if self.x_flipped else 1))
+
+        painter.setPen(QtGui.QPen(palette.text().color(), 2))
+        for edge in self.outlines:
+            painter.drawPolyline(QtGui.QPolygonF([screen(point) for point in edge]))
+        if self.nose_centre is not None:
+            painter.setPen(QtGui.QPen(QtGui.QColor("#178354"), 2))
+            painter.setBrush(palette.base())
+            painter.drawEllipse(screen(self.nose_centre), 3, 3)
+        if self.active_tip is not None:
+            tip = screen(self.active_tip)
+            radians = math.radians(self.rotation)
+            direction = QtCore.QPointF(math.cos(radians), math.sin(radians) * (-1 if self.x_flipped else 1))
+            painter.setPen(QtGui.QPen(palette.highlight().color(), 1.5, QtCore.Qt.DashLine))
+            painter.drawLine(tip, tip + direction * min(64, max(32, self.fit_radius * scale * 0.6)))
+            painter.drawLine(tip, tip + QtCore.QPointF(26, 0))
+            span = self.rotation % 360
+            if span > 180:
+                span -= 360
+            painter.drawArc(QtCore.QRectF(tip.x() - 22, tip.y() - 22, 44, 44),
+                            0, round(span * (16 if self.x_flipped else -16)))
+            painter.setBrush(palette.highlight())
+            painter.drawEllipse(tip, 2.5, 2.5)
+        painter.setPen(QtGui.QPen(palette.highlight().color(), 2))
+        painter.setBrush(palette.base())
+        painter.drawEllipse(origin, 5, 5)
+        painter.drawLine(origin + QtCore.QPointF(-8, 0), origin + QtCore.QPointF(8, 0))
+        painter.drawLine(origin + QtCore.QPointF(0, -8), origin + QtCore.QPointF(0, 8))
+
+
+def _shape_icon(outlines, palette):
+    pixmap = QtGui.QPixmap(120, 96)
+    pixmap.fill(QtCore.Qt.transparent)
+    points = [point for edge in outlines for point in edge]
+    if not points:
+        raise ValueError(translate("CAM", "The ToolShape has no preview outline."))
+    x_min, x_max = min(p[0] for p in points), max(p[0] for p in points)
+    z_min, z_max = min(p[1] for p in points), max(p[1] for p in points)
+    scale = min(72 / max(x_max - x_min, 1e-6), 96 / max(z_max - z_min, 1e-6))
+    painter = QtGui.QPainter(pixmap)
+    painter.setRenderHint(QtGui.QPainter.Antialiasing)
+    painter.setPen(QtGui.QPen(palette.text().color(), 2))
+    for edge in outlines:
+        painter.drawPolyline(QtGui.QPolygonF([
+            QtCore.QPointF(60 + (axial - (z_min + z_max) / 2) * scale,
+                          48 + (radial - (x_min + x_max) / 2) * scale)
+            for radial, axial in edge
+        ]))
+    painter.end()
+    return QtGui.QIcon(pixmap)
+
+
+class ToolShapeDialog(QtGui.QDialog):
+    """Select a base definition by its native cutting outline without publishing assets."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.import_requested = False
+        self.presets = assets.tool_shape_presets()
+        self.setWindowTitle(translate("CAM", "ToolBit Shape Selection"))
+        self.resize(760, 460)
+        self.setMinimumSize(400, 300)
+        layout = QtGui.QVBoxLayout(self)
+        self.shapes = QtGui.QListWidget()
+        self.shapes.setViewMode(QtGui.QListView.IconMode)
+        self.shapes.setResizeMode(QtGui.QListView.Adjust)
+        self.shapes.setMovement(QtGui.QListView.Static)
+        self.shapes.setIconSize(QtCore.QSize(120, 96))
+        self.shapes.setGridSize(QtCore.QSize(176, 164))
+        self.shapes.setSpacing(6)
+        self.shapes.setWordWrap(True)
+        self.shapes.setSelectionMode(QtGui.QAbstractItemView.SingleSelection)
+        errors = []
+        for index, snapshot in enumerate(self.presets):
+            title = snapshot.values["name"]
+            item = QtGui.QListWidgetItem(title)
+            item.setData(QtCore.Qt.UserRole, index)
+            try:
+                geometry = assets.custom_tool_preview(snapshot, snapshot.values)["outlines"]
+                item.setIcon(_shape_icon(geometry, self.palette()))
+                item.setToolTip(snapshot.values["name"])
+            except (OSError, ValueError, RuntimeError, TypeError) as error:
+                message = f"{title}: {error}"
+                errors.append(message)
+                item.setToolTip(message)
+                item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEnabled)
+            self.shapes.addItem(item)
+        layout.addWidget(self.shapes, 1)
+        self.problem = QtGui.QLabel("\n".join(errors))
+        self.problem.setWordWrap(True)
+        self.problem.setTextFormat(QtCore.Qt.PlainText)
+        self.problem.setVisible(bool(errors))
+        layout.addWidget(self.problem)
+        buttons = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Ok | QtGui.QDialogButtonBox.Cancel)
+        self.choose_button = buttons.button(QtGui.QDialogButtonBox.Ok)
+        self.choose_button.setText(translate("CAM", "Choose shape"))
+        self.choose_button.setEnabled(False)
+        self.import_button = buttons.addButton(
+            translate("CAM", "Import shape..."), QtGui.QDialogButtonBox.ActionRole)
+        self.import_button.clicked.connect(self._import_shape)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        self.shapes.itemSelectionChanged.connect(
+            lambda: self.choose_button.setEnabled(bool(self.shapes.selectedItems())))
+        self.shapes.itemDoubleClicked.connect(lambda _item: self.accept())
+        layout.addWidget(buttons)
+
+    def selected_preset(self):
+        items = self.shapes.selectedItems()
+        return self.presets[items[0].data(QtCore.Qt.UserRole)] if items else None
+
+    def _import_shape(self):
+        self.import_requested = True
+        super().accept()
+
+    def accept(self):
+        if self.selected_preset() is not None:
+            super().accept()
+
+
+class CustomToolDialog(QtGui.QDialog):
+    """Build custom controls from the imported native property's own type and choices."""
+
+    def __init__(self, snapshot, parent=None):
+        super().__init__(parent)
+        self.snapshot = snapshot
+        self.controls = {}
+        self.setWindowTitle(translate("CAM", "Custom Turning ToolBit"))
+        self.resize(620, 680)
+        self.setMinimumSize(480, 560)
+        layout = QtGui.QVBoxLayout(self)
+        scroll = QtGui.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QtGui.QFrame.NoFrame)
+        scroll.setMinimumHeight(150)
+        scroll.setMaximumHeight(300)
+        fields_widget = QtGui.QWidget()
+        form = QtGui.QFormLayout(fields_widget)
+        form.setFieldGrowthPolicy(QtGui.QFormLayout.AllNonFixedFieldsGrow)
+        form.setRowWrapPolicy(QtGui.QFormLayout.WrapLongRows)
+        self.name = QtGui.QLineEdit(snapshot.values["name"])
+        form.addRow(translate("CAM", "Name"), self.name)
+        for name, field in snapshot.fields.items():
+            value = snapshot.values[name]
+            kind = field["type"]
+            if field["readonly"]:
+                control = QtGui.QLineEdit(str(value))
+                control.setReadOnly(True)
+            elif kind == "App::PropertyEnumeration":
+                control = QtGui.QComboBox()
+                control.addItems(field["choices"])
+                control.setCurrentText(value)
+                control.currentIndexChanged.connect(self._queue_preview)
+            elif kind == "App::PropertyBool":
+                control = QtGui.QCheckBox()
+                control.setChecked(value)
+                control.toggled.connect(self._queue_preview)
+            elif kind == "App::PropertyInteger":
+                control = QtGui.QSpinBox()
+                control.setRange(-2147483648, 2147483647)
+                control.setValue(value)
+                control.valueChanged.connect(self._queue_preview)
+            else:
+                control = QtGui.QLineEdit(str(value))
+                control.textChanged.connect(self._queue_preview)
+            control.setToolTip(field["description"])
+            self.controls[name] = control
+            if not field["hidden"]:
+                form.addRow(name, control)
+            else:
+                control.setParent(fields_widget)
+                control.hide()
+        scroll.setWidget(fields_widget)
+        layout.addWidget(scroll)
+        self.preview = ToolPreview()
+        layout.addWidget(self.preview, 1)
+        self.flip_x_view = QtGui.QCheckBox(translate("CAM", "Flip X view"))
+        self.flip_x_view.setToolTip(translate("CAM", "Changes the preview only."))
+        self.flip_x_view.toggled.connect(self.preview.set_x_flipped)
+        layout.addWidget(self.flip_x_view)
+        self.problem = QtGui.QLabel()
+        self.problem.setWordWrap(True)
+        self.problem.setTextFormat(QtCore.Qt.PlainText)
+        layout.addWidget(self.problem)
+        buttons = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Save | QtGui.QDialogButtonBox.Cancel)
+        self.save_button = buttons.button(QtGui.QDialogButtonBox.Save)
+        if not snapshot.uri:
+            self.save_button.setText(translate("CAM", "Create ToolBit"))
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.preview_timer = QtCore.QTimer(self)
+        self.preview_timer.setSingleShot(True)
+        self.preview_timer.setInterval(250)
+        self.preview_timer.timeout.connect(self._refresh_preview)
+        self.finished.connect(self.preview_timer.stop)
+        self.name.textChanged.connect(self._queue_preview)
+        self._refresh_preview()
+
+    def values(self):
+        values = {"name": self.name.text()}
+        for name, field in self.snapshot.fields.items():
+            control = self.controls[name]
+            if field["readonly"]:
+                values[name] = self.snapshot.values[name]
+            elif field["type"] == "App::PropertyEnumeration":
+                values[name] = control.currentText()
+            elif field["type"] == "App::PropertyBool":
+                values[name] = control.isChecked()
+            elif field["type"] == "App::PropertyInteger":
+                values[name] = control.value()
+            elif field["type"] == "App::PropertyFloat":
+                values[name] = float(control.text())
+            else:
+                values[name] = control.text()
+        return values
+
+    def _queue_preview(self, *_arguments):
+        self.save_button.setEnabled(False)
+        self.preview_timer.start()
+
+    def _refresh_preview(self):
+        self.preview_timer.stop()
+        try:
+            geometry = assets.custom_tool_preview(self.snapshot, self.values())
+        except (OSError, ValueError, RuntimeError, TypeError) as error:
+            self.problem.setText(str(error))
+            self.preview.set_outline((), str(error))
+            self.save_button.setEnabled(False)
+            return
+        for name, value in geometry.pop("calculated").items():
+            self.controls[name].setText(value)
+        self.preview.set_outline(**geometry)
+        self.problem.clear()
+        self.save_button.setEnabled(True)
+
+    def accept(self):
+        self._refresh_preview()
+        if self.save_button.isEnabled():
+            super().accept()
 
 
 class LibraryDialog(QtGui.QDialog):
@@ -53,7 +362,7 @@ class LibraryDialog(QtGui.QDialog):
         actions = QtGui.QHBoxLayout()
         self.new_tool_button = self._button(
             "document-new", QtGui.QStyle.SP_FileIcon,
-            translate("CAM", "New ISO ToolBit"), self.create_iso_tool)
+            translate("CAM", "New ToolBit"), self.create_tool)
         self.add_button = self._button(
             "list-add", QtGui.QStyle.SP_FileDialogNewFolder,
             translate("CAM", "Add existing ToolBit"), self.add_tool)
@@ -318,21 +627,41 @@ class LibraryDialog(QtGui.QDialog):
             return
         self._render(entry.number)
 
-    def create_iso_tool(self):
+    def create_tool(self):
         if not self.new_tool_button.isEnabled():
             return
         try:
-            selection = ("C", "03", "04", "R")
-            preset = assets.iso_tool_preset(*selection)
-            dialog = IsoToolDialog(
-                preset.values, self, presets=selection,
-                definition=lambda selected: assets.iso_tool_preset(*selected).values,
-                preview=lambda values: assets.iso_tool_preview(
-                    assets.iso_tool_preset(*dialog.selection()), values, with_references=True))
+            dialog = ToolShapeDialog(self)
             if dialog.exec_() != QtGui.QDialog.Accepted:
                 return
-            entry = assets.create_iso_tool(
-                *dialog.selection(), self.table.next_number, values=dialog.values())
+            if dialog.import_requested:
+                self.create_custom_tool()
+                return
+            self._create_custom_tool(dialog.selected_preset())
+        except (OSError, ValueError, RuntimeError, TypeError) as error:
+            self._report_error(error)
+
+    def create_custom_tool(self):
+        if not self.new_tool_button.isEnabled():
+            return
+        filename, _selected_filter = QtGui.QFileDialog.getOpenFileName(
+            self, translate("CAM", "Select custom ToolShape"), "",
+            translate("CAM", "FreeCAD ToolShape (*.fcstd *.FCStd)"))
+        if not filename:
+            return
+        try:
+            snapshot = assets.custom_tool_preset(filename)
+        except (OSError, ValueError, RuntimeError) as error:
+            self._report_error(error)
+            return
+        self._create_custom_tool(snapshot)
+
+    def _create_custom_tool(self, snapshot):
+        try:
+            dialog = CustomToolDialog(snapshot, self)
+            if dialog.exec_() != QtGui.QDialog.Accepted:
+                return
+            entry = assets.create_custom_tool(snapshot, self.table.next_number, values=dialog.values())
             self.table.add(entry)
         except (OSError, ValueError, RuntimeError) as error:
             self._report_error(error)
@@ -346,10 +675,8 @@ class LibraryDialog(QtGui.QDialog):
         number = self._selected_number()
         entry = self.table.get(number)
         try:
-            snapshot = assets.load_iso_tool(entry.tool_id)
-            dialog = IsoToolDialog(
-                snapshot.values, self,
-                preview=lambda values: assets.iso_tool_preview(snapshot, values, with_references=True))
+            snapshot = assets.load_tool_definition(entry.tool_id)
+            dialog = CustomToolDialog(snapshot, self)
             if dialog.exec_() != QtGui.QDialog.Accepted:
                 return
             values = dialog.values()
@@ -363,7 +690,7 @@ class LibraryDialog(QtGui.QDialog):
             )
             if answer != QtGui.QMessageBox.Yes:
                 return
-            updated = assets.save_iso_tool(snapshot, values)
+            updated = assets.save_custom_tool(snapshot, values)
         except (OSError, ValueError, RuntimeError) as error:
             self._report_error(error)
             return
