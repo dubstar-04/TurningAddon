@@ -14,14 +14,10 @@ import FreeCAD
 import Path.Preferences as preferences
 from Path.Tool.assets import AssetUri
 from Path.Tool.camassets import cam_assets
-from PathTurnScripts.PathTurnToolBit import TOOL_REFERENCES, reference_from_parameters
-
-from . import iso
 from .library import ToolEntry, ToolLibrary
 
 
 _STORES = ("local", "builtin")
-_ISO_UNITS = {"EdgeLength": "mm", "TipAngle": "deg", "TipRadius": "mm", "Rotation": "deg"}
 
 
 @dataclass
@@ -40,6 +36,7 @@ class ToolBitSnapshot:
     attributes: dict
     values: dict
     shape_data: bytes
+    fields: dict = None
 
     @property
     def shape_name(self):
@@ -47,101 +44,182 @@ class ToolBitSnapshot:
             "shape-type", _reference("toolbitshape", self.attributes["shape"]).asset_id)
 
 
-def _iso_values(attributes):
+def _custom_snapshot(uri, attributes, shape_data):
+    from PathTurnScripts.PathTurnToolBit import custom_shape_from_bytes
+
     if attributes.get("version") != 2 or not isinstance(attributes.get("parameter"), dict):
-        raise ValueError("Expected a version 2 ToolBit with ISO parameters.")
-    name = attributes.get("name")
-    if not isinstance(name, str) or not name.strip():
-        raise ValueError("ToolBit name must be a non-empty string.")
-    values = {"name": name, "Compensation": reference_from_parameters(attributes["parameter"])}
-    values["ToolSide"] = attributes["parameter"].get("ToolSide", "Near")
-    if values["ToolSide"] not in ("Near", "Far"):
-        raise ValueError("Tool side must be Near or Far.")
-    for field, unit in _ISO_UNITS.items():
-        raw = attributes["parameter"].get(field)
-        if isinstance(raw, bool) or not isinstance(raw, (str, int, float)):
-            raise ValueError(f"This editor requires the ISO parameter {field}.")
-        quantity = FreeCAD.Units.Quantity(raw)
-        if quantity.Unit not in (FreeCAD.Units.Quantity(f"1 {unit}").Unit, FreeCAD.Units.Quantity(1).Unit):
-            raise ValueError(f"Unexpected units for {field}.")
-        if not math.isfinite(quantity.Value):
-            raise ValueError(f"{field} must be finite.")
-        values[field] = quantity.Value
-    if values["EdgeLength"] <= 0 or values["TipRadius"] <= 0:
-        raise ValueError("Edge length and nose radius must be positive.")
-    if not 0 < values["TipAngle"] < 180:
-        raise ValueError("Tip angle must be between 0 and 180 degrees.")
-    return values
+        raise ValueError("Expected a version 2 native ToolBit with parameters.")
+    shape = custom_shape_from_bytes(shape_data, _reference("toolbitshape", attributes["shape"]).asset_id)
+    values = {"name": attributes["name"]}
+    for name, field in shape.fields.items():
+        value = attributes["parameter"].get(name, shape.get_parameter(name))
+        if not field["readonly"]:
+            shape.set_parameter(name, value)
+        value = shape.get_parameter(name)
+        values[name] = str(value) if isinstance(value, FreeCAD.Units.Quantity) else value
+    return ToolBitSnapshot(str(uri), attributes, values, shape_data, shape.fields)
 
 
-def load_iso_tool(uri):
-    """Load stored ISO dimensions without inferring sizes or restricting shape names."""
+def custom_tool_preset(shape_path):
+    """Import any conforming native shape without a shape-specific Python schema."""
+    from PathTurnScripts.PathTurnToolBit import custom_shape_from_bytes
+
+    path = Path(shape_path)
+    if path.suffix.lower() != ".fcstd":
+        raise ValueError("Select a native FreeCAD .fcstd ToolShape.")
+    data = path.read_bytes()
+    shape = custom_shape_from_bytes(data, path.stem)
+    parameters = {name: str(value) if isinstance(value, FreeCAD.Units.Quantity) else value
+                  for name, value in shape.get_parameters().items()}
+    attributes = {"version": 2, "name": path.stem, "shape-type": "TurningCustom",
+                  "shape": f"{path.stem}_{sha256(data).hexdigest()}.fcstd",
+                  "parameter": parameters, "attribute": {}}
+    return _custom_snapshot("", attributes, data)
+
+
+def tool_shape_presets():
+    """Discover the bundled file-defined starting tools."""
+    presets = []
+    tools = Path(__file__).resolve().parent.parent / "Tools"
+    for path in sorted((tools / "Bit").glob("*.fctb")):
+        definition = json.loads(path.read_text(encoding="utf-8"))
+        if (definition.get("shape-type") != "TurningCustom"
+                or definition.get("attribute", {}).get("deprecated", False)):
+            continue
+        filename = definition["shape"]
+        if Path(filename).name != filename:
+            raise ValueError(f"Bundled ToolShape must be a filename: {filename}")
+        snapshot = custom_tool_preset(tools / "Shape" / filename)
+        attributes = deepcopy(definition)
+        attributes["shape"] = snapshot.attributes["shape"]
+        presets.append(_custom_snapshot("", attributes, snapshot.shape_data))
+    return tuple(presets)
+
+
+def load_custom_tool(uri):
+    """Load file-defined custom controls from the stored native shape."""
     uri = AssetUri(str(uri))
     if uri.asset_type != "toolbit" or not cam_assets.exists(uri, store="local"):
         raise ValueError("Only an existing user ToolBit can be edited in place.")
     attributes = _read_object(uri)
-    values = _iso_values(attributes)
-    shape_uri = _reference("toolbitshape", attributes.get("shape"))
-    shape_data = cam_assets.get_raw(shape_uri, store=_STORES)
-    return ToolBitSnapshot(str(uri), attributes, values, shape_data)
+    if attributes.get("shape-type") != "TurningCustom":
+        raise ValueError("Select a custom turning ToolBit.")
+    data = cam_assets.get_raw(_reference("toolbitshape", attributes["shape"]), store=_STORES)
+    return _custom_snapshot(uri, attributes, data)
 
 
-def _updated_iso_definition(attributes, original_values, values):
-    original_values = dict(original_values)
-    original_values.setdefault("ToolSide", "Near")
-    values = dict(values)
-    values.setdefault("ToolSide", original_values["ToolSide"])
-    if set(values) != set(original_values):
-        raise ValueError("Expected a name, tool reference, tool side and all four ISO dimensions.")
-    attributes = deepcopy(attributes)
+def load_tool_definition(uri):
+    """Load an editable file-defined turning ToolBit."""
+    if _read_object(AssetUri(str(uri))).get("shape-type") != "TurningCustom":
+        raise ValueError("Only file-defined turning tools can be edited. "
+                         "Recreate legacy ISO tools from the bundled ISO templates.")
+    return load_custom_tool(uri)
+
+
+def _updated_custom_definition(snapshot, values):
+    from PathTurnScripts.PathTurnToolBit import custom_shape_from_bytes
+
+    if set(values) != set(snapshot.values):
+        raise ValueError("Expected the complete native custom-tool definition.")
+    if not isinstance(values["name"], str) or not values["name"].strip():
+        raise ValueError("ToolBit name must be a non-empty string.")
+    attributes = deepcopy(snapshot.attributes)
     attributes["name"] = values["name"]
-    if values["Compensation"] not in TOOL_REFERENCES:
-        raise ValueError("Unsupported turning tool reference.")
-    attributes["parameter"]["Compensation"] = values["Compensation"]
-    if values["ToolSide"] not in ("Near", "Far"):
-        raise ValueError("Tool side must be Near or Far.")
-    if "ToolSide" in attributes["parameter"] or values["ToolSide"] != original_values["ToolSide"]:
-        attributes["parameter"]["ToolSide"] = values["ToolSide"]
-    for field, unit in _ISO_UNITS.items():
-        value = values[field]
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-            raise ValueError(f"{field} must be a finite number.")
-        if value != original_values[field]:
-            if field == "Rotation" and abs(value) > 360:
-                raise ValueError("Mounting angle must be between -360 and 360 degrees.")
-            attributes["parameter"][field] = f"{value} {unit}"
-    return attributes, _iso_values(attributes)
+    shape = custom_shape_from_bytes(snapshot.shape_data, "custom")
+    for name, field in snapshot.fields.items():
+        if field["readonly"]:
+            if values[name] != snapshot.values[name]:
+                raise ValueError(f"{name} is defined by the native shape and is read-only.")
+        else:
+            shape.set_parameter(name, values[name])
+            if values[name] != snapshot.values[name]:
+                attributes["parameter"][name] = values[name]
+    return attributes
 
 
-def save_iso_tool(snapshot, values):
-    """Update a shared ToolBit in place, preserving shape references and extra metadata."""
+def custom_tool_preview(snapshot, values):
+    """Validate the native solid and preview its true section and calculated properties."""
+    import Part
+    from PathTurnScripts import PathTurnAddonHelpers as helpers
+
+    attributes = _updated_custom_definition(snapshot, values)
+    active = FreeCAD.ActiveDocument
+    document = FreeCAD.newDocument("TurningCustomPreview", hidden=True)
+    try:
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "shape.fcstd"
+            path.write_bytes(snapshot.shape_data)
+            document.load(str(path))
+        bag = document.getObjectsByLabel("Attributes")[0]
+        for name, field in snapshot.fields.items():
+            if not field["readonly"]:
+                setattr(bag, name, attributes["parameter"].get(name, snapshot.values[name]))
+        document.recompute()
+        diameter = float(bag.Diameter)
+        if not math.isfinite(diameter) or diameter <= 0:
+            raise ValueError("CAM Diameter must be positive and finite.")
+        solid = document.Body.Shape
+        if (any("Invalid" in obj.State for obj in document.Objects)
+                or solid.isNull() or not solid.isValid() or len(solid.Solids) != 1):
+            raise ValueError("The custom tool must form one valid solid.")
+        helpers.getToolSegments(solid)
+        bounds = solid.BoundBox
+        corners = [FreeCAD.Vector(radial, bounds.Center.y, axial) for radial, axial in (
+            (bounds.XMin - 1, bounds.ZMin - 1), (bounds.XMax + 1, bounds.ZMin - 1),
+            (bounds.XMax + 1, bounds.ZMax + 1), (bounds.XMin - 1, bounds.ZMax + 1))]
+        section = solid.section(Part.Face(Part.makePolygon(corners + [corners[0]])))
+        outlines = tuple(tuple((point.x, point.z) for point in edge.discretize(Deflection=0.01))
+                         for edge in section.Edges)
+        if not outlines:
+            raise ValueError("The custom tool has no XZ preview section.")
+        calculated = {name: str(bag.getPropertyByName(name)) for name, field in snapshot.fields.items()
+                      if field["readonly"]}
+        return {"outlines": outlines, "nose_centre": None, "active_tip": None,
+                "fit_radius": max(math.hypot(*point) for edge in outlines for point in edge),
+                "calculated": calculated}
+    except Part.OCCError as error:
+        raise ValueError(str(error)) from error
+    finally:
+        FreeCAD.closeDocument(document.Name)
+        FreeCAD.setActiveDocument(active.Name if active else "")
+
+
+def create_custom_tool(snapshot, number, *, values=None):
+    """Publish a file-defined custom ToolBit and native ToolShape into the asset library."""
+    values = snapshot.values if values is None else values
+    attributes = _updated_custom_definition(snapshot, values)
+    custom_tool_preview(snapshot, values)
+    tool_uri = AssetUri.build(asset_type="toolbit", asset_id=str(uuid4()))
+    shape_uri = _reference("toolbitshape", attributes["shape"])
+    entry = ToolEntry(number, str(tool_uri), attributes["name"], attributes["shape-type"])
+    if cam_assets.exists(tool_uri, store=_STORES):
+        raise FileExistsError("The generated ToolBit identity is already in use.")
+    if cam_assets.exists(shape_uri, store=_STORES):
+        if cam_assets.get_raw(shape_uri, store=_STORES) != snapshot.shape_data:
+            raise ValueError("A different ToolShape already uses this identity.")
+    else:
+        cam_assets.add_raw(shape_uri.asset_type, shape_uri.asset_id, snapshot.shape_data, store="local")
+    cam_assets.add_raw(tool_uri.asset_type, tool_uri.asset_id,
+                       json.dumps(attributes, indent=2, allow_nan=False).encode("utf-8"), store="local")
+    return entry
+
+
+def save_custom_tool(snapshot, values):
+    """Preserve shared native shapes, unchanged units, metadata and stale-edit checks."""
     uri = AssetUri(snapshot.uri)
     if uri.asset_type != "toolbit" or not cam_assets.exists(uri, store="local"):
         raise ValueError("Only an existing user ToolBit can be edited in place.")
     if _read_object(uri) != snapshot.attributes:
         raise ValueError("ToolBit changed since loading. Reload before saving.")
-    shape_uri = _reference("toolbitshape", snapshot.attributes.get("shape"))
-    if cam_assets.get_raw(shape_uri, store=_STORES) != snapshot.shape_data:
+    if cam_assets.get_raw(_reference("toolbitshape", snapshot.attributes["shape"]), store=_STORES) != snapshot.shape_data:
         raise ValueError("ToolShape changed since loading. Reload before saving.")
-    attributes, updated_values = _updated_iso_definition(
-        snapshot.attributes, snapshot.values, values)
-    shape_data = snapshot.shape_data
+    attributes = _updated_custom_definition(snapshot, values)
     if attributes == snapshot.attributes:
         return snapshot
-    with TemporaryDirectory() as directory:
-        shape_path = Path(directory) / "insert.fcstd"
-        shape_path.write_bytes(shape_data)
-        nose_reference = values["Compensation"] in ("Tip centre", "Tip Tangent")
-        geometry = validate_iso_template(
-            shape_path, attributes["parameter"], preview=nose_reference,
-            with_references=nose_reference)
-        if nose_reference and geometry["nose_centre"] is None:
-            raise ValueError("The ToolShape has no supported active nose centre for the selected reference.")
-    cam_assets.add_raw(
-        uri.asset_type, uri.asset_id,
-        json.dumps(attributes, indent=2, allow_nan=False).encode("utf-8"), store="local",
-    )
-    return ToolBitSnapshot(snapshot.uri, attributes, updated_values, shape_data)
+    custom_tool_preview(snapshot, values)
+    cam_assets.add_raw(uri.asset_type, uri.asset_id,
+                       json.dumps(attributes, indent=2, allow_nan=False).encode("utf-8"), store="local")
+    return _custom_snapshot(uri, attributes, snapshot.shape_data)
 
 
 def library_location():
@@ -218,180 +296,6 @@ def load_tool_entry(uri, number):
     entry, _, issues = _load_entry(number, uri)
     if issues:
         raise ValueError("Cannot add ToolBit: " + "; ".join(issues))
-    return entry
-
-
-def iso_tool_definition(shape, size, radius, direction):
-    """Apply supported ISO selections to the bundled native ToolBit definition."""
-    if shape not in ("C", "D", "S", "T"):
-        raise ValueError("Tool creation supports C, D, S and T shapes.")
-    if size not in iso.SHAPE_SIZES[shape]:
-        raise ValueError("Choose a supported insert size.")
-    if radius not in iso.NOSE_RADII or iso.NOSE_RADII[radius] <= 0:
-        raise ValueError("Tool creation requires a non-zero nose radius.")
-    if direction not in ("L", "R", "N"):
-        raise ValueError("Choose L, R or N insert direction.")
-    tools = Path(__file__).resolve().parent.parent / "Tools"
-    with (tools / "Bit" / f"iso_shape_{shape.lower()}.fctb").open() as source:
-        attributes = json.load(source)
-    parameters = attributes["parameter"]
-    parameters["EdgeLength"] = f"{iso.get_edge_length(shape, size)} mm"
-    parameters["TipAngle"] = f"{iso.get_tip_angle(shape)} deg"
-    parameters["TipRadius"] = f"{iso.get_radius_value(radius)} mm"
-    rotation = FreeCAD.Units.Quantity(parameters["Rotation"]).Value
-    if direction == "R":
-        rotation = -rotation
-    elif direction == "N":
-        rotation = 0
-    parameters["Rotation"] = f"{rotation} deg"
-    attributes["name"] = f"{shape}---{size}--{radius}--{direction}"
-    return attributes, tools / "Shape" / attributes["shape"]
-
-
-def validate_iso_template(shape_path, parameters, *, preview=False, with_references=False):
-    """Check a recomputed solid and XZ profile without requiring an active job."""
-    import Part
-    from PathTurnScripts import PathTurnAddonHelpers as helpers
-
-    if FreeCAD.Units.Quantity(parameters["TipRadius"]).Value <= 0:
-        raise ValueError("Tool creation requires a non-zero nose radius.")
-    active = FreeCAD.ActiveDocument
-    template = FreeCAD.newDocument("TurningToolTemplate", hidden=True)
-    try:
-        template.load(str(shape_path))
-        bags = template.getObjectsByLabel("Attributes")
-        if len(bags) != 1:
-            raise ValueError("The insert template must have one Attributes object.")
-        if not all(field in bags[0].PropertiesList for field in (*_ISO_UNITS, "Compensation")):
-            raise ValueError("The ToolShape must expose the ISO dimensions and Compensation.")
-        reference = reference_from_parameters(parameters)
-        if (
-            bags[0].getTypeIdOfProperty("Compensation") != "App::PropertyEnumeration"
-            or tuple(bags[0].getEnumerationsOfProperty("Compensation")) != TOOL_REFERENCES
-        ):
-            raise ValueError("The ToolShape must expose the supported compensation enumeration.")
-        bags[0].Compensation = reference
-        for name, value in parameters.items():
-            if name == "Compensation":
-                continue
-            if name in bags[0].PropertiesList:
-                if name == "ToolSide":
-                    if value not in ("Near", "Far"):
-                        raise ValueError("Tool side must be Near or Far.")
-                    setattr(bags[0], name, value)
-                else:
-                    setattr(bags[0], name, FreeCAD.Units.Quantity(value))
-        template.recompute()
-        errors = [obj.getStatusString() for obj in template.Objects if "Invalid" in obj.State]
-        if errors:
-            raise ValueError("The selected insert dimensions cannot form a valid tool: " + "; ".join(errors))
-        solid = template.Body.Shape
-        if solid.isNull() or not solid.isValid() or len(solid.Solids) != 1:
-            raise ValueError("The selected insert dimensions cannot form a valid solid.")
-        helpers.getToolSegments(solid)
-        if preview:
-            box = solid.BoundBox
-            corners = [
-                FreeCAD.Vector(radial, box.Center.y, axial)
-                for radial, axial in (
-                    (box.XMin - 1, box.ZMin - 1),
-                    (box.XMax + 1, box.ZMin - 1),
-                    (box.XMax + 1, box.ZMax + 1),
-                    (box.XMin - 1, box.ZMax + 1),
-                )
-            ]
-            plane = Part.Face(Part.makePolygon(corners + [corners[0]]))
-            section = solid.section(plane)
-            outlines = tuple(
-                tuple((point.x, point.z) for point in edge.discretize(Deflection=0.01))
-                for edge in section.Edges)
-            if not outlines:
-                raise ValueError("The ToolShape has no preview section.")
-            if with_references:
-                radius = FreeCAD.Units.Quantity(bags[0].TipRadius).Value
-                angle = math.radians(FreeCAD.Units.Quantity(bags[0].Rotation).Value)
-                tip_angle = math.radians(FreeCAD.Units.Quantity(bags[0].TipAngle).Value)
-                distance = radius / math.sin(tip_angle / 2)
-                expected = ((0.0, 0.0) if reference == "Tip centre" else
-                            (distance * math.cos(angle), -distance * math.sin(angle)))
-                if reference == "Tip Tangent":
-                    cosine, sine = math.cos(angle), math.sin(angle)
-                    radial_sign = (1 if cosine > 1e-12 else -1 if cosine < -1e-12 else
-                                   -1 if getattr(bags[0], "ToolSide", "Near") == "Far" else 1)
-                    expected = (radius * radial_sign, radius * (-1 if sine > 1e-12 else 1))
-                centres = [
-                    (edge.Curve.Center.x, edge.Curve.Center.z)
-                    for edge in section.Edges
-                    if isinstance(edge.Curve, Part.Circle)
-                    and abs(edge.Curve.Radius - radius) < 1e-4
-                    and math.hypot(edge.Curve.Center.x - expected[0],
-                                   edge.Curve.Center.z - expected[1]) < 1e-4
-                ]
-                unrotated = section.copy()
-                unrotated.rotate(
-                    FreeCAD.Vector(), FreeCAD.Vector(0, 1, 0),
-                    -FreeCAD.Units.Quantity(bags[0].Rotation).Value)
-                bounds = unrotated.BoundBox
-                fit_radius = max(
-                    math.hypot(radial, axial)
-                    for radial in (bounds.XMin, bounds.XMax)
-                    for axial in (bounds.ZMin, bounds.ZMax))
-                return {
-                    "outlines": outlines, "nose_centre": centres[0] if centres else None,
-                    "fit_radius": fit_radius,
-                }
-            return outlines
-    except Part.OCCError as error:
-        raise ValueError(str(error)) from error
-    finally:
-        FreeCAD.closeDocument(template.Name)
-        FreeCAD.setActiveDocument(active.Name if active else "")
-
-
-def iso_tool_preview(snapshot, values, *, with_references=False):
-    """Return plain XZ outlines from the stored shape without publishing assets."""
-    attributes, _ = _updated_iso_definition(snapshot.attributes, snapshot.values, values)
-    with TemporaryDirectory() as directory:
-        shape_path = Path(directory) / "insert.fcstd"
-        shape_path.write_bytes(snapshot.shape_data)
-        return validate_iso_template(
-            shape_path, attributes["parameter"], preview=True, with_references=with_references)
-
-
-def iso_tool_preset(shape, size, radius, direction):
-    """Return an unsaved native preset for the shared form and preview."""
-    attributes, shape_path = iso_tool_definition(shape, size, radius, direction)
-    return ToolBitSnapshot("", attributes, _iso_values(attributes), shape_path.read_bytes())
-
-
-def create_iso_tool(shape, size, radius, direction, number, *, values=None):
-    """Publish a validated native ToolBit; library membership is saved separately."""
-    attributes, shape_path = iso_tool_definition(shape, size, radius, direction)
-    if values is not None:
-        attributes, _ = _updated_iso_definition(attributes, _iso_values(attributes), values)
-    tool_uri = AssetUri.build(asset_type="toolbit", asset_id=str(uuid4()))
-    shape_uri = _reference("toolbitshape", attributes["shape"])
-    if cam_assets.exists(tool_uri, store=_STORES):
-        raise FileExistsError("The generated ToolBit identity is already in use.")
-    shape_data = shape_path.read_bytes()
-    shape_exists = cam_assets.exists(shape_uri, store=_STORES)
-    if shape_exists and cam_assets.get_raw(shape_uri, store=_STORES) != shape_data:
-        attributes["shape"] = f"{shape_path.stem}_{sha256(shape_data).hexdigest()}.fcstd"
-        shape_uri = _reference("toolbitshape", attributes["shape"])
-        shape_exists = cam_assets.exists(shape_uri, store=_STORES)
-        if shape_exists and cam_assets.get_raw(shape_uri, store=_STORES) != shape_data:
-            raise ValueError("An existing shape differs from the bundled template: " + str(shape_uri))
-    entry = ToolEntry(number, str(tool_uri), attributes["name"], shape_uri.asset_id)
-    nose_reference = reference_from_parameters(attributes["parameter"]) in ("Tip centre", "Tip Tangent")
-    geometry = validate_iso_template(
-        shape_path, attributes["parameter"], preview=nose_reference,
-        with_references=nose_reference)
-    if nose_reference and geometry["nose_centre"] is None:
-        raise ValueError("The ToolShape has no supported active nose centre for the selected reference.")
-    tool_data = json.dumps(attributes, indent=2, allow_nan=False).encode("utf-8")
-    if not shape_exists:
-        cam_assets.add_raw(shape_uri.asset_type, shape_uri.asset_id, shape_data, store="local")
-    cam_assets.add_raw(tool_uri.asset_type, tool_uri.asset_id, tool_data, store="local")
     return entry
 
 

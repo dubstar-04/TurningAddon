@@ -151,13 +151,13 @@ class ObjectOp(PathOp.ObjectOp):
                 raise RuntimeError(translate(
                     "PathTurn", "Compensated tool references require LibLathe 0.0.8 or later in FreeCAD's Python environment."))
         turnTool = Tool()
-        side = getattr(obj.ToolController.Tool, "ToolSide", "Near")
-        if side not in ("Near", "Far"):
-            raise RuntimeError(translate("PathTurn", "Tool side must be Near or Far."))
-        turnTool.side = ToolSide.FAR if side == "Far" else ToolSide.NEAR
+        from .PathTurnToolBit import post_from_parameters
+
+        post = post_from_parameters({"ToolPost": obj.ToolController.Tool.ToolPost})
+        turnTool.side = ToolSide.NEAR if post == "Front" else ToolSide.FAR
         turnTool.set_tool_from_segments(
             PathTurnHelpers.getToolSegments(obj.ToolController.Tool.Shape))
-        if side == "Far":
+        if post == "Rear":
             from liblathe.op.base import reflect_x_segments
 
             outline = self.part_outline
