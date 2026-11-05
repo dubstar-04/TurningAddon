@@ -95,7 +95,7 @@ def updateMenu(workbench):
             camAddons.addMenu(addonMenu)
 
         # list of commands to add to the menu, add new commands here:
-        commands = ['TurnFace', 'TurnProfile', 'TurnPartoff', 'TurnRough', 'TurnToolHelper']
+        commands = ['TurnFace', 'TurnProfile', 'TurnPartoff', 'TurnRough', 'TurnToolLibrary']
 
         # load the commands to the FreeCAD Menu
         for command in commands:
@@ -111,7 +111,7 @@ def updateMenu(workbench):
 def createAction(menu, actionName):
     # space the actionName at caps
     text = re.sub(r"(\w)([A-Z])", r"\1 \2", actionName)
-    if actionName == "TurnToolHelper":
+    if actionName == "TurnToolLibrary":
         text = FreeCAD.Qt.translate("CAM", "Turning Tool Library")
     command = "CAM_" + actionName
     icon = "CAM-" + actionName + ".svg"
@@ -121,7 +121,7 @@ def createAction(menu, actionName):
     action.setText(text)
     action.setIcon(QtGui.QIcon(getIcon(icon)))
     action.setStatusTip("CAM " + actionName + " Operation")
-    if actionName == "TurnToolHelper":
+    if actionName == "TurnToolLibrary":
         action.setStatusTip(FreeCAD.Qt.translate("CAM", "Manage native turning tools and add them to a CAM job"))
     action.triggered.connect(lambda: FreeCADGui.runCommand(command, 0))
 

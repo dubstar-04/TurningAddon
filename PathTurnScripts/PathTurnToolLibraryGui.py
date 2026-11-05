@@ -9,7 +9,7 @@ import FreeCADGui
 class CommandPathTurnToolLibrary:
     def GetResources(self):
         return {
-            "Pixmap": "CAM-TurnToolHelper",
+            "Pixmap": "CAM-TurnToolLibrary",
             "MenuText": QtCore.QT_TRANSLATE_NOOP("CAM", "Turning Tool Library"),
             "ToolTip": QtCore.QT_TRANSLATE_NOOP(
                 "CAM", "Manage native turning tools and add them to a CAM job"),
@@ -23,4 +23,4 @@ class CommandPathTurnToolLibrary:
 
 
 if FreeCAD.GuiUp:
-    FreeCADGui.addCommand("CAM_TurnToolHelper", CommandPathTurnToolLibrary())
+    FreeCADGui.addCommand("CAM_TurnToolLibrary", CommandPathTurnToolLibrary())
