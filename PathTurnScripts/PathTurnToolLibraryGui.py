@@ -16,7 +16,7 @@ class CommandPathTurnToolLibrary:
         }
 
     def Activated(self):
-        from ToolLibrary.gui import LibraryDialog
+        from PathTurnToolLibrary.PathTurnToolGui import LibraryDialog
 
         dialog = LibraryDialog(FreeCADGui.getMainWindow())
         dialog.exec_()
