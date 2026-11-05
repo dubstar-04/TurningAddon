@@ -32,7 +32,7 @@ import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
 from PySide import QtCore
 
-from liblathe.tool.tool import Tool
+from liblathe.tool.tool import Tool, ToolSide
 
 __title__ = "Path Turn Base Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -154,11 +154,7 @@ class ObjectOp(PathOp.ObjectOp):
         side = getattr(obj.ToolController.Tool, "ToolSide", "Near")
         if side not in ("Near", "Far"):
             raise RuntimeError(translate("PathTurn", "Tool side must be Near or Far."))
-        if side == "Far" and not hasattr(turnTool, "side"):
-            raise RuntimeError(translate(
-                "PathTurn", "Far-side tools require a LibLathe build with tool-side planning support."))
-        if hasattr(turnTool, "side"):
-            turnTool.side = side
+        turnTool.side = ToolSide.FAR if side == "Far" else ToolSide.NEAR
         turnTool.set_tool_from_segments(
             PathTurnHelpers.getToolSegments(obj.ToolController.Tool.Shape))
         if side == "Far":

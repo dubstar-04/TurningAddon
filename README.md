@@ -45,7 +45,8 @@ set the matching physical mounting angle as well.
 Far-side operations pass negative-X stock and part geometry to a side-aware
 LibLathe build. LibLathe reflects copies of the part, stock and actual native
 tool outline into its positive-X planning frame, then restores signed paths,
-arc directions and centre offsets. This is not an output-only X sign change.
+arc directions and centre offsets. Near maps to LibLathe `ToolSide.NEAR`; Far
+maps to `ToolSide.FAR`. This is not an output-only X sign change.
 It does not add internal boring support. Signed-side planning is experimental:
 existing defeature/clearance issues remain, and tiny native outline differences
 can materially change generated passes. These checks are not machining approval.
@@ -88,24 +89,29 @@ on the first reopen; saving with this version embeds it for subsequent restores.
 * Path Toolbits (Legacy tools are not supported)
 * Python3
 * FreeCAD's Qt/PySide runtime
-* LibLathe 0.0.8 or later, installed in the Python environment used by FreeCAD
+* An updated LibLathe development build providing `ToolSide.NEAR` and `ToolSide.FAR`, installed in FreeCAD's Python environment. Version 0.0.8 alone does not guarantee this API.
 * `packaging`, for checking the LibLathe version before nose-centred machining
 
 ## Installation
 1. Clone this repository or extract its source ZIP into your
    [FreeCAD `Mod/` directory](https://www.freecadweb.org/wiki/Installing_more_workbenches).
-2. Install LibLathe through your system package manager or PyPI, using the same
-   Python environment as FreeCAD. The Addon Manager dependency is `liblathe`.
-   For a matching system Python:
+2. Build an updated LibLathe wheel from the matching source checkout, using a
+   Python version and native runtime compatible with FreeCAD. Install that wheel
+   into FreeCAD's environment. The Addon Manager dependency is `liblathe`, but
+   an older release without `ToolSide` is insufficient. For matching system Python:
 
    ```sh
-   python3 -m pip install --user 'liblathe>=0.0.8' packaging
+   python3 -m pip install --user --force-reinstall /path/to/liblathe-wheel.whl
+   python3 -m pip install --user packaging
    ```
 
-   For the FreeCAD Flatpak, use its Python interpreter rather than the host's:
+   For the FreeCAD Flatpak, build against its matching SDK and Python ABI, then
+   use its interpreter rather than the host's. A host-built native wheel may
+   require an incompatible GLIBC version:
 
    ```sh
-   flatpak run --command=python org.freecad.FreeCAD -m pip install --user 'liblathe>=0.0.8' packaging
+   flatpak run --command=python org.freecad.FreeCAD -m pip install --user --force-reinstall /path/to/liblathe-wheel.whl
+   flatpak run --command=python org.freecad.FreeCAD -m pip install --user packaging
    ```
 
 3. Restart FreeCAD and activate the CAM workbench.
