@@ -369,21 +369,21 @@ class LibraryDialog(QtGui.QDialog):
 
         actions = QtGui.QHBoxLayout()
         self.new_tool_button = self._button(
-            "document-new", QtGui.QStyle.SP_FileIcon,
+            "list-add", QtGui.QStyle.SP_FileIcon,
             translate("CAM", "New ToolBit"), self.create_tool)
         self.add_button = self._button(
-            "list-add", QtGui.QStyle.SP_FileDialogNewFolder,
+            "Std_Import", QtGui.QStyle.SP_FileDialogNewFolder,
             translate("CAM", "Add existing ToolBit"), self.add_tool)
         self.edit_button = self._button(
-            "accessories-text-editor", QtGui.QStyle.SP_FileDialogContentsView,
+            "edit-edit", QtGui.QStyle.SP_FileDialogContentsView,
             translate("CAM", "Edit ToolBit"), self.edit_tool)
         self.remove_button = self._button(
             "list-remove", QtGui.QStyle.SP_TrashIcon,
             translate("CAM", "Remove from library"), self.remove_tool)
         self.renumber_button = self._button(
-            "edit-edit", QtGui.QStyle.SP_FileDialogDetailedView,
+            "arrow-up", QtGui.QStyle.SP_ArrowUp,
             translate("CAM", "Renumber tool"), self.renumber_tool)
-        for button in (self.new_tool_button, self.add_button, self.edit_button, self.remove_button, self.renumber_button):
+        for button in (self.new_tool_button, self.remove_button, self.edit_button, self.add_button, self.renumber_button):
             actions.addWidget(button)
         actions.addStretch()
         layout.addLayout(actions)
@@ -398,7 +398,6 @@ class LibraryDialog(QtGui.QDialog):
             "view-refresh", QtGui.QStyle.SP_BrowserReload,
             translate("CAM", "Reload CAM jobs"), self.refresh_jobs))
         self.job_button = QtGui.QPushButton(translate("CAM", "Add to job"))
-        self.job_button.setIcon(_icon("list-add", QtGui.QStyle.SP_ArrowForward))
         self.job_button.setAutoDefault(False)
         self.job_button.clicked.connect(self.add_to_job)
         job_row.addWidget(self.job_button)
