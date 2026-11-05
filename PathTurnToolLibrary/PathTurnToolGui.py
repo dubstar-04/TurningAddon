@@ -11,6 +11,14 @@ from .PathTurnToolTable import ToolLibrary
 translate = QtCore.QCoreApplication.translate
 
 
+def _icon(name, fallback):
+    """Prefer FreeCAD's bundled icon, falling back to Qt's when FreeCAD's GUI resources are absent."""
+    path = f":/icons/{name}.svg"
+    if QtCore.QFile.exists(path):
+        return QtGui.QIcon(path)
+    return QtGui.QApplication.style().standardIcon(fallback)
+
+
 class ToolPreview(QtGui.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -367,13 +375,13 @@ class LibraryDialog(QtGui.QDialog):
             "list-add", QtGui.QStyle.SP_FileDialogNewFolder,
             translate("CAM", "Add existing ToolBit"), self.add_tool)
         self.edit_button = self._button(
-            "document-edit", QtGui.QStyle.SP_FileDialogContentsView,
+            "accessories-text-editor", QtGui.QStyle.SP_FileDialogContentsView,
             translate("CAM", "Edit ToolBit"), self.edit_tool)
         self.remove_button = self._button(
             "list-remove", QtGui.QStyle.SP_TrashIcon,
             translate("CAM", "Remove from library"), self.remove_tool)
         self.renumber_button = self._button(
-            "document-edit", QtGui.QStyle.SP_FileDialogDetailedView,
+            "edit-edit", QtGui.QStyle.SP_FileDialogDetailedView,
             translate("CAM", "Renumber tool"), self.renumber_tool)
         for button in (self.new_tool_button, self.add_button, self.edit_button, self.remove_button, self.renumber_button):
             actions.addWidget(button)
@@ -390,8 +398,7 @@ class LibraryDialog(QtGui.QDialog):
             "view-refresh", QtGui.QStyle.SP_BrowserReload,
             translate("CAM", "Reload CAM jobs"), self.refresh_jobs))
         self.job_button = QtGui.QPushButton(translate("CAM", "Add to job"))
-        self.job_button.setIcon(QtGui.QIcon.fromTheme(
-            "list-add", self.style().standardIcon(QtGui.QStyle.SP_ArrowForward)))
+        self.job_button.setIcon(_icon("list-add", QtGui.QStyle.SP_ArrowForward))
         self.job_button.setAutoDefault(False)
         self.job_button.clicked.connect(self.add_to_job)
         job_row.addWidget(self.job_button)
@@ -408,6 +415,7 @@ class LibraryDialog(QtGui.QDialog):
         self.buttons = QtGui.QDialogButtonBox(
             QtGui.QDialogButtonBox.Save | QtGui.QDialogButtonBox.Close)
         self.save_button = self.buttons.button(QtGui.QDialogButtonBox.Save)
+        self.save_button.setIcon(_icon("document-save", QtGui.QStyle.SP_DialogSaveButton))
         self.save_button.setAutoDefault(False)
         self.save_button.clicked.connect(self.save_library)
         self.buttons.rejected.connect(self.reject)
@@ -422,7 +430,7 @@ class LibraryDialog(QtGui.QDialog):
 
     def _button(self, icon, fallback, text, callback):
         button = QtGui.QToolButton()
-        button.setIcon(QtGui.QIcon.fromTheme(icon, self.style().standardIcon(fallback)))
+        button.setIcon(_icon(icon, fallback))
         button.setToolTip(text)
         button.setAccessibleName(text)
         button.clicked.connect(callback)
@@ -514,7 +522,8 @@ class LibraryDialog(QtGui.QDialog):
         elif not assets.library_location()["writable"]:
             message = translate("CAM", "Library location is read-only.")
         else:
-            message = assets.library_location()["path"]
+            message = ""
+        self.libraries.setToolTip(assets.library_location()["path"])
         self.status.setText(message)
         self._update_actions()
 
