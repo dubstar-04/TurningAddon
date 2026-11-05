@@ -3,7 +3,7 @@
 import sys
 import unittest
 
-from ToolLibrary.library import ToolEntry, ToolLibrary
+from PathTurnToolLibrary.PathTurnToolTable import ToolEntry, ToolLibrary
 
 
 class ToolLibraryTests(unittest.TestCase):
@@ -119,8 +119,8 @@ class NativeToolBitTests(unittest.TestCase):
 
         import FreeCAD
         from PySide import QtCore, QtGui
-        from ToolLibrary import freecad as assets
-        from ToolLibrary.gui import ToolShapeDialog
+        from PathTurnToolLibrary import PathTurnAdapter as assets
+        from PathTurnToolLibrary.PathTurnToolGui import ToolShapeDialog
 
         application = QtGui.QApplication.instance() or QtGui.QApplication([])
         documents = set(FreeCAD.listDocuments())
@@ -165,8 +165,8 @@ class NativeToolBitTests(unittest.TestCase):
         from unittest.mock import patch
 
         from PySide import QtCore, QtGui
-        from ToolLibrary import freecad as assets
-        from ToolLibrary.gui import ToolShapeDialog
+        from PathTurnToolLibrary import PathTurnAdapter as assets
+        from PathTurnToolLibrary.PathTurnToolGui import ToolShapeDialog
 
         application = QtGui.QApplication.instance() or QtGui.QApplication([])
         with patch.object(assets, "custom_tool_preview", side_effect=ValueError("Invalid cutting body")):
@@ -184,8 +184,8 @@ class NativeToolBitTests(unittest.TestCase):
         from unittest.mock import patch
 
         from PySide import QtGui
-        from ToolLibrary import freecad as assets
-        from ToolLibrary import gui
+        from PathTurnToolLibrary import PathTurnAdapter as assets
+        from PathTurnToolLibrary import PathTurnToolGui as gui
 
         application = QtGui.QApplication.instance() or QtGui.QApplication([])
         stored = {}
@@ -294,8 +294,8 @@ class NativeToolBitTests(unittest.TestCase):
 
         import FreeCAD
         from PySide import QtGui
-        from ToolLibrary import freecad as assets
-        from ToolLibrary.gui import CustomToolDialog
+        from PathTurnToolLibrary import PathTurnAdapter as assets
+        from PathTurnToolLibrary.PathTurnToolGui import CustomToolDialog
 
         application = QtGui.QApplication.instance() or QtGui.QApplication([])
         path = Path(__file__).resolve().parents[1] / f"Tools/Shape/Iso_{shape_code}.fcstd"
@@ -612,8 +612,8 @@ class NativeToolBitTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         from PySide import QtGui
-        from ToolLibrary import freecad as assets
-        from ToolLibrary.gui import CustomToolDialog
+        from PathTurnToolLibrary import PathTurnAdapter as assets
+        from PathTurnToolLibrary.PathTurnToolGui import CustomToolDialog
 
         application = QtGui.QApplication.instance() or QtGui.QApplication([])
         with TemporaryDirectory() as directory:
@@ -654,7 +654,7 @@ class NativeToolBitTests(unittest.TestCase):
 
         import FreeCAD
         from PathTurnScripts.PathTurnToolBit import create_tool
-        from ToolLibrary import freecad as assets
+        from PathTurnToolLibrary import PathTurnAdapter as assets
 
         active = FreeCAD.ActiveDocument
         documents = []
@@ -706,7 +706,7 @@ class NativeToolBitTests(unittest.TestCase):
         from types import SimpleNamespace
         from unittest.mock import patch
 
-        from ToolLibrary import freecad as assets
+        from PathTurnToolLibrary import PathTurnAdapter as assets
 
         stored = {}
         fake = SimpleNamespace(
@@ -771,7 +771,7 @@ class NativeToolBitTests(unittest.TestCase):
         import FreeCAD
         import Part
         import Path.Main.Job as jobs
-        from ToolLibrary import freecad as assets
+        from PathTurnToolLibrary import PathTurnAdapter as assets
 
         stored = {}
         fake = SimpleNamespace(
@@ -836,7 +836,7 @@ class NativeToolBitTests(unittest.TestCase):
         from tempfile import TemporaryDirectory
 
         import FreeCAD
-        from ToolLibrary import freecad as assets
+        from PathTurnToolLibrary import PathTurnAdapter as assets
 
         active = FreeCAD.ActiveDocument
         try:
@@ -872,7 +872,7 @@ class NativeToolBitTests(unittest.TestCase):
         from unittest.mock import patch
 
         import FreeCAD
-        from ToolLibrary import freecad as assets
+        from PathTurnToolLibrary import PathTurnAdapter as assets
 
         if not FreeCAD.GuiUp:
             self.skipTest("Requires the FreeCAD GUI")
@@ -899,7 +899,7 @@ class NativeToolBitTests(unittest.TestCase):
         from unittest.mock import patch
 
         import FreeCAD
-        from ToolLibrary import freecad as assets
+        from PathTurnToolLibrary import PathTurnAdapter as assets
 
         active = FreeCAD.ActiveDocument
         document = FreeCAD.newDocument("PendingToolAdditionTest")
@@ -924,8 +924,8 @@ class NativeToolBitTests(unittest.TestCase):
         from unittest.mock import patch
 
         from PySide import QtGui
-        from ToolLibrary import freecad as assets
-        from ToolLibrary.gui import LibraryDialog
+        from PathTurnToolLibrary import PathTurnAdapter as assets
+        from PathTurnToolLibrary.PathTurnToolGui import LibraryDialog
 
         application = QtGui.QApplication.instance() or QtGui.QApplication([])
         used = set()

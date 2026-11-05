@@ -14,7 +14,7 @@ import FreeCAD
 import Path.Preferences as preferences
 from Path.Tool.assets import AssetUri
 from Path.Tool.camassets import cam_assets
-from .library import ToolEntry, ToolLibrary
+from .PathTurnToolTable import ToolEntry, ToolLibrary
 
 
 _STORES = ("local", "builtin")

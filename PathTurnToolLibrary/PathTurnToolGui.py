@@ -4,8 +4,8 @@ import math
 
 from PySide import QtCore, QtGui
 
-from . import freecad as assets
-from .library import ToolLibrary
+from . import PathTurnAdapter as assets
+from .PathTurnToolTable import ToolLibrary
 
 
 translate = QtCore.QCoreApplication.translate
