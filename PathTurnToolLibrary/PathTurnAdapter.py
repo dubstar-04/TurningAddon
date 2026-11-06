@@ -172,6 +172,7 @@ def custom_tool_preview(snapshot, values):
     """Validate the native solid and preview its true section and calculated properties."""
     import Part
     from PathTurnScripts import PathTurnAddonHelpers as helpers
+    from PathTurnScripts.PathTurnToolBit import validate_native_parameters
 
     attributes = _updated_custom_definition(snapshot, values)
     active = FreeCAD.ActiveDocument
@@ -186,6 +187,7 @@ def custom_tool_preview(snapshot, values):
             if not field["readonly"]:
                 setattr(bag, name, attributes["parameter"].get(name, snapshot.values[name]))
         document.recompute()
+        validate_native_parameters(bag)
         diameter = float(bag.Diameter)
         if not math.isfinite(diameter) or diameter <= 0:
             raise ValueError("CAM Diameter must be positive and finite.")

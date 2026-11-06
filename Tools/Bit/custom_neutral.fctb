@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "name": "custom-neutral",
+  "shape": "Custom_neutral.fcstd",
+  "shape-type": "TurningCustom",
+  "parameter": {
+    "Diameter": "8 mm",
+    "Width": "8 mm",
+    "Length": "12 mm",
+    "TipAngle": "60 deg",
+    "TipRadius": "0.4 mm",
+    "Thickness": "3 mm",
+    "Rotation": "135 deg",
+    "ToolPost": "Front"
+  },
+  "attribute": {}
+}

@@ -23,7 +23,8 @@ In **Turning Tool Library**, choose **New ToolBit** to select a base tool from a
 resizable image-and-title grid. Images show each template's actual native cutting
 outline, not a generic icon or a hashed asset filename. The grid lists the bundled
 **ISO C rhombic 80°**, **ISO D rhombic 55°**, **ISO S square**, **ISO T triangle**
-and **Custom profile** tools. Select a tile and **Choose shape**, or double-click it,
+and **custom-neutral**, **custom-left** and **custom-right** hand-ground tools.
+Select a tile and **Choose shape**, or double-click it,
 to configure the tool before saving. **Import shape...** accepts a trusted custom
 `.fcstd` file. Invalid previews are reported and their tiles cannot be selected.
 Opening or cancelling the picker does not publish assets.
@@ -123,13 +124,17 @@ libraries that reference it, but not existing job instances.
    `Integer`, `Bool`, `String` and `Enumeration` (all with the `App::Property`
    prefix). Other types are rejected explicitly rather than silently discarded.
 * `ToolPost` is an enumeration containing `Front` and `Rear`.
-   `Compensation` is an enumeration whose choices and origin expressions are
-   defined by the template. Custom tools do not inherit the ISO reference choices.
+   Optional `Compensation` is an enumeration whose choices and origin expressions
+   are defined by the template. Without it, the tool is treated as **Tip Tangent**,
+   so author the sketch origin at that point. Custom tools do not inherit the ISO reference choices.
 * `Diameter` must be a positive, finite `App::PropertyLength` in `Shape`.
    FreeCAD CAM reads it before executing any turning operation. Define its nominal
    cutting width or size in the native file, using an expression if appropriate.
-   The bundled profile derives it from `TipWidth`. This CAM metadata does not
+   The bundled custom tools derive it from `Width`. This CAM metadata does not
    replace the actual cutting outline or apply a geometry offset.
+* Optional Boolean properties in the `Validation` group can use native expressions
+  to check parameter combinations. False checks stop preview, saving and ToolBit
+  creation with the property's description as the error message.
 * Use native expressions to connect properties to geometry. Expression-driven
    and read-only properties are displayed but cannot be overridden in the form;
    calculated values update with the native geometry. Hidden fields stay hidden.
@@ -142,13 +147,39 @@ the editor applies no inferred ISO pose, nose compensation or output offset.
 Changing `ToolPost` selects a physical post; any intended geometry change must
 be expressed in the native template. Spindle settings remain in the controller.
 
-The bundled [custom profile](Tools/Shape/Custom_profile.fcstd) and
-[ToolBit definition](Tools/Bit/custom_profile.fctb) provide a constrained stepped
-profile example. Users can copy the native file, replace the geometry, and add
+The bundled [custom-neutral](Tools/Shape/Custom_neutral.fcstd),
+[custom-left](Tools/Shape/Custom_left.fcstd) and
+[custom-right](Tools/Shape/Custom_right.fcstd) tools model a rectangular blank
+with a rounded point. The neutral profile has a centred point and two angled
+flanks. Each handed profile has one straight side running tangentially into the
+rounded nose, and only the opposite flank is angled. The theoretical tip is at
+the corresponding side of the blank:
+custom-left is offset toward +X for feeds away from the chuck (+Z), and
+custom-right toward -X for feeds toward the chuck (-Z).
+
+* **Width** is the blank width across its parallel sides.
+* **TipAngle** is the angle between the two cutting edges. On custom-left and
+  custom-right it is measured from the straight side to the angled edge and
+  must be less than 90 degrees.
+* **TipRadius** is the radius of the rounded nose.
+* **Length** runs from the imaginary sharp tip to the back of the blank.
+* **Thickness** is perpendicular to the cutting profile.
+
+The profiles start at 8 mm wide, 60 degrees, a 0.4 mm nose radius, 12 mm long and
+3 mm thick. Width, thickness and radius must be positive, the angle must be
+between 0 and 180 degrees, the rounded tip must fit the width, and the length must
+exceed the pointed end's depth. Invalid combinations show an error instead of
+allowing the tool to be saved. Compensation is not offered: hand-ground tools
+are not accurate enough for a computed reference point. They are positioned from
+**Tip Tangent**, matching a tool touched off on a diameter and a face.
+Rotation and Tool post follow the same conventions as the ISO tools.
+
+Users can copy the native file, replace the geometry, and add
 their own properties in `Attributes` without changing the addon. New shapes are
 stored under content-specific identities so an existing shared shape is not
 overwritten. Saved job documents embed the template for copy and reopen.
 These are cutting-tool definitions, not holder or fixture collision models.
+Previously saved stepped-profile tools keep their original geometry.
 
 Custom tools imported before the required `Diameter` property was added retain
 their original shared and embedded shapes. Re-import the updated shape, add the

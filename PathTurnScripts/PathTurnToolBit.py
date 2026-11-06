@@ -20,6 +20,17 @@ def post_from_parameters(parameters):
     return post
 
 
+def validate_native_parameters(bag):
+    """Apply optional parameter checks authored in the native ToolShape."""
+    for name in bag.PropertiesList:
+        if bag.getGroupOfProperty(name) != "Validation":
+            continue
+        if bag.getTypeIdOfProperty(name) != "App::PropertyBool":
+            raise ValueError("Native Validation properties must be Boolean checks.")
+        if not bag.getPropertyByName(name):
+            raise ValueError(bag.getDocumentationOfProperty(name) or f"Tool parameter check failed: {name}.")
+
+
 if not hasattr(PathToolBit, "Factory"):
     class ToolBitShapeTurningCustom(PathToolBit.ToolBitShape):
         """Use the schema and enum choices supplied by each native file."""
@@ -86,7 +97,7 @@ if not hasattr(PathToolBit, "Factory"):
         def _update_visual_representation(self):
             shape = self._tool_bit_shape
             readonly = [name for name, field in getattr(shape, "fields", {}).items() if field["readonly"]]
-            if readonly and isinstance(self.obj, FreeCAD.DocumentObject):
+            if (readonly or getattr(shape, "_has_validation", False)) and isinstance(self.obj, FreeCAD.DocumentObject):
                 active = FreeCAD.ActiveDocument
                 document = FreeCAD.newDocument("TurningCustomCalculated", hidden=True)
                 updating = getattr(self, "_in_update", False)
@@ -101,6 +112,7 @@ if not hasattr(PathToolBit, "Factory"):
                         if not field["readonly"]:
                             setattr(bag, name, shape.get_parameter(name))
                     document.recompute()
+                    validate_native_parameters(bag)
                     for name in readonly:
                         value = bag.getPropertyByName(name)
                         shape._params[name] = value
@@ -163,9 +175,11 @@ def custom_shape_from_bytes(data, identity):
         if len(bags) != 1 or document.getObject("Body") is None:
             raise ValueError("A custom ToolShape needs a Body and one Attributes object.")
         bag = bags[0]
+        validate_native_parameters(bag)
         expressions = dict(bag.ExpressionEngine)
         shape = ToolBitShapeTurningCustom(id=identity)
         shape._data = data
+        shape._has_validation = any(bag.getGroupOfProperty(name) == "Validation" for name in bag.PropertiesList)
         shape.fields = {}
         shape._params = {}
         shape._defaults = {}
@@ -196,9 +210,10 @@ def custom_shape_from_bytes(data, identity):
         diameter = float(shape._params["Diameter"])
         if not math.isfinite(diameter) or diameter <= 0:
             raise ValueError("CAM Diameter must be positive and finite.")
-        if ("ToolPost" not in shape.fields or set(shape.fields["ToolPost"]["choices"]) != set(TOOL_POSTS)
-                or "Compensation" not in shape.fields or not shape.fields["Compensation"]["choices"]):
-            raise ValueError("Attributes must define ToolPost (Front/Rear) and a Compensation enumeration in Shape.")
+        if "ToolPost" not in shape.fields or set(shape.fields["ToolPost"]["choices"]) != set(TOOL_POSTS):
+            raise ValueError("Attributes must define a ToolPost (Front/Rear) enumeration in Shape.")
+        if "Compensation" in shape.fields and not shape.fields["Compensation"]["choices"]:
+            raise ValueError("An optional Compensation property must be an enumeration with choices.")
         return shape
     finally:
         FreeCAD.closeDocument(document.Name)
