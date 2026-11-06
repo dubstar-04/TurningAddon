@@ -354,10 +354,17 @@ class NativeToolBitTests(unittest.TestCase):
             dialog.controls["TipRadius"].setCurrentText("04 - 0.4 mm")
             dialog.controls["ToolPost"].setCurrentText("Rear")
             dialog.controls["Compensation"].setCurrentText("Tip centre")
-            for rotation in ("90", "-35", "135 deg"):
-                dialog.controls["Rotation"].setText(rotation)
+            rotation = dialog.controls["Rotation"]
+            for angle in (90, 325, 135):
+                rotation.setValue(angle)
                 dialog._refresh_preview()
-                self.assertTrue(dialog.save_button.isEnabled(), (rotation, dialog.problem.text()))
+                self.assertTrue(dialog.save_button.isEnabled(), (angle, dialog.problem.text()))
+            rotation.setValue(315)
+            rotation.stepBy(1)
+            self.assertEqual(rotation.value(), 0)
+            rotation.stepBy(-1)
+            self.assertEqual(rotation.value(), 315)
+            self.assertEqual(dialog.values()["Rotation"], "315 deg")
             application.processEvents()
         finally:
             dialog.reject()

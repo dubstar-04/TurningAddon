@@ -19,6 +19,32 @@ def _icon(name, fallback):
     return QtGui.QApplication.style().standardIcon(fallback)
 
 
+class RotationSpinBox(QtGui.QDoubleSpinBox):
+    """Angle field stepping 45 degrees and wrapping through 0/360."""
+
+    def __init__(self, text, parent=None):
+        import FreeCAD
+
+        super().__init__(parent)
+        self.original = text
+        self.setRange(0, 359.9)
+        self.setDecimals(1)
+        self.setSingleStep(45)
+        self.setWrapping(True)
+        self.setSuffix(" deg")
+        self.setValue(FreeCAD.Units.Quantity(text).Value % 360)
+        self._original_value = self.value()
+
+    def stepBy(self, steps):
+        self.setValue((self.value() + steps * self.singleStep()) % 360)
+
+    def quantity(self):
+        """Keep the stored text when unchanged so editing detects no change."""
+        if self.value() == self._original_value:
+            return self.original
+        return f"{self.value():g} deg"
+
+
 class ToolPreview(QtGui.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -237,7 +263,7 @@ class CustomToolDialog(QtGui.QDialog):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QtGui.QFrame.NoFrame)
         scroll.setMinimumHeight(150)
-        scroll.setMaximumHeight(300)
+        scroll.setMaximumHeight(340)
         fields_widget = QtGui.QWidget()
         form = QtGui.QFormLayout(fields_widget)
         form.setFieldGrowthPolicy(QtGui.QFormLayout.AllNonFixedFieldsGrow)
@@ -263,6 +289,9 @@ class CustomToolDialog(QtGui.QDialog):
                 control = QtGui.QSpinBox()
                 control.setRange(-2147483648, 2147483647)
                 control.setValue(value)
+                control.valueChanged.connect(self._queue_preview)
+            elif name == "Rotation" and kind == "App::PropertyAngle":
+                control = RotationSpinBox(str(value))
                 control.valueChanged.connect(self._queue_preview)
             else:
                 control = QtGui.QLineEdit(str(value))
@@ -310,6 +339,8 @@ class CustomToolDialog(QtGui.QDialog):
                 values[name] = control.isChecked()
             elif field["type"] == "App::PropertyInteger":
                 values[name] = control.value()
+            elif isinstance(control, RotationSpinBox):
+                values[name] = control.quantity()
             elif field["type"] == "App::PropertyFloat":
                 values[name] = float(control.text())
             else:
