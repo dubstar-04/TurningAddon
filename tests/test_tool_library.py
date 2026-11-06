@@ -114,6 +114,62 @@ def _edge_choice(shape_code, length):
 
 @unittest.skipUnless("FreeCAD" in sys.modules, "Requires the FreeCAD native runtime")
 class NativeToolBitTests(unittest.TestCase):
+    def test_library_shape_column_uses_native_toolshape_body_label(self):
+        from pathlib import Path
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        from PySide import QtGui
+        from PathTurnToolLibrary import PathTurnAdapter as assets
+        from PathTurnToolLibrary.PathTurnToolGui import LibraryDialog
+
+        application = QtGui.QApplication.instance() or QtGui.QApplication([])
+        shape_data = (Path(assets.__file__).resolve().parent.parent / "Tools/Shape/Iso_C.fcstd").read_bytes()
+        tool_uri = assets.AssetUri.build(asset_type="toolbit", asset_id="test-shape-label")
+        attributes = {
+            "name": "ISO C rhombic 80°",
+            "shape": "Iso_C.fcstd",
+            "shape-type": "TurningCustom",
+        }
+        asset_store = SimpleNamespace(
+            exists=lambda _uri, **_kwargs: True,
+            get_raw=lambda _uri, **_kwargs: shape_data,
+        )
+        with patch.object(assets, "cam_assets", asset_store), \
+                patch.object(assets, "_read_object", return_value=attributes):
+            entry, _tool, issues = assets._load_entry(1, tool_uri)
+
+        self.assertEqual(issues, ())
+        self.assertEqual(entry.shape, "ISO C rhombic 80° insert")
+
+        cases = (
+            (entry, "ISO C"),
+            (ToolEntry(2, "tool-d", "D", "ISO D rhombic 55° insert"), "ISO D"),
+            (ToolEntry(3, "tool-s", "S", "ISO S square insert"), "ISO S"),
+            (ToolEntry(4, "tool-t", "T", "ISO T triangle insert"), "ISO T"),
+            (ToolEntry(5, "custom", "Custom", "Custom profile"), "Custom profile"),
+            (ToolEntry(6, "other", "Other", "ISO Large insert"), "ISO Large insert"),
+        )
+        table = ToolLibrary(item for item, _shown in cases)
+        snapshot = assets.LibrarySnapshot("library://test", "Test", table, {}, {}, ())
+        with patch.object(assets, "library_location", return_value={"writable": True, "path": "test"}), \
+                patch.object(assets, "job_choices", return_value=(None, (), None)), \
+                patch.object(LibraryDialog, "open_library"), \
+                patch.object(LibraryDialog, "reload_libraries"):
+            dialog = LibraryDialog()
+            try:
+                dialog._set_snapshot(snapshot)
+                for row, (item, shown) in enumerate(cases):
+                    shape_cell = dialog.rows.item(row, 2)
+                    self.assertEqual(shape_cell.text(), shown)
+                    self.assertEqual(dialog.table.get(item.number).shape, item.shape)
+                    self.assertIn(item.tool_id, shape_cell.toolTip())
+                    if shown != item.shape:
+                        self.assertIn(item.shape, shape_cell.toolTip())
+                application.processEvents()
+            finally:
+                dialog.reject()
+
     def test_custom_tool_help_button_shows_setup_page(self):
         from PySide import QtCore, QtGui
         from PathTurnToolLibrary import PathTurnAdapter as assets

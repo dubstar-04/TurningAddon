@@ -28,6 +28,9 @@ to configure the tool before saving. **Import shape...** accepts a trusted custo
 `.fcstd` file. Invalid previews are reported and their tiles cannot be selected.
 Opening or cancelling the picker does not publish assets.
 
+The library's **Shape** column shows short ISO codes such as **ISO C**. Hover
+over a shortened label to see the full shape name.
+
 Create a ToolBit, select a job, then **Add to job**.
 Set feeds, spindle speed and spindle direction in the new controller before use.
 
