@@ -19,6 +19,13 @@ def _icon(name, fallback):
     return QtGui.QApplication.style().standardIcon(fallback)
 
 
+def _short_shape_label(label):
+    parts = label.split(maxsplit=2)
+    if len(parts) >= 2 and parts[0] == "ISO" and len(parts[1]) == 1 and "A" <= parts[1] <= "Z":
+        return f"ISO {parts[1]}"
+    return label
+
+
 def _origin_diagram(palette):
     image = QtGui.QImage(320, 240, QtGui.QImage.Format_ARGB32)
     image.fill(palette.base().color())
@@ -644,9 +651,13 @@ class LibraryDialog(QtGui.QDialog):
         self.rows.setRowCount(0)
         self.rows.setRowCount(len(entries))
         for row, entry in enumerate(entries):
-            for column, value in enumerate((str(entry.number), entry.name, entry.shape)):
+            shape_label = _short_shape_label(entry.shape)
+            for column, value in enumerate((str(entry.number), entry.name, shape_label)):
                 item = QtGui.QTableWidgetItem(value)
-                item.setToolTip(entry.tool_id)
+                tooltip = entry.tool_id
+                if column == 2 and shape_label != entry.shape:
+                    tooltip = f"{entry.shape}\n{tooltip}"
+                item.setToolTip(tooltip)
                 if column == 0:
                     item.setData(QtCore.Qt.UserRole, entry.number)
                 self.rows.setItem(row, column, item)
@@ -841,7 +852,7 @@ class LibraryDialog(QtGui.QDialog):
             for member in table.entries:
                 if member.tool_id == updated.uri:
                     table.edit(
-                        member.number, name=updated.attributes["name"], shape=updated.shape_name)
+                        member.number, name=updated.attributes["name"], shape=updated.shape_label)
         self.snapshot.tools[entry.tool_id] = updated.attributes
         self._render(number)
 

@@ -3,12 +3,15 @@
 from copy import deepcopy
 from dataclasses import dataclass
 from hashlib import sha256
+from io import BytesIO
 import json
 import math
 import os
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 from uuid import uuid4
+from xml.etree import ElementTree
+from zipfile import BadZipFile, ZipFile
 
 import FreeCAD
 import Path.Preferences as preferences
@@ -43,6 +46,11 @@ class ToolBitSnapshot:
         return self.attributes.get(
             "shape-type", _reference("toolbitshape", self.attributes["shape"]).asset_id)
 
+    @property
+    def shape_label(self):
+        fallback = _reference("toolbitshape", self.attributes["shape"]).asset_id
+        return _tool_shape_label(self.shape_data, fallback)
+
 
 def _custom_snapshot(uri, attributes, shape_data):
     from PathTurnScripts.PathTurnToolBit import custom_shape_from_bytes
@@ -58,6 +66,29 @@ def _custom_snapshot(uri, attributes, shape_data):
         value = shape.get_parameter(name)
         values[name] = str(value) if isinstance(value, FreeCAD.Units.Quantity) else value
     return ToolBitSnapshot(str(uri), attributes, values, shape_data, shape.fields)
+
+
+def _tool_shape_label(shape_data, fallback):
+    """Read the Body label without opening a separate FreeCAD document."""
+    try:
+        with ZipFile(BytesIO(shape_data)) as archive:
+            document = ElementTree.fromstring(archive.read("Document.xml"))
+    except (BadZipFile, KeyError, ElementTree.ParseError) as error:
+        raise ValueError(f"Cannot read ToolShape label: {error}") from error
+
+    for obj in document.iter("Object"):
+        if obj.get("name") != "Body":
+            continue
+        properties = obj.find("Properties")
+        if properties is None:
+            continue
+        for prop in properties.findall("Property"):
+            if prop.get("name") != "Label":
+                continue
+            label = prop.find("String")
+            if label is not None and label.get("value"):
+                return label.get("value")
+    return fallback
 
 
 def custom_tool_preset(shape_path):
@@ -191,7 +222,7 @@ def create_custom_tool(snapshot, number, *, values=None):
     custom_tool_preview(snapshot, values)
     tool_uri = AssetUri.build(asset_type="toolbit", asset_id=str(uuid4()))
     shape_uri = _reference("toolbitshape", attributes["shape"])
-    entry = ToolEntry(number, str(tool_uri), attributes["name"], attributes["shape-type"])
+    entry = ToolEntry(number, str(tool_uri), attributes["name"], snapshot.shape_label)
     if cam_assets.exists(tool_uri, store=_STORES):
         raise FileExistsError("The generated ToolBit identity is already in use.")
     if cam_assets.exists(shape_uri, store=_STORES):
@@ -276,12 +307,15 @@ def _load_entry(number, tool_uri):
             tool = _read_object(tool_uri)
             tool_name = tool.get("name", name)
             shape_uri = _reference("toolbitshape", tool.get("shape"))
-            shape_name = tool.get("shape-type", shape_uri.asset_id)
-            if not isinstance(tool_name, str) or not isinstance(shape_name, str):
+            shape_type = tool.get("shape-type", shape_uri.asset_id)
+            if not isinstance(tool_name, str) or not isinstance(shape_type, str):
                 raise ValueError("Tool name and shape type must be strings.")
-            name, shape = tool_name, shape_name
+            name, shape = tool_name, shape_uri.asset_id
             if not cam_assets.exists(shape_uri, store=_STORES):
                 issues.append(f"Tool {number}: missing {shape_uri}")
+            else:
+                shape_data = cam_assets.get_raw(shape_uri, store=_STORES)
+                shape = _tool_shape_label(shape_data, shape_uri.asset_id)
         except (ValueError, UnicodeError) as error:
             issues.append(f"Tool {number}: {error}")
     return ToolEntry(number, tool_id, name, shape), tool, tuple(issues)
