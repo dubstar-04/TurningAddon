@@ -114,6 +114,196 @@ def _edge_choice(shape_code, length):
 
 @unittest.skipUnless("FreeCAD" in sys.modules, "Requires the FreeCAD native runtime")
 class NativeToolBitTests(unittest.TestCase):
+    def test_custom_neutral_profile_dimensions_and_reference_points(self):
+        import math
+        from pathlib import Path
+
+        import FreeCAD
+        import Part
+        from PathTurnScripts import PathTurnAddonHelpers as helpers
+        from PathTurnScripts.PathTurnToolBit import validate_native_parameters
+
+        active = FreeCAD.ActiveDocument
+        path = Path(__file__).resolve().parents[1] / "Tools/Shape/Custom_neutral.fcstd"
+        document = FreeCAD.openDocument(str(path), hidden=True)
+        try:
+            bag = document.getObjectsByLabel("Attributes")[0]
+            for width, angle, radius, length, thickness in (
+                (8, 60, 0.4, 12, 3), (3, 35, 0.1, 10, 2),
+                (10, 90, 0.8, 16, 6), (6, 120, 0.2, 8, 4),
+            ):
+                for name, value in zip(
+                    ("Width", "TipAngle", "TipRadius", "Length", "Thickness"),
+                    (width, angle, radius, length, thickness),
+                ):
+                    setattr(bag, name, value)
+                bag.Rotation = 0
+                document.recompute()
+                validate_native_parameters(bag)
+                beta = math.radians(angle / 2)
+                area = width * length - width ** 2 / (4 * math.tan(beta))
+                area -= radius ** 2 * (1 / math.tan(beta) - (math.pi / 2 - beta))
+                solid = document.Body.Shape
+                self.assertTrue(document.Sketch.FullyConstrained)
+                self.assertTrue(solid.isValid())
+                self.assertEqual(len(solid.Solids), 1)
+                self.assertAlmostEqual(solid.Volume, area * thickness, delta=1e-5)
+                self.assertAlmostEqual(solid.BoundBox.XLength, width)
+                self.assertAlmostEqual(solid.BoundBox.YLength, thickness)
+                self.assertAlmostEqual(solid.BoundBox.ZMax, length - (radius / math.sin(beta) - radius))
+                self.assertAlmostEqual(solid.BoundBox.ZMin, 0)
+                self.assertAlmostEqual(bag.Diameter.Value, width)
+                right, left = document.Sketch.Geometry[0], document.Sketch.Geometry[4]
+                measured_angle = (right.EndPoint - right.StartPoint).getAngle(left.StartPoint - left.EndPoint)
+                self.assertAlmostEqual(math.degrees(measured_angle), angle)
+                for post in ("Front", "Rear"):
+                    bag.ToolPost = post
+                    for rotation in (0, 35, 90, 135, 270):
+                        bag.Rotation = rotation
+                        ux, uz = math.sin(math.radians(rotation)), math.cos(math.radians(rotation))
+                        document.recompute()
+                        solid = document.Body.Shape
+                        self.assertTrue(solid.isValid())
+                        self.assertAlmostEqual(solid.Volume, area * thickness, delta=1e-5)
+                        circles = [edge.Curve for edge in solid.Edges if isinstance(edge.Curve, Part.Circle)]
+                        self.assertEqual(len(circles), 2)
+                        sx = 1 if ux > 1e-12 else -1 if ux < -1e-12 else -1 if post == "Rear" else 1
+                        expected = (sx * radius, (-1 if uz < -1e-12 else 1) * radius)
+                        for circle in circles:
+                            self.assertAlmostEqual(circle.Radius, radius)
+                            self.assertLess(math.hypot(circle.Center.x - expected[0],
+                                                       circle.Center.z - expected[1]), 1e-6)
+                        self.assertTrue(helpers.getToolSegments(solid))
+        finally:
+            FreeCAD.closeDocument(document.Name)
+            FreeCAD.setActiveDocument(active.Name if active else "")
+
+    def test_custom_handed_profiles_have_one_straight_nose_flank(self):
+        import math
+        from pathlib import Path
+
+        import FreeCAD
+        import Part
+        from PathTurnScripts import PathTurnAddonHelpers as helpers
+        from PathTurnScripts.PathTurnToolBit import validate_native_parameters
+
+        root = Path(__file__).resolve().parents[1] / "Tools/Shape"
+        active = FreeCAD.ActiveDocument
+        try:
+            for hand, side in (("left", 1), ("right", -1)):
+                with self.subTest(hand=hand):
+                    document = FreeCAD.openDocument(str(root / f"Custom_{hand}.fcstd"), hidden=True)
+                    try:
+                        bag = document.getObjectsByLabel("Attributes")[0]
+                        for width, angle, radius, length, thickness in (
+                            (8, 60, 0.4, 12, 3), (3, 35, 0.1, 10, 2),
+                            (10, 80, 0.8, 16, 6), (6, 45, 0.2, 8, 4),
+                        ):
+                            for name, value in zip(
+                                ("Width", "TipAngle", "TipRadius", "Length", "Thickness"),
+                                (width, angle, radius, length, thickness),
+                            ):
+                                setattr(bag, name, value)
+                            bag.Rotation = 0
+                            document.recompute()
+                            validate_native_parameters(bag)
+                            self.assertTrue(document.Sketch.FullyConstrained)
+                            self.assertAlmostEqual(bag.TipSideOffset.Value, side * width / 2)
+                            nose = document.Sketch.Geometry[5]
+                            self.assertAlmostEqual(
+                                nose.Center.x - bag.SketchOriginX.Value, side * (width / 2 - radius)
+                            )
+                            straight = document.Sketch.Geometry[0 if side == 1 else 4]
+                            self.assertAlmostEqual(straight.StartPoint.x, straight.EndPoint.x)
+                            tangent = straight.StartPoint if side == 1 else straight.EndPoint
+                            self.assertAlmostEqual(tangent.x - bag.SketchOriginX.Value, side * width / 2)
+                            self.assertAlmostEqual(tangent.y, nose.Center.y)
+                            right, left = document.Sketch.Geometry[0], document.Sketch.Geometry[4]
+                            measured = (right.EndPoint - right.StartPoint).getAngle(left.StartPoint - left.EndPoint)
+                            self.assertAlmostEqual(math.degrees(measured), angle)
+                            beta = math.radians(angle / 2)
+                            area = width * length - width ** 2 / (2 * math.tan(math.radians(angle)))
+                            area -= radius ** 2 * (1 / math.tan(beta) - (math.pi / 2 - beta))
+                            for post in ("Front", "Rear"):
+                                bag.ToolPost = post
+                                for rotation in (0, 35, 90, 135, 270):
+                                    bag.Rotation = rotation
+                                    document.recompute()
+                                    solid = document.Body.Shape
+                                    self.assertTrue(solid.isValid())
+                                    self.assertEqual(len(solid.Solids), 1)
+                                    self.assertAlmostEqual(solid.Volume, area * thickness, delta=1e-5)
+                                    segments = helpers.getToolSegments(solid)
+                                    self.assertEqual(len(segments), 5)
+                                    direction = math.radians(rotation - side * angle / 2)
+                                    ux, uz = math.sin(direction), math.cos(direction)
+                                    sx = 1 if ux > 1e-12 else -1 if ux < -1e-12 else -1 if post == "Rear" else 1
+                                    expected = (sx * radius, (-1 if uz < -1e-12 else 1) * radius)
+                                    circles = [edge.Curve for edge in solid.Edges
+                                               if isinstance(edge.Curve, Part.Circle)]
+                                    self.assertEqual(len(circles), 2)
+                                    for circle in circles:
+                                        self.assertAlmostEqual(circle.Radius, radius)
+                                        self.assertLess(math.hypot(circle.Center.x - expected[0],
+                                                                   circle.Center.z - expected[1]), 1e-6)
+                        bag.Width = 8
+                        bag.TipAngle = 60
+                        bag.TipRadius = 6
+                        document.recompute()
+                        with self.assertRaisesRegex(ValueError, "fit inside the tool width"):
+                            validate_native_parameters(bag)
+                        bag.TipRadius = 0.4
+                        bag.TipAngle = 90
+                        document.recompute()
+                        with self.assertRaisesRegex(ValueError, "less than 90 degrees"):
+                            validate_native_parameters(bag)
+                    finally:
+                        FreeCAD.closeDocument(document.Name)
+        finally:
+            FreeCAD.setActiveDocument(active.Name if active else "")
+
+    def test_custom_tool_editor_reports_impossible_parameter_combinations(self):
+        from unittest.mock import patch
+
+        from PySide import QtGui
+        from PathTurnToolLibrary import PathTurnAdapter as assets
+        from PathTurnToolLibrary.PathTurnToolGui import CustomToolDialog
+
+        application = QtGui.QApplication.instance() or QtGui.QApplication([])
+        snapshot = next(item for item in assets.tool_shape_presets()
+                        if item.values["name"] == "custom-neutral")
+        for field in ("Width", "TipAngle", "TipRadius", "Length", "Thickness"):
+            self.assertIn(field, snapshot.fields)
+        self.assertNotIn("TipWidth", snapshot.fields)
+        self.assertNotIn("TipLength", snapshot.fields)
+        self.assertNotIn("Compensation", snapshot.fields)
+        for name, value in (
+            ("Width", "0 mm"), ("Width", "-1 mm"),
+            ("TipAngle", "0 deg"), ("TipAngle", "-30 deg"),
+            ("TipAngle", "180 deg"), ("TipAngle", "200 deg"),
+            ("TipRadius", "0 mm"), ("TipRadius", "-0.1 mm"), ("TipRadius", "100 mm"),
+            ("Length", "1 mm"), ("Length", "-1 mm"),
+            ("Thickness", "0 mm"), ("Thickness", "-1 mm"),
+        ):
+            with self.subTest(name=name, value=value), patch.object(assets.cam_assets, "add_raw") as publish:
+                values = dict(snapshot.values, **{name: value})
+                with self.assertRaisesRegex(ValueError, "must"):
+                    assets.create_custom_tool(snapshot, 17, values=values)
+                publish.assert_not_called()
+        dialog = CustomToolDialog(snapshot)
+        try:
+            dialog.controls["TipRadius"].setText("100 mm")
+            dialog._refresh_preview()
+            self.assertFalse(dialog.save_button.isEnabled())
+            self.assertIn("fit inside the tool width", dialog.problem.text())
+            dialog.controls["TipRadius"].setText("0.4 mm")
+            dialog._refresh_preview()
+            self.assertTrue(dialog.save_button.isEnabled(), dialog.problem.text())
+            self.assertEqual(dialog.problem.text(), "")
+        finally:
+            dialog.reject()
+        application.processEvents()
+
     def test_library_shape_column_uses_native_toolshape_body_label(self):
         from pathlib import Path
         from types import SimpleNamespace
@@ -226,7 +416,7 @@ class NativeToolBitTests(unittest.TestCase):
         with patch.object(assets.cam_assets, "add_raw") as publish:
             dialog = ToolShapeDialog()
             try:
-                self.assertEqual(dialog.shapes.count(), 5)
+                self.assertEqual(dialog.shapes.count(), 7)
                 self.assertFalse(dialog.choose_button.isEnabled())
                 self.assertIsNone(dialog.selected_preset())
                 for row, snapshot in enumerate(dialog.presets):
@@ -240,8 +430,8 @@ class NativeToolBitTests(unittest.TestCase):
                     self.assertIs(dialog.selected_preset(), snapshot)
                     self.assertTrue(dialog.choose_button.isEnabled())
                 self.assertEqual([snapshot.values["name"] for snapshot in dialog.presets],
-                                 ["Custom profile", "ISO C rhombic 80°", "ISO D rhombic 55°", "ISO S square",
-                                  "ISO T triangle"])
+                                 ["custom-left", "custom-neutral", "custom-right", "ISO C rhombic 80°",
+                                  "ISO D rhombic 55°", "ISO S square", "ISO T triangle"])
                 dialog.accept()
                 self.assertEqual(dialog.result(), QtGui.QDialog.Accepted)
                 dialog.reject()
@@ -858,6 +1048,15 @@ class NativeToolBitTests(unittest.TestCase):
     def test_custom_tool_job_assignment_supports_undo_redo(self):
         self._check_custom_tool_job_assignment()
 
+    def test_custom_neutral_job_assignment_supports_undo_redo(self):
+        self._check_custom_tool_job_assignment(shape_filename="Custom_neutral.fcstd")
+
+    def test_custom_left_job_assignment_supports_undo_redo(self):
+        self._check_custom_tool_job_assignment(shape_filename="Custom_left.fcstd")
+
+    def test_custom_right_job_assignment_supports_undo_redo(self):
+        self._check_custom_tool_job_assignment(shape_filename="Custom_right.fcstd")
+
     def test_iso_c_job_assignment_supports_undo_redo(self):
         self._check_custom_tool_job_assignment("C")
 
@@ -867,7 +1066,7 @@ class NativeToolBitTests(unittest.TestCase):
     def test_iso_t_job_assignment_supports_undo_redo(self):
         self._check_custom_tool_job_assignment("T")
 
-    def _check_custom_tool_job_assignment(self, shape_code=None):
+    def _check_custom_tool_job_assignment(self, shape_code=None, *, shape_filename=None):
         from pathlib import Path
         from tempfile import TemporaryDirectory
         from types import SimpleNamespace
@@ -890,8 +1089,11 @@ class NativeToolBitTests(unittest.TestCase):
         document.UndoMode = 1
         try:
             with TemporaryDirectory() as directory, patch.object(assets, "cam_assets", fake):
-                shape_path = (Path(__file__).resolve().parents[1] / f"Tools/Shape/Iso_{shape_code}.fcstd"
-                              if shape_code else self._custom_shape_file(directory))
+                if shape_filename or shape_code:
+                    filename = shape_filename or f"Iso_{shape_code}.fcstd"
+                    shape_path = Path(__file__).resolve().parents[1] / "Tools/Shape" / filename
+                else:
+                    shape_path = self._custom_shape_file(directory)
                 snapshot = assets.custom_tool_preset(shape_path)
                 entry = assets.create_custom_tool(snapshot, 17)
                 model = document.addObject("Part::Feature", "Model")
@@ -906,7 +1108,10 @@ class NativeToolBitTests(unittest.TestCase):
                 self.assertEqual(controller.ToolNumber, 17)
                 self.assertIn(controller, job.Tools.Group)
                 self.assertGreater(float(controller.Tool.Diameter), 0)
-                self.assertEqual(controller.Tool.Compensation, snapshot.values["Compensation"])
+                if "Compensation" in snapshot.fields:
+                    self.assertEqual(controller.Tool.Compensation, snapshot.values["Compensation"])
+                else:
+                    self.assertFalse(hasattr(controller.Tool, "Compensation"))
                 self.assertEqual(controller.Tool.ToolPost, "Front")
                 self.assertTrue(controller.Tool.Shape.isValid())
                 self.assertEqual(stored, before)
@@ -916,7 +1121,7 @@ class NativeToolBitTests(unittest.TestCase):
                 document.recompute()
                 restored = document.getObject(name)
                 self.assertEqual(restored.ToolNumber, 17)
-                enum_name = "EdgeLength" if shape_code else "Finish"
+                enum_name = "ToolPost" if shape_filename else "EdgeLength" if shape_code else "Finish"
                 self.assertEqual(restored.Tool.getEnumerationsOfProperty(enum_name),
                                  list(snapshot.fields[enum_name]["choices"]))
                 self.assertTrue(restored.Tool.Shape.isValid())
@@ -933,6 +1138,15 @@ class NativeToolBitTests(unittest.TestCase):
                     operation.Proxy.execute(operation)
                     execute.assert_called_with(operation)
                     self.assertAlmostEqual(operation.OpToolDiameter.Value, restored.Tool.Diameter.Value)
+                if shape_filename:
+                    saved = Path(directory) / "hand_ground_job.fcstd"
+                    document.recompute()
+                    document.saveAs(str(saved))
+                    FreeCAD.closeDocument(document.Name)
+                    document = FreeCAD.openDocument(str(saved), hidden=True)
+                    restored = document.getObject(name)
+                    self.assertTrue(restored.Tool.Shape.isValid())
+                    self.assertAlmostEqual(restored.Tool.Width.Value, FreeCAD.Units.Quantity(snapshot.values["Width"]).Value)
         finally:
             FreeCAD.closeDocument(document.Name)
             FreeCAD.setActiveDocument(active.Name if active else "")
