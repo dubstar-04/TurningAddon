@@ -912,7 +912,7 @@ class NativeToolBitTests(unittest.TestCase):
             with patch.object(assets, "_job", return_value=job):
                 self.assertIsNone(assets.job_add_problem(document.Name, "Job", 12))
                 job.Tools.Group.append(SimpleNamespace(ToolNumber=12))
-                self.assertIn("already in use", assets.job_add_problem(document.Name, "Job", 12))
+                self.assertIsNone(assets.job_add_problem(document.Name, "Job", 12))
             self.assertTrue(document.HasPendingTransaction)
         finally:
             document.abortTransaction()

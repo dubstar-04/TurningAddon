@@ -351,8 +351,6 @@ def job_add_problem(document_name, job_name, number):
             return "Finish the current document edit before adding a turning tool."
     if type(number) is not int or not 1 <= number <= 10000:
         return "The job tool number must be between 1 and 10000."
-    if any(controller.ToolNumber == number for controller in job.Tools.Group):
-        return f"Tool number {number} is already in use in this job. Renumber the library row first."
     return None
 
 
