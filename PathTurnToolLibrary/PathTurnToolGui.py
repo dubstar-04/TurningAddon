@@ -19,6 +19,56 @@ def _icon(name, fallback):
     return QtGui.QApplication.style().standardIcon(fallback)
 
 
+def _origin_diagram(palette):
+    image = QtGui.QImage(320, 240, QtGui.QImage.Format_ARGB32)
+    image.fill(palette.base().color())
+    painter = QtGui.QPainter(image)
+    painter.setRenderHint(QtGui.QPainter.Antialiasing)
+    painter.setPen(QtGui.QPen(palette.text().color(), 1.5))
+    outline = QtGui.QPainterPath(QtCore.QPointF(87.4, 105))
+    for point in ((109, 174), (233, 213), (194, 89), (125, 67.4)):
+        outline.lineTo(*point)
+    outline.arcTo(QtCore.QRectF(86, 66, 60, 60), 72.5, 125)
+    outline.closeSubpath()
+    painter.setBrush(palette.alternateBase())
+    painter.drawPath(outline)
+    painter.setBrush(QtCore.Qt.NoBrush)
+    guide_colour = palette.text().color()
+    guide_colour.setAlpha(160)
+    painter.setPen(QtGui.QPen(guide_colour, 1, QtCore.Qt.DashLine))
+    painter.drawEllipse(QtCore.QPointF(116, 96), 30, 30)
+    painter.drawLine(QtCore.QPointF(70, 50), QtCore.QPointF(125, 67.4))
+    painter.drawLine(QtCore.QPointF(70, 50), QtCore.QPointF(87.4, 105))
+    painter.drawLine(86, 40, 86, 115)
+    painter.drawLine(60, 66, 145, 66)
+    painter.setPen(QtGui.QPen(palette.text().color(), 1))
+    for number, point, label in (
+        (1, (86, 66), (30, 100)),
+        (2, (70, 50), (30, 25)),
+        (3, (116, 96), (185, 35)),
+        (4, (151.5, 131.5), (278, 175)),
+    ):
+        centre = QtCore.QPointF(*point)
+        caption = QtCore.QPointF(*label)
+        painter.drawLine(centre, caption)
+        painter.setBrush(palette.text())
+        painter.drawEllipse(centre, 2.5, 2.5)
+        painter.setBrush(palette.base())
+        painter.drawEllipse(caption, 11, 11)
+        painter.drawText(QtCore.QRectF(caption.x() - 11, caption.y() - 11, 22, 22),
+                         QtCore.Qt.AlignCenter, str(number))
+    painter.drawLine(260, 25, 305, 25)
+    painter.drawLine(305, 25, 300, 22)
+    painter.drawLine(305, 25, 300, 28)
+    painter.drawText(280, 17, "+Z")
+    painter.drawLine(260, 25, 260, 75)
+    painter.drawLine(260, 75, 257, 70)
+    painter.drawLine(260, 75, 263, 70)
+    painter.drawText(270, 75, "+X")
+    painter.end()
+    return image
+
+
 class RotationSpinBox(QtGui.QDoubleSpinBox):
     """Angle field stepping 45 degrees and wrapping through 0/360."""
 
@@ -255,6 +305,7 @@ class CustomToolDialog(QtGui.QDialog):
         super().__init__(parent)
         self.snapshot = snapshot
         self.controls = {}
+        self.help_dialog = None
         self.setWindowTitle(translate("CAM", "Custom Turning ToolBit"))
         self.resize(620, 680)
         self.setMinimumSize(480, 560)
@@ -311,13 +362,16 @@ class CustomToolDialog(QtGui.QDialog):
         self.flip_x_view.setToolTip(translate("CAM", "Changes the preview only."))
         self.flip_x_view.toggled.connect(self.preview.set_x_flipped)
         layout.addWidget(self.flip_x_view)
-        buttons = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Save | QtGui.QDialogButtonBox.Cancel)
         self.problem = _status_label(status_bar)
+        buttons = QtGui.QDialogButtonBox(
+            QtGui.QDialogButtonBox.Save | QtGui.QDialogButtonBox.Cancel | QtGui.QDialogButtonBox.Help)
         self.save_button = buttons.button(QtGui.QDialogButtonBox.Save)
+        self.help_button = buttons.button(QtGui.QDialogButtonBox.Help)
         if not snapshot.uri:
             self.save_button.setText(translate("CAM", "Create ToolBit"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
+        buttons.helpRequested.connect(self.show_help)
         layout.addWidget(buttons)
         self.preview_timer = QtCore.QTimer(self)
         self.preview_timer.setSingleShot(True)
@@ -350,6 +404,59 @@ class CustomToolDialog(QtGui.QDialog):
     def _queue_preview(self, *_arguments):
         self.save_button.setEnabled(False)
         self.preview_timer.start()
+
+    def show_help(self):
+        if self.help_dialog is None:
+            self.help_dialog = QtGui.QDialog(self)
+            self.help_dialog.setWindowTitle(translate("CAM", "Turning Tool Setup Help"))
+            self.help_dialog.resize(580, 740)
+            layout = QtGui.QVBoxLayout(self.help_dialog)
+            browser = QtGui.QTextBrowser()
+            browser.setOpenExternalLinks(False)
+            browser.document().addResource(
+                QtGui.QTextDocument.ImageResource, QtCore.QUrl("tool-origins"),
+                _origin_diagram(self.palette()))
+            browser.setHtml(translate(
+                "CAM",
+                "<h2>Turning tool setup</h2>"
+                "<p>A quick guide to the settings in the bundled tools.</p>"
+                "<h3>Compensation &mdash; choose the reference point (ISO tools)</h3>"
+                "<p>This is the point used to position the tool. Match it to the reference "
+                "used to set up the tool on your machine. Changing it changes the toolpath coordinates.</p>"
+                "<ol>"
+                "<li><b>Tip Tangent</b> (default): the corner where horizontal and vertical "
+                "lines touching the rounded tip meet.</li>"
+                "<li><b>Tip</b>: where the cutting edges would meet if the tip were sharp.</li>"
+                "<li><b>Tip centre</b>: the centre of the rounded tip.</li>"
+                "<li><b>Insert centre</b>: the nominal centre of the insert or tool blank.</li>"
+                "</ol>"
+                '<p align="center"><img src="tool-origins" width="320" height="240"></p>'
+                "<p>The preview cross marks this reference point, <b>not the spindle centre</b>.</p>"
+                "<h3>Orientation &mdash; turn the insert</h3>"
+                "<p><b>Rotation</b> should match how the insert is mounted. From the tip "
+                "towards the insert body, 0 degrees points right, 90 down, 180 left and "
+                "270 up in the normal preview. The arrows step 45 degrees; you can also type an angle.</p>"
+                "<h3>Tool post &mdash; choose the cutting side</h3>"
+                "<p><b>Front (+X)</b> or <b>Rear (-X)</b> selects the side of the spindle "
+                "used to plan the cuts. Match it to the tool's physical position.</p>"
+                "<p>Changing post does <b>not</b> rotate the insert or set the spindle direction. "
+                "<b>Flip X view</b> only mirrors the preview; it does not change the tool or toolpath.</p>"
+                "<h3>Output for your machine</h3>"
+                "<p><b>G-code can contain negative coordinates.</b> Rear-post paths can use "
+                "negative X. Z may also be negative, depending on the job's origin. "
+                "A minus sign is not automatically an error.</p>"
+                "<p>Use a <b>post processor suited to your machine and controller</b>. "
+                "It converts the toolpath into the code your controller needs and must "
+                "correctly handle signed coordinates and curved moves. Do not simply remove minus signs.</p>"
+                "<p><b>Check the final program and tool setup before running the machine.</b></p>",
+            ))
+            layout.addWidget(browser)
+            buttons = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Close)
+            buttons.rejected.connect(self.help_dialog.reject)
+            layout.addWidget(buttons)
+        self.help_dialog.show()
+        self.help_dialog.raise_()
+        self.help_dialog.activateWindow()
 
     def _refresh_preview(self):
         self.preview_timer.stop()

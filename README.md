@@ -43,6 +43,9 @@ positive angles are clockwise in that view. The tip angle is the included angle
 between cutting edges, not this rotation.
 The Rotation field's arrows step 45 degrees, wrapping through 0/360; any other
 angle can be typed.
+**Help** opens an illustrated setup guide covering the compensation reference point,
+rotation, tool post and negative output coordinates. Use a post processor suited to
+the machine and controller, and check the final program before machining.
 The library path is shown as a tooltip on the **Library** drop-down.
 
 **Tool post** selects physical **Front (+X)** or **Rear (-X)**, independently

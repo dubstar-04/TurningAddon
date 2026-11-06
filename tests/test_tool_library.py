@@ -114,6 +114,48 @@ def _edge_choice(shape_code, length):
 
 @unittest.skipUnless("FreeCAD" in sys.modules, "Requires the FreeCAD native runtime")
 class NativeToolBitTests(unittest.TestCase):
+    def test_custom_tool_help_button_shows_setup_page(self):
+        from PySide import QtCore, QtGui
+        from PathTurnToolLibrary import PathTurnAdapter as assets
+        from PathTurnToolLibrary.PathTurnToolGui import CustomToolDialog
+
+        application = QtGui.QApplication.instance() or QtGui.QApplication([])
+        snapshot = next(item for item in assets.tool_shape_presets()
+                        if item.values["name"] == "ISO C rhombic 80°")
+        dialog = CustomToolDialog(snapshot)
+        try:
+            self.assertIsNotNone(dialog.help_button)
+            self.assertTrue(dialog.help_button.isEnabled())
+            before = dialog.values()
+            dialog.help_button.click()
+            help_dialog = dialog.help_dialog
+            self.assertTrue(help_dialog.isVisible())
+            browser = help_dialog.findChild(QtGui.QTextBrowser)
+            message = browser.toPlainText()
+            self.assertNotIn("Hand-ground tool", message)
+            self.assertNotIn("blank width", message)
+            for text in ("Compensation", "Orientation", "Tool post", "Tip Tangent",
+                         "Tip centre", "Insert centre", "negative X", "post processor",
+                         "45 degrees", "does not change the tool or toolpath"):
+                self.assertIn(text, message)
+            self.assertNotIn("linuxcnc", message.lower())
+            self.assertNotIn("G41", message)
+            self.assertIn("<img", browser.toHtml())
+            image = browser.document().resource(
+                QtGui.QTextDocument.ImageResource, QtCore.QUrl("tool-origins"))
+            self.assertFalse(image.isNull())
+            buttons = help_dialog.findChild(QtGui.QDialogButtonBox)
+            buttons.button(QtGui.QDialogButtonBox.Close).click()
+            self.assertFalse(help_dialog.isVisible())
+            dialog.help_button.click()
+            self.assertIs(dialog.help_dialog, help_dialog)
+            self.assertEqual(dialog.values(), before)
+        finally:
+            if dialog.help_dialog is not None:
+                dialog.help_dialog.close()
+            dialog.reject()
+        application.processEvents()
+
     def test_shape_picker_previews_selection_import_and_cancel_without_asset_writes(self):
         from unittest.mock import patch
 
