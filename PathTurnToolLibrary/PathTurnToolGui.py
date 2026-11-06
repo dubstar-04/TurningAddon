@@ -137,6 +137,26 @@ def _shape_icon(outlines, palette):
     return QtGui.QIcon(pixmap)
 
 
+def _dialog_layout(dialog):
+    """Return the dialog's content layout and a status bar spanning its bottom edge."""
+    outer = QtGui.QVBoxLayout(dialog)
+    outer.setContentsMargins(0, 0, 0, 0)
+    outer.setSpacing(0)
+    content = QtGui.QWidget()
+    outer.addWidget(content, 1)
+    status_bar = QtGui.QStatusBar()
+    outer.addWidget(status_bar)
+    return QtGui.QVBoxLayout(content), status_bar
+
+
+def _status_label(status_bar, stretch=1):
+    label = QtGui.QLabel()
+    label.setWordWrap(True)
+    label.setTextFormat(QtCore.Qt.PlainText)
+    status_bar.addWidget(label, stretch)
+    return label
+
+
 class ToolShapeDialog(QtGui.QDialog):
     """Select a base definition by its native cutting outline without publishing assets."""
 
@@ -147,7 +167,7 @@ class ToolShapeDialog(QtGui.QDialog):
         self.setWindowTitle(translate("CAM", "ToolBit Shape Selection"))
         self.resize(760, 460)
         self.setMinimumSize(400, 300)
-        layout = QtGui.QVBoxLayout(self)
+        layout, status_bar = _dialog_layout(self)
         self.shapes = QtGui.QListWidget()
         self.shapes.setViewMode(QtGui.QListView.IconMode)
         self.shapes.setResizeMode(QtGui.QListView.Adjust)
@@ -173,11 +193,8 @@ class ToolShapeDialog(QtGui.QDialog):
                 item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEnabled)
             self.shapes.addItem(item)
         layout.addWidget(self.shapes, 1)
-        self.problem = QtGui.QLabel("\n".join(errors))
-        self.problem.setWordWrap(True)
-        self.problem.setTextFormat(QtCore.Qt.PlainText)
-        self.problem.setVisible(bool(errors))
-        layout.addWidget(self.problem)
+        self.problem = _status_label(status_bar)
+        self.problem.setText("\n".join(errors))
         buttons = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Ok | QtGui.QDialogButtonBox.Cancel)
         self.choose_button = buttons.button(QtGui.QDialogButtonBox.Ok)
         self.choose_button.setText(translate("CAM", "Choose shape"))
@@ -215,7 +232,7 @@ class CustomToolDialog(QtGui.QDialog):
         self.setWindowTitle(translate("CAM", "Custom Turning ToolBit"))
         self.resize(620, 680)
         self.setMinimumSize(480, 560)
-        layout = QtGui.QVBoxLayout(self)
+        layout, status_bar = _dialog_layout(self)
         scroll = QtGui.QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QtGui.QFrame.NoFrame)
@@ -265,11 +282,8 @@ class CustomToolDialog(QtGui.QDialog):
         self.flip_x_view.setToolTip(translate("CAM", "Changes the preview only."))
         self.flip_x_view.toggled.connect(self.preview.set_x_flipped)
         layout.addWidget(self.flip_x_view)
-        self.problem = QtGui.QLabel()
-        self.problem.setWordWrap(True)
-        self.problem.setTextFormat(QtCore.Qt.PlainText)
-        layout.addWidget(self.problem)
         buttons = QtGui.QDialogButtonBox(QtGui.QDialogButtonBox.Save | QtGui.QDialogButtonBox.Cancel)
+        self.problem = _status_label(status_bar)
         self.save_button = buttons.button(QtGui.QDialogButtonBox.Save)
         if not snapshot.uri:
             self.save_button.setText(translate("CAM", "Create ToolBit"))
@@ -336,7 +350,7 @@ class LibraryDialog(QtGui.QDialog):
         self.setWindowTitle(translate("CAM", "Turning Tool Library") + "[*]")
         self.resize(720, 440)
         self.setMinimumSize(480, 320)
-        layout = QtGui.QVBoxLayout(self)
+        layout, status_bar = _dialog_layout(self)
 
         selector = QtGui.QHBoxLayout()
         selector.addWidget(QtGui.QLabel(translate("CAM", "Library")))
@@ -402,15 +416,7 @@ class LibraryDialog(QtGui.QDialog):
         self.job_button.clicked.connect(self.add_to_job)
         job_row.addWidget(self.job_button)
         layout.addLayout(job_row)
-        self.job_status = QtGui.QLabel()
-        self.job_status.setWordWrap(True)
-        self.job_status.setTextFormat(QtCore.Qt.PlainText)
-        layout.addWidget(self.job_status)
-
-        self.status = QtGui.QLabel()
-        self.status.setWordWrap(True)
-        self.status.setTextFormat(QtCore.Qt.PlainText)
-        layout.addWidget(self.status)
+        self.status = _status_label(status_bar)
         self.buttons = QtGui.QDialogButtonBox(
             QtGui.QDialogButtonBox.Save | QtGui.QDialogButtonBox.Close)
         self.save_button = self.buttons.button(QtGui.QDialogButtonBox.Save)
@@ -464,7 +470,6 @@ class LibraryDialog(QtGui.QDialog):
         else:
             problem = assets.job_add_problem(self.document_name, self.jobs.currentData(), number)
         self.job_button.setEnabled(problem is None)
-        self.job_status.setText(problem or "")
         self.job_button.setToolTip(problem or translate("CAM", "Add the selected ToolBit using its library number"))
 
     def refresh_jobs(self):
@@ -491,15 +496,10 @@ class LibraryDialog(QtGui.QDialog):
             return
         entry = self.table.get(self._selected_number())
         try:
-            controller = assets.add_to_job(entry, self.document_name, self.jobs.currentData())
+            assets.add_to_job(entry, self.document_name, self.jobs.currentData())
         except (OSError, ValueError, RuntimeError) as error:
             self._report_error(error)
-            self._update_job_state()
-            return
         self._update_job_state()
-        self.status.setText(translate(
-            "CAM", "Added tool {number} to {job}. Set feeds and spindle speed in its controller before use.").format(
-                number=controller.ToolNumber, job=self.jobs.currentText()))
 
     def _render(self, selected_number=None):
         entries = self.table.entries
@@ -527,9 +527,7 @@ class LibraryDialog(QtGui.QDialog):
         self._update_actions()
 
     def _report_error(self, error):
-        message = str(error)
-        self.status.setText(message)
-        QtGui.QMessageBox.warning(self, translate("CAM", "Tool library error"), message)
+        QtGui.QMessageBox.warning(self, translate("CAM", "Tool library error"), str(error))
 
     def _select_uri(self, uri):
         self.libraries.blockSignals(True)
@@ -675,7 +673,6 @@ class LibraryDialog(QtGui.QDialog):
             self._report_error(error)
             return
         self._render(entry.number)
-        self.status.setText(translate("CAM", "ToolBit saved; library membership has unsaved changes."))
 
     def edit_tool(self):
         if not self.edit_button.isEnabled():
@@ -709,7 +706,6 @@ class LibraryDialog(QtGui.QDialog):
                         member.number, name=updated.attributes["name"], shape=updated.shape_name)
         self.snapshot.tools[entry.tool_id] = updated.attributes
         self._render(number)
-        self.status.setText(translate("CAM", "Shared ToolBit changes saved."))
 
     def remove_tool(self):
         if not self.remove_button.isEnabled():
