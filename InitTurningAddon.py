@@ -37,7 +37,6 @@ from PathTurnScripts import PathTurnProfileGui  # noqa: F401
 from PathTurnScripts import PathTurnRoughGui  # noqa: F401
 from PathTurnScripts import PathTurnToolLibraryGui  # noqa: F401
 import os
-import re
 
 __dir__ = os.path.dirname(__file__)
 iconPath = os.path.join(__dir__, 'Gui/Resources/Icons')
@@ -109,20 +108,14 @@ def updateMenu(workbench):
 
 
 def createAction(menu, actionName):
-    # space the actionName at caps
-    text = re.sub(r"(\w)([A-Z])", r"\1 \2", actionName)
-    if actionName == "TurnToolLibrary":
-        text = FreeCAD.Qt.translate("CAM", "Turning Tool Library")
     command = "CAM_" + actionName
-    icon = "CAM-" + actionName + ".svg"
+    info = FreeCADGui.Command.get(command).getInfo()
 
     action = QtGui.QAction(menu)
     action.setObjectName(command)
-    action.setText(text)
-    action.setIcon(QtGui.QIcon(getIcon(icon)))
-    action.setStatusTip("CAM " + actionName + " Operation")
-    if actionName == "TurnToolLibrary":
-        action.setStatusTip(FreeCAD.Qt.translate("CAM", "Manage native turning tools and add them to a CAM job"))
+    action.setText(info["menuText"])
+    action.setIcon(QtGui.QIcon(getIcon(info["pixmap"] + ".svg")))
+    action.setStatusTip(info["toolTip"])
     action.triggered.connect(lambda: FreeCADGui.runCommand(command, 0))
 
     return action
