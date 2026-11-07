@@ -26,14 +26,17 @@ import FreeCAD
 import FreeCADGui
 from PySide import QtGui
 
+from PathTurnScripts import initialize
+
+initialize()
+
 # import all turning operations
 from PathTurnScripts import PathTurnFaceGui  # noqa: F401
 from PathTurnScripts import PathTurnPartoffGui  # noqa: F401
 from PathTurnScripts import PathTurnProfileGui  # noqa: F401
 from PathTurnScripts import PathTurnRoughGui  # noqa: F401
-from PathTurnScripts import PathTurnToolHelperGui  # noqa: F401
+from PathTurnScripts import PathTurnToolLibraryGui  # noqa: F401
 import os
-import re
 
 __dir__ = os.path.dirname(__file__)
 iconPath = os.path.join(__dir__, 'Gui/Resources/Icons')
@@ -91,7 +94,7 @@ def updateMenu(workbench):
             camAddons.addMenu(addonMenu)
 
         # list of commands to add to the menu, add new commands here:
-        commands = ['TurnFace', 'TurnProfile', 'TurnPartoff', 'TurnRough', 'TurnToolHelper']
+        commands = ['TurnFace', 'TurnProfile', 'TurnPartoff', 'TurnRough', 'TurnToolLibrary']
 
         # load the commands to the FreeCAD Menu
         for command in commands:
@@ -105,16 +108,14 @@ def updateMenu(workbench):
 
 
 def createAction(menu, actionName):
-    # space the actionName at caps
-    text = re.sub(r"(\w)([A-Z])", r"\1 \2", actionName)
     command = "CAM_" + actionName
-    icon = "CAM-" + actionName + ".svg"
+    info = FreeCADGui.Command.get(command).getInfo()
 
     action = QtGui.QAction(menu)
     action.setObjectName(command)
-    action.setText(text)
-    action.setIcon(QtGui.QIcon(getIcon(icon)))
-    action.setStatusTip("CAM " + actionName + " Operation")
+    action.setText(info["menuText"])
+    action.setIcon(QtGui.QIcon(getIcon(info["pixmap"] + ".svg")))
+    action.setStatusTip(info["toolTip"])
     action.triggered.connect(lambda: FreeCADGui.runCommand(command, 0))
 
     return action

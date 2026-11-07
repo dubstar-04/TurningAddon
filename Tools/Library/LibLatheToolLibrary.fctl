@@ -2,19 +2,19 @@
   "tools": [
     {
       "nr": 1,
-      "path": "iso_shape_c.fctb"
+      "path": "iso_c.fctb"
     },
     {
       "nr": 2,
-      "path": "iso_shape_d.fctb"
+      "path": "iso_d.fctb"
     },
     {
       "nr": 3,
-      "path": "iso_shape_s.fctb"
+      "path": "iso_s.fctb"
     },
     {
       "nr": 4,
-      "path": "iso_shape_t.fctb"
+      "path": "iso_t.fctb"
     }
   ],
   "version": 1

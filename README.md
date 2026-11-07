@@ -14,51 +14,14 @@ workbench is activated. It uses an externally installed
 * Turning Facing operation
 * Turning Profiling operation
 * Turning Parting operation
-* Turn Tool Helper: add C, D, S and T inserts and tool controllers to a CAM job
+* Turning Tool Library
 
-Paths follow the part's full rotating outline. Profiles use fast native extraction
-where possible, are checked before use, and are reused for faster updates.
-
-In **Turn Tool Helper**, choose a job and insert parameters, then **Add to job**.
-Set feeds and spindle speed in the new controller before use. Other shapes and
-sharp noses (`00`) remain reference-only.
 
 ## Requirements
-* FreeCAD v1.0 or later with the CAM workbench
+* FreeCAD v1.1 or later with the CAM workbench
 * Path Toolbits (Legacy tools are not supported)
 * Python3
-* Qt5
-* LibLathe, installed in the Python environment used by FreeCAD
-
-## Installation
-1. Clone this repository or extract its source ZIP into your
-   [FreeCAD `Mod/` directory](https://www.freecadweb.org/wiki/Installing_more_workbenches).
-2. Install LibLathe through your system package manager or PyPI, using the same
-   Python environment as FreeCAD. The Addon Manager dependency is `liblathe`.
-   For a matching system Python:
-
-   ```sh
-   python3 -m pip install --user liblathe
-   ```
-
-   For the FreeCAD Flatpak, use its Python interpreter rather than the host's:
-
-   ```sh
-   flatpak run --command=python org.freecad.FreeCAD -m pip install --user liblathe
-   ```
-
-3. Restart FreeCAD and activate the CAM workbench.
-4. Use **CAM -> CAM Addons -> Turning Addon** to create turning operations.
-
-The bundled ISO inserts use the XZ turning plane. When updating older tools,
-replace any copied ISO shapes in your tool library, restart FreeCAD, and recreate
-existing toolbits so they use the corrected geometry.
-
-The add-on uses normal Python package discovery; it does not add a bundled
-library or another source checkout to `sys.path`. If startup reports a missing
-LibLathe package, install it into FreeCAD's Python environment and restart.
-On startup, the add-on prints the loaded LibLathe version and module path in
-FreeCAD's Report view so you can identify which installation is being used.
+* FreeCAD's Qt/PySide runtime
 
 ## Feedback
 If you have feedback or need to report bugs please participate on the related [Path Forum](https://forum.freecadweb.org/viewtopic.php?f=15&t=30563&start=0).

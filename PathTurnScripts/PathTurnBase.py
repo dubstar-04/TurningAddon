@@ -32,7 +32,7 @@ import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
 from PySide import QtCore
 
-from liblathe.tool.tool import Tool
+from liblathe.tool.tool import Tool, ToolSide
 
 __title__ = "Path Turn Base Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -143,10 +143,31 @@ class ObjectOp(PathOp.ObjectOp):
         Base function to generate gcode for the OP by writing path command to self.commandlist
         Calls operations op_generate_gcode.
         '''
+        if getattr(obj.ToolController.Tool, "Compensation", "Tip Tangent") != "Tip":
+            from liblathe.version import __version__
+            from packaging.version import Version
+
+            if Version(__version__) < Version("0.0.8"):
+                raise RuntimeError(translate(
+                    "PathTurn", "Compensated tool references require LibLathe 0.0.8 or later in FreeCAD's Python environment."))
         turnTool = Tool()
+        from .PathTurnToolBit import post_from_parameters
+
+        post = post_from_parameters({"ToolPost": obj.ToolController.Tool.ToolPost})
+        turnTool.side = ToolSide.NEAR if post == "Front" else ToolSide.FAR
         turnTool.set_tool_from_segments(
             PathTurnHelpers.getToolSegments(obj.ToolController.Tool.Shape))
-        self.op_generate_gcode(obj, turnTool)
+        if post == "Rear":
+            from liblathe.op.base import reflect_x_segments
+
+            outline = self.part_outline
+            try:
+                self.part_outline = reflect_x_segments(outline)
+                self.op_generate_gcode(obj, turnTool)
+            finally:
+                self.part_outline = outline
+        else:
+            self.op_generate_gcode(obj, turnTool)
 
     def op_generate_gcode(self, obj, turnTool):
         '''op_generate_gcode(obj) ... overwrite to set initial default values.

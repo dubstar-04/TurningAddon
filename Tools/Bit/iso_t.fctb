@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "name": "ISO T triangle",
+  "shape": "Iso_T.fcstd",
+  "shape-type": "TurningCustom",
+  "parameter": {
+    "EdgeLength": "22 - 12.7 mm",
+    "TipRadius": "04 - 0.4 mm",
+    "Thickness": "04 - 4.76 mm",
+    "Rotation": "150 deg",
+    "Compensation": "Tip Tangent",
+    "ToolPost": "Front"
+  },
+  "attribute": {
+    "description": "File-defined 60-degree triangular turning insert with ISO coded dimensions."
+  }
+}
