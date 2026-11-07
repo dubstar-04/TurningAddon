@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="64" height="64" viewBox="0 0 64 64" version="1.1">
+  <defs>
+    <linearGradient id="sheet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d3d7cf"/>
+    </linearGradient>
+    <linearGradient id="header" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#729fcf"/>
+      <stop offset="1" stop-color="#3465a4"/>
+    </linearGradient>
+    <linearGradient id="insert" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eeeeec"/>
+      <stop offset="1" stop-color="#888a85"/>
+    </linearGradient>
+  </defs>
+  <rect x="5" y="5" width="44" height="52" rx="2" fill="url(#sheet)" stroke="#2e3436" stroke-width="2"/>
+  <path d="M6 6h42v10H6z" fill="url(#header)"/>
+  <path d="M5 16h44" stroke="#2e3436" stroke-width="2"/>
+  <g stroke="#888a85" stroke-width="2">
+    <path d="M6 26h42M6 36h42M6 46h42"/>
+    <path d="M17 17v39"/>
+  </g>
+  <g fill="#3465a4">
+    <rect x="9" y="19.5" width="5" height="4"/>
+    <rect x="9" y="29.5" width="5" height="4"/>
+    <rect x="9" y="39.5" width="5" height="4"/>
+  </g>
+  <path d="M41 25 L60 38 L50 59 L31 46 Z" fill="url(#insert)" stroke="#2e3436" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M42.5 28.5 L57 38.5 L49.5 55" fill="none" stroke="#ffffff" stroke-opacity="0.6" stroke-width="1.5"/>
+  <circle cx="45.5" cy="42" r="4" fill="#ffffff" stroke="#2e3436" stroke-width="2"/>
+</svg>
