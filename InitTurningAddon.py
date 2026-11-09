@@ -32,6 +32,7 @@ initialize()
 
 # import all turning operations
 from PathTurnScripts import PathTurnFaceGui  # noqa: F401
+from PathTurnScripts import PathTurnGrooveGui  # noqa: F401
 from PathTurnScripts import PathTurnPartoffGui  # noqa: F401
 from PathTurnScripts import PathTurnProfileGui  # noqa: F401
 from PathTurnScripts import PathTurnRoughGui  # noqa: F401
@@ -94,7 +95,7 @@ def updateMenu(workbench):
             camAddons.addMenu(addonMenu)
 
         # list of commands to add to the menu, add new commands here:
-        commands = ['TurnFace', 'TurnProfile', 'TurnPartoff', 'TurnRough', 'TurnToolLibrary']
+        commands = ['TurnFace', 'TurnProfile', 'TurnPartoff', 'TurnRough', 'TurnGroove', 'TurnToolLibrary']
 
         # load the commands to the FreeCAD Menu
         for command in commands:
