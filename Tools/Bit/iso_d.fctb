@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "ISO D rhombic 55°",
+  "name": "ISO D - 55°",
   "shape": "Iso_D.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {
