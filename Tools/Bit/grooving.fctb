@@ -12,6 +12,6 @@
     "ToolPost": "Front"
   },
   "attribute": {
-    "description": "MGMN200-style rectangular cutting outline with adjustable width, two radiused cutting-edge corners and Left/Neutral/Right tool nose positions (Right by default). Holder and chipbreaker geometry are not modelled."
+    "description": "Rectangular grooving insert."
   }
 }
