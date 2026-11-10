@@ -55,6 +55,7 @@ class ObjectTurnRough(PathTurnBase.ObjectOp):
 
         containmentBounds = PathTurnHelpers.getContainment(obj)
         RoughOP.add_containment(containmentBounds)
+        RoughOP.add_stock(PathTurnHelpers.getStock(obj))
 
         RoughOP.addPartSegments(self.part_outline)
         RoughOP.add_tool(turnTool)
