@@ -44,6 +44,8 @@ def translate(context, text, disambig=None):
 class ObjectTurnFace(PathTurnBase.ObjectOp):
     '''Proxy class for turning facing operations.'''
 
+    pass_offset_label = translate("TurnPath", "Axial Pass Offset")
+
     def opFeatures(self, obj):
         return super().opFeatures(obj) | PathTurnBase.PathOp.FeatureNoFinalDepth
 
@@ -70,7 +72,7 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
 
 def SetupProperties():
     setup = []
-    setup.append("StepOver")
+    setup.append("PassOffset")
     setup.append("FinishPasses")
     setup.append("AllowGrooving")
     return setup

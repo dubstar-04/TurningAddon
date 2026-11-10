@@ -57,6 +57,9 @@ else:
 class ObjectOp(PathOp.ObjectOp):
     '''Base class for proxy objects of all turning operations.'''
 
+    uses_pass_offset = True
+    pass_offset_label = translate("TurnPath", "Pass Offset")
+
     def opFeatures(self, obj):
         '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
         return PathOp.FeatureDiameters | PathOp.FeatureTool | PathOp.FeatureDepths | PathOp.FeatureCoolant
@@ -64,18 +67,20 @@ class ObjectOp(PathOp.ObjectOp):
     def initOperation(self, obj):
         '''initOperation(obj)'''
 
-        obj.addProperty("App::PropertyLength", "StepOver", "Turn Path", translate("TurnPath", "Operation Stepover"))
         obj.addProperty("App::PropertyInteger", "FinishPasses", "Turn Path", translate("TurnPath", "Number of Finish Passes"))
         obj.addProperty("App::PropertyFloat", "StockToLeave", "Turn Path", translate("TurnPath", "Distance for stock to leave uncut"))
         obj.addProperty("App::PropertyBool", "AllowGrooving", "Turn Path", translate("TurnPath", "Minimum Diameter for Operation"))
 
-        obj.StepOver = FreeCAD.Units.Quantity(1.0, FreeCAD.Units.Length)
+        obj.addProperty("App::PropertyLength", "PassOffset", "Turn Path", self.pass_offset_label)
+        obj.PassOffset = 1.0
         obj.FinishPasses = 2
         obj.StockToLeave = 0
         self.setEditorModes(obj, self.opFeatures(obj))
 
     def setEditorModes(self, obj, features):
         super().setEditorModes(obj, features)
+        if hasattr(obj, "PassOffset"):
+            obj.setEditorMode("PassOffset", 0 if self.uses_pass_offset else 2)
         for name in ("OpStartDepth", "OpFinalDepth", "OpToolDiameter", "OpStockZMax", "OpStockZMin"):
             if hasattr(obj, name):
                 obj.setEditorMode(name, 2)
@@ -97,11 +102,12 @@ class ObjectOp(PathOp.ObjectOp):
         if obj.StartDepth.Value <= obj.FinalDepth.Value:
             raise RuntimeError(translate('PathTurn', "Start depth is equal or less than final depth"))
 
-        if not math.isfinite(obj.StepOver.Value) or obj.StepOver.Value <= 0:
-            raise RuntimeError(translate('PathTurn', "Stepover must be finite and positive"))
+        if self.uses_pass_offset:
+            if not math.isfinite(obj.PassOffset.Value) or obj.PassOffset.Value <= 0:
+                raise RuntimeError(translate(
+                    'PathTurn', "{name} must be finite and positive").format(name=self.pass_offset_label))
 
         self.allowGrooving = obj.AllowGrooving
-        self.stepOver = obj.StepOver.Value
         self.finishPasses = obj.FinishPasses
         self.stockToLeave = obj.StockToLeave
 
@@ -125,15 +131,16 @@ class ObjectOp(PathOp.ObjectOp):
     def getProps(self, obj):
         parentJob = PathUtils.findParentJob(obj)
 
-        return {
+        params = {
+            'pass_offset': obj.PassOffset.Value,
             'allow_grooving': self.allowGrooving,
-            'step_over': self.stepOver,
             'finish_passes': self.finishPasses,
             'stock_to_leave': self.stockToLeave,
             'hfeed': obj.ToolController.HorizFeed.Value,
             'vfeed': obj.ToolController.VertFeed.Value,
             'clearance': parentJob.SetupSheet.SafeHeightOffset.Value,
         }
+        return params
 
     def get_part_outline(self):
         return PathTurnHelpers.getPartOutline(base.Shape for base in self.model)

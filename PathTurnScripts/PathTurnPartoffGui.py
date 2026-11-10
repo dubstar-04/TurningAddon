@@ -50,7 +50,6 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
     def setOpFields(self, obj):
         '''setFields(obj) ... transfers obj's property values to UI'''
 
-        self.form.stepOver.setEnabled(False)
         self.form.finishPasses.setEnabled(False)
         self.form.allowGrooving.setEnabled(False)
         self.form.stockToLeave.setEnabled(False)

@@ -43,6 +43,8 @@ def translate(context, text, disambig=None):
 class ObjectTurnGroove(PathTurnBase.ObjectOp):
     '''Proxy class for turning grooving operations.'''
 
+    pass_offset_label = translate("TurnPath", "Radial Pass Offset")
+
     def op_generate_gcode(self, obj, turnTool):
         '''
         Generate GCode for the op
@@ -62,7 +64,7 @@ class ObjectTurnGroove(PathTurnBase.ObjectOp):
 
 def SetupProperties():
     setup = []
-    setup.append("StepOver")
+    setup.append("PassOffset")
     setup.append("FinishPasses")
     return setup
 

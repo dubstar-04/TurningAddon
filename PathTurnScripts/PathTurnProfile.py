@@ -66,7 +66,7 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
 
 def SetupProperties():
     setup = []
-    setup.append("StepOver")
+    setup.append("PassOffset")
     setup.append("FinishPasses")
     setup.append("AllowGrooving")
     return setup
