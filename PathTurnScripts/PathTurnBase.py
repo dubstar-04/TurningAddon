@@ -59,6 +59,7 @@ class ObjectOp(PathOp.ObjectOp):
 
     uses_pass_offset = True
     pass_offset_label = translate("TurnPath", "Pass Offset")
+    has_finish_offset = False
 
     def opFeatures(self, obj):
         '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
@@ -73,6 +74,10 @@ class ObjectOp(PathOp.ObjectOp):
 
         obj.addProperty("App::PropertyLength", "PassOffset", "Turn Path", self.pass_offset_label)
         obj.PassOffset = 1.0
+        if self.has_finish_offset:
+            obj.addProperty("App::PropertyLength", "FinishPassOffset", "Turn Path",
+                            translate("TurnPath", "Finish Pass Offset"))
+            obj.FinishPassOffset = 0.0
         obj.FinishPasses = 2
         obj.StockToLeave = 0
         self.setEditorModes(obj, self.opFeatures(obj))

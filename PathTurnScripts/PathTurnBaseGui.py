@@ -118,6 +118,8 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
 
         obj.FinishPasses = self.form.finishPasses.value()
         obj.StockToLeave = self.form.stockToLeave.value()
+        if hasattr(obj, "FinishPassOffset"):
+            PathGuiUtil.updateInputField(obj, 'FinishPassOffset', self.form.finishPassOffset)
 
         if obj.AllowGrooving != self.form.allowGrooving.isChecked():
             obj.AllowGrooving = self.form.allowGrooving.isChecked()
@@ -135,6 +137,11 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         self.form.passOffset.setText(obj.PassOffset.UserString)
         self.form.finishPasses.setValue(obj.FinishPasses)
         self.form.stockToLeave.setValue(obj.StockToLeave)
+        has_finish_offset = hasattr(obj, "FinishPassOffset")
+        self.form.finishPassOffset.setVisible(has_finish_offset)
+        self.form.finishPassOffsetLabel.setVisible(has_finish_offset)
+        if has_finish_offset:
+            self.form.finishPassOffset.setText(obj.FinishPassOffset.UserString)
         self.setupToolController(obj, self.form.toolController)
         self.setupCoolant(obj, self.form.coolantController)
 
@@ -154,6 +161,8 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             signals.append(self.form.passOffset.editingFinished)
         signals.append(self.form.finishPasses.valueChanged)
         signals.append(self.form.stockToLeave.valueChanged)
+        if hasattr(obj, "FinishPassOffset"):
+            signals.append(self.form.finishPassOffset.editingFinished)
         signals.append(self.form.allowGrooving.stateChanged)
 
         signals.append(self.form.toolController.currentIndexChanged)
