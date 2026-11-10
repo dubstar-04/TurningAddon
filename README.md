@@ -17,6 +17,14 @@ workbench is activated. It uses an externally installed
 * Turning Tool Library
 
 
+While editing turning operations, Show containment displays a temporary coloured
+XZ rectangle marking diameter/depth limits; it does not represent remaining stock.
+The Containment panel combines signed +X/-X (radius) and +Z/-Z limits in unit-aware
+spinboxes. Changes update the rectangle immediately; arrows use selected model
+geometry, and right-clicking a spinbox edits its coordinate expression.
+The dashed purple clearance outline adds the job's Safe Height Offset radially
+(minimum 0.01 mm); actual transfers can be farther out for stock or shoulder clearance.
+
 ## Requirements
 * FreeCAD v1.1 or later with the CAM workbench
 * Path Toolbits (Legacy tools are not supported)

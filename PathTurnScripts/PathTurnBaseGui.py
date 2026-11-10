@@ -33,6 +33,8 @@ import Path.Base.Gui.Util as PathGuiUtil
 from PySide import QtCore, QtGui
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
+from PathTurnScripts.PathTurnContainment import ContainmentPreview
+from PathTurnScripts.PathTurnContainmentGui import TaskPanelContainment
 
 __title__ = "Path Turn Base Gui"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -47,12 +49,59 @@ if LOGLEVEL:
 else:
     PathLog.setLevel(PathLog.Level.NOTICE, PathLog.thisModule())
 
-
 class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
     '''Page controller class for turning operations '''
 
+    taskPanelDepthsPage = TaskPanelContainment
+
     def initPage(self, obj):
         self.updating = False  # pylint: disable=attribute-defined-outside-init
+        # CAM initializes this operation page last, before constructing the panel layout.
+        for page in list(self.parent.featurePages):
+            if isinstance(page, PathOpGui.TaskPanelDiametersPage):
+                page.pageCleanup()
+                self.parent.featurePages.remove(page)
+                page.form.deleteLater()
+        self.containment_page = next(
+            page for page in self.parent.featurePages if isinstance(page, TaskPanelContainment))
+        self.form.showContainment = self.containment_page.form.showContainment
+        self.containment = ContainmentPreview(obj.ViewObject.RootNode)
+        self.containment_error = None
+        self.form.showContainment.toggled.connect(self.updateContainment)
+        self.updateContainment()
+        FreeCAD.addDocumentObserver(self)
+
+    def slotChangedObject(self, obj, prop):
+        if ((obj == getattr(self.job, "SetupSheet", None) and prop == "SafeHeightOffset")
+                or (obj == getattr(self.obj.ToolController, "Tool", None) and prop == "ToolPost")):
+            self.containment_page.setFields(self.obj)
+            self.updateContainment()
+
+    def updateContainment(self, *args):
+        if not self.form.showContainment.isChecked():
+            self.containment.clear()
+            return
+        try:
+            self.containment.update(self.obj)
+        except ValueError as error:
+            message = str(error)
+            if message != self.containment_error:
+                PathLog.warning(message)
+            self.containment_error = message
+        else:
+            self.containment_error = None
+
+    def updateData(self, obj, prop):
+        if prop in ("MinDiameter", "MaxDiameter", "StartDepth", "FinalDepth", "ToolController"):
+            self.updateContainment()
+
+    def cleanupPage(self, obj):
+        FreeCAD.removeDocumentObserver(self)
+        self.form.showContainment.toggled.disconnect(self.updateContainment)
+        try:
+            self.containment.close()
+        except (ReferenceError, RuntimeError) as error:
+            PathLog.debug("Containment view already destroyed: {}".format(error))
 
     def getForm(self):
         '''getForm() ... return UI'''
@@ -91,6 +140,7 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             self.form.allowGrooving.setCheckState(QtCore.Qt.Unchecked)
 
         self.setOpFields(obj)
+        self.updateContainment()
 
     def getSignalsForUpdate(self, obj):
         '''getSignalsForUpdate(obj) ... return list of signals for updating obj'''
