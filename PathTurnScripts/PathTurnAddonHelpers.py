@@ -52,7 +52,7 @@ def getResourcePath(resName):
     return res
 
 
-def getliblatheBoundBox(operation):
+def getContainment(operation):
     """Convert operation diameter and depth limits to a LibLathe XZ bound box.
 
     Diameter limits become signed radii; final and start depths bound the Z range.
@@ -65,6 +65,23 @@ def getliblatheBoundBox(operation):
     return BoundBox(
         Point(sign * operation.MinDiameter.Value / 2, operation.FinalDepth.Value),
         Point(sign * operation.MaxDiameter.Value / 2, operation.StartDepth.Value))
+
+
+def getStock(operation):
+    """Return a spindle-relative envelope for transfers outside containment."""
+    from PathScripts import PathUtils
+    from .PathTurnToolBit import post_from_parameters
+
+    job = PathUtils.findParentJob(operation)
+    if job is None:
+        raise ValueError("Turning stock requires a parent CAM job")
+    shape = job.Stock.Shape
+    profile = getPartOutline((shape,))
+    radius = max(segment.Boundbox().XMax for segment in profile)
+    post = post_from_parameters({"ToolPost": operation.ToolController.Tool.ToolPost})
+    sign = -1 if post == "Rear" else 1
+    return BoundBox(Point(0, shape.BoundBox.ZMin),
+                    Point(sign * radius, shape.BoundBox.ZMax))
 
 
 def getPartOutline(models):

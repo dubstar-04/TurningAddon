@@ -6,7 +6,7 @@ import FreeCAD
 from pivy import coin
 from PathScripts import PathUtils
 
-from .PathTurnAddonHelpers import getliblatheBoundBox
+from .PathTurnAddonHelpers import getContainment
 
 
 class ContainmentPreview:
@@ -46,7 +46,7 @@ class ContainmentPreview:
                 "PathTurn", "Containment requires 0 <= minimum diameter < maximum diameter "
                 "and final depth < start depth."))
 
-        bounds = getliblatheBoundBox(obj)
+        bounds = getContainment(obj)
         job = PathUtils.findParentJob(obj)
         if job is None:
             raise ValueError(FreeCAD.Qt.translate(

@@ -51,8 +51,9 @@ class ObjectTurnGroove(PathTurnBase.ObjectOp):
         '''
         GrooveOP = LLG.GrooveOP()
         GrooveOP.setParams(self.getProps(obj))
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(obj)
-        GrooveOP.add_stock(stockBoundbox)
+        containmentBounds = PathTurnHelpers.getContainment(obj)
+        GrooveOP.add_containment(containmentBounds)
+        GrooveOP.add_stock(PathTurnHelpers.getStock(obj))
         GrooveOP.addPartSegments(self.part_outline)
         GrooveOP.add_tool(turnTool)
         PathCode = GrooveOP.getGCode()

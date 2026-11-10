@@ -44,6 +44,7 @@ def translate(context, text, disambig=None):
 class ObjectTurnProfile(PathTurnBase.ObjectOp):
     '''Proxy class for turning profile operations.'''
 
+
     def op_generate_gcode(self, obj, turnTool):
         '''
         Generate GCode for the op
@@ -51,8 +52,8 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
         profileOP = LLP.ProfileOP()
         profileOP.setParams(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(obj)
-        profileOP.add_stock(stockBoundbox)
+        containmentBounds = PathTurnHelpers.getContainment(obj)
+        profileOP.add_containment(containmentBounds)
 
         profileOP.addPartSegments(self.part_outline)
         profileOP.add_tool(turnTool)

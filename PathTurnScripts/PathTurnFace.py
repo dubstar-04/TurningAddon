@@ -57,8 +57,8 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
         facingOP = LLF.FaceOP()
         facingOP.setParams(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(obj)
-        facingOP.add_stock(stockBoundbox)
+        containmentBounds = PathTurnHelpers.getContainment(obj)
+        facingOP.add_containment(containmentBounds)
 
         facingOP.addPartSegments(self.part_outline)
         facingOP.add_tool(turnTool)
