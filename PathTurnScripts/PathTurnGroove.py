@@ -44,6 +44,10 @@ class ObjectTurnGroove(PathTurnBase.ObjectOp):
     '''Proxy class for turning grooving operations.'''
 
     pass_offset_label = translate("TurnPath", "Radial Pass Offset")
+    has_finish_offset = True
+
+    def getProps(self, obj):
+        return {**super().getProps(obj), 'finish_pass_offset': obj.FinishPassOffset.Value}
 
     def op_generate_gcode(self, obj, turnTool):
         '''
@@ -67,6 +71,7 @@ def SetupProperties():
     setup = []
     setup.append("PassOffset")
     setup.append("FinishPasses")
+    setup.append("FinishPassOffset")
     return setup
 
 
