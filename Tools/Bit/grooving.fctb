@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "name": "External grooving",
+  "shape": "Grooving.fcstd",
+  "shape-type": "TurningCustom",
+  "parameter": {
+    "Width": "2 mm",
+    "CornerRadius": "0.2 mm",
+    "Length": "12 mm",
+    "Thickness": "3 mm",
+    "ToolNosePosition": "Right",
+    "ToolPost": "Front"
+  },
+  "attribute": {
+    "description": "MGMN200-style rectangular cutting outline with adjustable width, two radiused cutting-edge corners and Left/Neutral/Right tool nose positions (Right by default). Holder and chipbreaker geometry are not modelled."
+  }
+}
