@@ -115,7 +115,10 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
 
     def cleanupPage(self, obj):
         FreeCAD.removeDocumentObserver(self)
-        self.form.showContainment.toggled.disconnect(self.updateContainment)
+        try:
+            self.form.showContainment.toggled.disconnect(self.updateContainment)
+        except (ReferenceError, RuntimeError) as error:
+            PathLog.debug("Containment controls already destroyed: {}".format(error))
         try:
             self.containment.close()
         except (ReferenceError, RuntimeError) as error:
