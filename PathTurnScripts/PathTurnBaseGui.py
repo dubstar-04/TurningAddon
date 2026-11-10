@@ -26,6 +26,7 @@ import FreeCAD
 import FreeCADGui
 import Path.Log as PathLog
 import Path.Op.Gui.Base as PathOpGui
+import Path.Op.Gui.Selection as PathSelection
 #import PathGui
 
 import Path.Base.Gui.Util as PathGuiUtil
@@ -48,6 +49,23 @@ if LOGLEVEL:
     PathLog.trackModule(PathLog.thisModule())
 else:
     PathLog.setLevel(PathLog.Level.NOTICE, PathLog.thisModule())
+
+_path_selection = PathSelection.select
+
+
+def _select_with_turning_fallback(op):
+    try:
+        return _path_selection(op)
+    except KeyError:
+        if op.startswith("Turn"):
+            return PathSelection.turnselect
+        raise
+
+
+_select_with_turning_fallback._turning_fallback = True
+if not getattr(PathSelection.select, "_turning_fallback", False):
+    PathSelection.select = _select_with_turning_fallback
+
 
 class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
     '''Page controller class for turning operations '''
