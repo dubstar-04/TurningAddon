@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "ISO M rhombic 86°",
+  "name": "ISO M - 86°",
   "shape": "Iso_M.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {
