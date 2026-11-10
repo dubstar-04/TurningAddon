@@ -53,8 +53,8 @@ class ObjectTurnRough(PathTurnBase.ObjectOp):
         RoughOP = LLP.RoughOP()
         RoughOP.setParams(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(obj)
-        RoughOP.add_stock(stockBoundbox)
+        containmentBounds = PathTurnHelpers.getContainment(obj)
+        RoughOP.add_containment(containmentBounds)
 
         RoughOP.addPartSegments(self.part_outline)
         RoughOP.add_tool(turnTool)

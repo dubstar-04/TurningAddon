@@ -53,8 +53,8 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
         PartOP = LLP.PartoffOP()
         PartOP.setParams(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(obj)
-        PartOP.add_stock(stockBoundbox)
+        containmentBounds = PathTurnHelpers.getContainment(obj)
+        PartOP.add_containment(containmentBounds)
 
         PartOP.addPartSegments(self.part_outline)
         PartOP.add_tool(turnTool)
