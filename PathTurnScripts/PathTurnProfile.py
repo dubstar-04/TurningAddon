@@ -54,6 +54,7 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
 
         containmentBounds = PathTurnHelpers.getContainment(obj)
         profileOP.add_containment(containmentBounds)
+        profileOP.add_stock(PathTurnHelpers.getStock(obj))
 
         profileOP.addPartSegments(self.part_outline)
         profileOP.add_tool(turnTool)
