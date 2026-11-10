@@ -56,9 +56,9 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
                 value = (FreeCAD.Units.Quantity(obj.evalExpression(expression)).Value
                          if expression else getattr(obj, prop).Value)
                 widget.setProperty("rawValue", value * scale)
-                widget.setReadOnly(bool(expression))
                 widget.setToolTip(
-                    FreeCAD.Qt.translate("PathTurn", "Expression: {value}").format(
+                    FreeCAD.Qt.translate(
+                        "PathTurn", "Expression: {value}\nEditing the value replaces the expression.").format(
                         value=f"({expression}) * {scale:g}") if expression else
                     FreeCAD.Qt.translate(
                         "PathTurn", "Signed coordinate in mm (X is radius, not diameter). "
@@ -71,12 +71,13 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
         if self.updating:
             return
         prop, scale = self.bindings[name]
-        if prop in dict(self.obj.ExpressionEngine):
-            return
         value = self.widgets[name].property("rawValue") / scale
-        if math.isfinite(value) and getattr(self.obj, prop).Value != value:
+        if math.isfinite(value) and not math.isclose(
+                getattr(self.obj, prop).Value, value, rel_tol=0, abs_tol=1e-7):
             self.updating = True
             try:
+                if prop in dict(self.obj.ExpressionEngine):
+                    self.obj.setExpression(prop, None)
                 setattr(self.obj, prop, value)
             finally:
                 self.updating = False
@@ -84,7 +85,8 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
 
     def getFields(self, obj):
         for name in self.widgets:
-            self.changeLimit(name)
+            if self.bindings[name][0] not in dict(obj.ExpressionEngine):
+                self.changeLimit(name)
 
     def updateData(self, obj, prop):
         if not self.updating and prop in (
