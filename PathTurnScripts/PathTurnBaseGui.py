@@ -113,7 +113,8 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         '''getFields(obj) ... transfers values from UI to obj's proprties'''
         PathLog.track()
 
-        PathGuiUtil.updateInputField(obj, 'StepOver', self.form.stepOver)
+        if obj.Proxy.uses_pass_offset:
+            PathGuiUtil.updateInputField(obj, "PassOffset", self.form.passOffset)
 
         obj.FinishPasses = self.form.finishPasses.value()
         obj.StockToLeave = self.form.stockToLeave.value()
@@ -128,7 +129,10 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         '''setFields(obj) ... transfers obj's property values to UI'''
         PathLog.track()
 
-        self.form.stepOver.setText(FreeCAD.Units.Quantity(obj.StepOver.Value, FreeCAD.Units.Length).UserString)
+        self.form.passOffset.setVisible(obj.Proxy.uses_pass_offset)
+        self.form.passOffsetLabel.setVisible(obj.Proxy.uses_pass_offset)
+        self.form.passOffsetLabel.setText(obj.Proxy.pass_offset_label)
+        self.form.passOffset.setText(obj.PassOffset.UserString)
         self.form.finishPasses.setValue(obj.FinishPasses)
         self.form.stockToLeave.setValue(obj.StockToLeave)
         self.setupToolController(obj, self.form.toolController)
@@ -146,7 +150,8 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         '''getSignalsForUpdate(obj) ... return list of signals for updating obj'''
         signals = []
 
-        signals.append(self.form.stepOver.editingFinished)
+        if obj.Proxy.uses_pass_offset:
+            signals.append(self.form.passOffset.editingFinished)
         signals.append(self.form.finishPasses.valueChanged)
         signals.append(self.form.stockToLeave.valueChanged)
         signals.append(self.form.allowGrooving.stateChanged)
