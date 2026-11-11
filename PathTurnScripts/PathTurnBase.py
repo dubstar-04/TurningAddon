@@ -127,6 +127,15 @@ class ObjectOp(PathOp.ObjectOp):
     def opSetDefaultValues(self, obj, job):
         obj.OpStartDepth = job.Stock.Shape.BoundBox.ZMax
         obj.OpFinalDepth = job.Stock.Shape.BoundBox.ZMin
+        if not self.isToolSupported(obj, getattr(obj.ToolController, "Tool", None)):
+            obj.ToolController = next(
+                (controller for controller in job.Tools.Group
+                 if self.isToolSupported(obj, controller.Tool)), None)
+
+    def isToolSupported(self, obj, tool):
+        from .PathTurnToolBit import is_drill_tool
+
+        return not is_drill_tool(tool) and getattr(tool, "ToolPost", None) in ("Front", "Rear")
 
     def opUpdateDepths(self, obj):
         obj.OpStartDepth = obj.OpStockZMax

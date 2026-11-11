@@ -58,6 +58,12 @@ def getContainment(operation):
     Diameter limits become signed radii; final and start depths bound the Z range.
     """
     tool = getattr(getattr(operation, "ToolController", None), "Tool", None)
+    if getattr(operation.Proxy, "centreline_drilling", False):
+        from .PathTurnDrill import getDrill
+
+        drill = getDrill(tool)
+        return BoundBox(Point(0, operation.FinalDepth.Value),
+                        Point(drill.diameter / 2, operation.StartDepth.Value))
     from .PathTurnToolBit import post_from_parameters
 
     post = post_from_parameters({"ToolPost": tool.ToolPost if tool else None})
@@ -78,7 +84,8 @@ def getStock(operation):
     shape = job.Stock.Shape
     profile = getPartOutline((shape,))
     radius = max(segment.Boundbox().XMax for segment in profile)
-    post = post_from_parameters({"ToolPost": operation.ToolController.Tool.ToolPost})
+    post = (None if getattr(operation.Proxy, "centreline_drilling", False) else
+            post_from_parameters({"ToolPost": operation.ToolController.Tool.ToolPost}))
     sign = -1 if post == "Rear" else 1
     return BoundBox(Point(0, shape.BoundBox.ZMin),
                     Point(sign * radius, shape.BoundBox.ZMax))

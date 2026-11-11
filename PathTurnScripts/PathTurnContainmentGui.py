@@ -24,8 +24,7 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
     def initPage(self, obj):
         self.updating = False
         self.bindings = {}
-        self.widgets = {name: getattr(self.form, name) for name in
-                        ("plusX", "minusX", "plusZ", "minusZ")}
+        self.widgets = {name: getattr(self.form, name) for name in self.mapping(obj)}
         self.setFields(obj)
         for name, widget in self.widgets.items():
             widget.valueChanged.connect(partial(self.changeLimit, name))
