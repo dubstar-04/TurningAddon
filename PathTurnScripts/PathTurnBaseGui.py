@@ -36,6 +36,7 @@ from PySide import QtCore, QtGui
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 from PathTurnScripts.PathTurnContainment import ContainmentPreview
 from PathTurnScripts.PathTurnContainmentGui import TaskPanelContainment
+from PathTurnScripts.PathTurnToolBit import post_from_parameters
 
 __title__ = "Path Turn Base Gui"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -54,6 +55,8 @@ _path_selection = PathSelection.select
 
 
 def _select_with_turning_fallback(op):
+    if op == "TurnBore":
+        return PathSelection.profileselect
     try:
         return _path_selection(op)
     except KeyError:
@@ -65,6 +68,33 @@ def _select_with_turning_fallback(op):
 _select_with_turning_fallback._turning_fallback = True
 if not getattr(PathSelection.select, "_turning_fallback", False):
     PathSelection.select = _select_with_turning_fallback
+
+
+if not getattr(PathOpGui.ViewProvider.setEdit, "_turning_tool_check", False):
+    _set_edit = PathOpGui.ViewProvider.setEdit
+
+    def _set_edit_with_turning_tool_check(self, vobj=None, mode=0):
+        view = vobj if vobj is not None else self.vobj
+        if mode == 0 and self.OpPageModule.startswith("PathTurnScripts."):
+            controller = getattr(view.Object, "ToolController", None)
+            tool = getattr(controller, "Tool", None)
+            try:
+                post_from_parameters({"ToolPost": getattr(tool, "ToolPost", None)})
+            except ValueError:
+                message = FreeCAD.Qt.translate(
+                    "PathTurn", "The selected tool is not configured for turning: "
+                    "ToolPost must be Front or Rear.\n\n"
+                    "Select a turning tool with a valid ToolPost in the operation's "
+                    "Tool Controller before editing.")
+                PathLog.warning(message)
+                QtGui.QMessageBox.warning(
+                    FreeCADGui.getMainWindow(),
+                    FreeCAD.Qt.translate("PathTurn", "Invalid turning tool"), message)
+                return False
+        return _set_edit(self, vobj, mode)
+
+    _set_edit_with_turning_tool_check._turning_tool_check = True
+    PathOpGui.ViewProvider.setEdit = _set_edit_with_turning_tool_check
 
 
 class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
@@ -83,40 +113,99 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         self.containment_page = next(
             page for page in self.parent.featurePages if isinstance(page, TaskPanelContainment))
         self.form.showContainment = self.containment_page.form.showContainment
+        self.form.showStock = self.containment_page.form.showStock
+        if not getattr(obj.Proxy, "supports_stock_guide", True):
+            self.form.showStock.setChecked(False)
+            self.form.showStock.setEnabled(False)
+            self.form.showStock.setToolTip(FreeCAD.Qt.translate(
+                "PathTurn", "The stock guide is unavailable for internal boring."))
         self.containment = ContainmentPreview(obj.ViewObject.RootNode)
+        from .PathTurnStockPreview import StockGuide
+
+        self.stock_guide = StockGuide()
+        self.stock_mode = QtGui.QComboBox()
+        self.stock_mode.addItems([
+            FreeCAD.Qt.translate("PathTurn", "Stock before operation"),
+            FreeCAD.Qt.translate("PathTurn", "Stock after operation")])
+        self.stock_mode.setCurrentIndex(0)
+        self.stock_status = QtGui.QLabel()
+        self.stock_status.setWordWrap(True)
+        layout = self.containment_page.form.layout()
+        row = layout.rowCount()
+        layout.addWidget(self.stock_mode, row, 0, 1, 3)
+        layout.addWidget(self.stock_status, row + 1, 0, 1, 3)
+        self.stock_mode.currentIndexChanged.connect(self.updateContainment)
+        self.stock_timer = QtCore.QTimer(self.form)
+        self.stock_timer.setSingleShot(True)
+        self.stock_timer.timeout.connect(self.updateContainment)
         self.containment_error = None
         self.form.showContainment.toggled.connect(self.updateContainment)
+        self.form.showStock.toggled.connect(self.updateContainment)
         self.updateContainment()
+        self.observing = True
         FreeCAD.addDocumentObserver(self)
+        self.form.destroyed.connect(self.stopObserving)
+        self.containment_page.form.destroyed.connect(self.stopObserving)
+
+    def stopObserving(self, *args):
+        if self.observing:
+            self.stock_timer.stop()
+            FreeCAD.removeDocumentObserver(self)
+            self.observing = False
 
     def slotChangedObject(self, obj, prop):
+        if obj.Document == self.obj.Document:
+            self.stock_guide.key = None
+            self.stock_status.setText(FreeCAD.Qt.translate("PathTurn", "Stock guide updating..."))
+            self.containment.clear()
+            self.stock_timer.start(250)
         if ((obj == getattr(self.job, "SetupSheet", None) and prop == "SafeHeightOffset")
                 or (obj == getattr(self.obj.ToolController, "Tool", None) and prop == "ToolPost")):
             self.containment_page.setFields(self.obj)
             self.updateContainment()
 
     def updateContainment(self, *args):
-        if not self.form.showContainment.isChecked():
-            self.containment.clear()
+        self.containment.clear()
+        if self.form.showContainment.isChecked():
+            try:
+                self.containment.update(self.obj)
+            except ValueError as error:
+                message = str(error)
+                if message != self.containment_error:
+                    PathLog.warning(message)
+                self.containment_error = message
+            else:
+                self.containment_error = None
+        show_stock = self.form.showStock.isChecked()
+        self.stock_mode.setEnabled(show_stock)
+        self.stock_status.setVisible(show_stock)
+        if not show_stock:
             return
         try:
-            self.containment.update(self.obj)
-        except ValueError as error:
-            message = str(error)
-            if message != self.containment_error:
-                PathLog.warning(message)
-            self.containment_error = message
-        else:
-            self.containment_error = None
+            show_after = bool(self.stock_mode.currentIndex())
+            before, after, complete = self.stock_guide.calculate(
+                self.obj, include_current=show_after)
+            snapshot = after if self.stock_mode.currentIndex() else before
+            rear = PathTurnHelpers.getContainment(self.obj).XMax <= 0
+            self.containment.show_stock(snapshot.edges(), rear, polygons=snapshot.polygons())
+            message = ""
+            if show_after and not complete:
+                message = FreeCAD.Qt.translate("PathTurn", "No current path: showing stock before operation.")
+            self.stock_status.setText(message)
+            self.stock_status.setVisible(bool(message))
+        except (ValueError, RuntimeError) as error:
+            self.stock_status.setText(FreeCAD.Qt.translate(
+                "PathTurn", "Stock guide unavailable: {error}").format(error=str(error)))
 
     def updateData(self, obj, prop):
         if prop in ("MinDiameter", "MaxDiameter", "StartDepth", "FinalDepth", "ToolController"):
             self.updateContainment()
 
     def cleanupPage(self, obj):
-        FreeCAD.removeDocumentObserver(self)
+        self.stopObserving()
         try:
             self.form.showContainment.toggled.disconnect(self.updateContainment)
+            self.form.showStock.toggled.disconnect(self.updateContainment)
         except (ReferenceError, RuntimeError) as error:
             PathLog.debug("Containment controls already destroyed: {}".format(error))
         try:
