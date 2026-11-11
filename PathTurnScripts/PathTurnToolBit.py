@@ -12,6 +12,11 @@ import Path.Tool.Bit as PathToolBit
 TOOL_POSTS = ("Front", "Rear")
 
 
+def is_drill_tool(tool):
+    return (str(getattr(tool, "ShapeType", "")).lower() == "drill"
+            or getattr(tool, "ToolKind", None) == "Drill")
+
+
 def post_from_parameters(parameters):
     """Read and validate the physical tool post."""
     post = parameters.get("ToolPost")
@@ -210,7 +215,15 @@ def custom_shape_from_bytes(data, identity):
         diameter = float(shape._params["Diameter"])
         if not math.isfinite(diameter) or diameter <= 0:
             raise ValueError("CAM Diameter must be positive and finite.")
-        if "ToolPost" not in shape.fields or set(shape.fields["ToolPost"]["choices"]) != set(TOOL_POSTS):
+        if shape._params.get("ToolKind") == "Drill":
+            required = {"Diameter": "App::PropertyLength", "Length": "App::PropertyLength",
+                        "TipAngle": "App::PropertyAngle"}
+            if any(name not in shape.fields or shape.fields[name]["type"] != kind
+                   for name, kind in required.items()):
+                raise ValueError("A drill must define Diameter, Length and TipAngle with length/angle units.")
+            if not shape.fields["ToolKind"]["readonly"]:
+                raise ValueError("The drill ToolKind must be read-only.")
+        elif "ToolPost" not in shape.fields or set(shape.fields["ToolPost"]["choices"]) != set(TOOL_POSTS):
             raise ValueError("Attributes must define a ToolPost (Front/Rear) enumeration in Shape.")
         if "Compensation" in shape.fields and not shape.fields["Compensation"]["choices"]:
             raise ValueError("An optional Compensation property must be an enumeration with choices.")

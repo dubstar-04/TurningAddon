@@ -16,6 +16,7 @@ workbench is activated. It uses an externally installed
 * Turning Parting operation
 * Turning Grooving operation
 * Internal clearing and finishing Boring operation
+* Straight centreline Drilling operation (proof of concept)
 * Turning Tool Library
 
 ## Requirements
@@ -24,10 +25,65 @@ workbench is activated. It uses an externally installed
 * Python3
 * FreeCAD's Qt/PySide runtime
 
-Turning operation tools must define **ToolPost** as **Front** or **Rear**.
+Insert-based turning operation tools must define **ToolPost** as **Front** or **Rear**.
 If the selected tool lacks a valid value, opening the operation editor shows
 a warning instead of starting an incomplete task panel. Select a suitable
 turning tool through the operation's Tool Controller, then reopen the editor.
+**Turn Drill** instead requires a native FreeCAD **Drill** ToolBit or the bundled
+**Centreline drill**, without
+ToolPost or Front/Rear settings.
+New operations retain a compatible inherited Tool Controller; otherwise they
+select a compatible controller from the job. Tool lists are filtered by operation
+type, so an insert operation following drilling does not inherit the drill.
+Opening an existing operation with an incompatible controller selects an available
+compatible controller and reports the replacement. If none exists, add a suitable
+Tool Controller to the job before editing.
+
+## Testing centreline drilling
+
+Requires a LibLathe build containing `liblathe.op.drill.DrillOP` and
+`liblathe.tool.drill.Drill`. Restart FreeCAD after installing them.
+
+1. In **Turning Tool Library**, create a tool from the **Centreline drill**
+   template. Set **Diameter**, **TipAngle** (included point angle in degrees)
+   and **Length** (overall length), then add it to the CAM job.
+   The template's Attributes object belongs to its Body, so parameters travel
+   with the native tool geometry rather than becoming an unmanaged document object.
+   The default tip angle is **118 degrees**; **135 degrees** is another typical
+   choice and can be entered directly.
+   The preview and native solid update with these values; the datum is the tip
+   at X=0/Z=0 and the drill body extends toward +Z. No Front/Rear settings apply.
+   Diameter must be positive, tip angle strictly between 0 and 180 degrees,
+   and length greater than the conical point length.
+   FreeCAD's standard native **Drill** ToolBits (for example **5mm Drill**)
+   are also supported through standard tool management.
+2. Create **CAM -> CAM Addons -> Turning Addon -> Turn Drill**. No Base
+   Geometry selection is needed. Choose the drill's controller and set its
+   **Vertical Feed**, spindle settings and coolant.
+   Newly created Tool Controllers may have no feed set: enter a suitable positive
+   Vertical Feed before generating a path. Tool dimensions do not determine a
+   machining feed automatically.
+3. On **Containment**, choose a safe **Start depth** entry plane and set
+   **Final tip depth** below it. Start Depth may lie inside the original stock
+   envelope; no starting-stock access check or automatic adjustment is made.
+   The user is responsible for entry and retract clearance. X is fixed at zero. Final depth is
+   the drill **tip**, not the full-diameter hole bottom; the latter lies one
+   conical point length ahead of the tip.
+4. The path rapids to Start Depth plus the job **Safe Height Offset**, approaches
+   Start Depth axially, feeds to Final Tip Depth and retracts to front clearance.
+   Clearance must be positive. Feed is passed through from the Tool Controller,
+   consistently with the other turning operations. Depth exceeding the ToolBit's
+   overall Length is rejected, but flute length and holder/chuck fit are not checked.
+5. Apply/recompute to inspect the shared before/after stock preview. It includes
+   the pointed bottom and carries the drilled cavity forward to later operations,
+   including boring. It neither validates boring access nor changes its planner.
+
+This POC performs **straight drilling only**: no pecks, canned cycles, dwell,
+automatic breakthrough, off-axis/live-tool drilling or automatic hole recognition.
+For through holes, explicitly account for point length in the tip depth.
+It does not protect the target model from a chosen over-depth, certify travel
+from an unknown initial position, or validate chip evacuation, tool/holder fit
+or machine safety. Initial stock still uses its outer envelope.
 
 ## Containment and clearance
 

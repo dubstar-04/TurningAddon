@@ -97,9 +97,15 @@ class StockGuide:
             tool = operation.ToolController.Tool
             if "Touched" in tool.State or "Touched" in operation.ToolController.State:
                 raise ValueError("Stock guide is stale; recompute the tool and operations first")
-            sign = -1 if post_from_parameters({"ToolPost": tool.ToolPost}) == "Rear" else 1
-            polygon = insert_polygon(helpers.getToolSegments(tool.Shape))
-            polygon = [(sign * x, z) for x, z in polygon]
+            if getattr(operation.Proxy, "centreline_drilling", False):
+                from .PathTurnDrill import getDrill
+
+                sign = 1
+                polygon = insert_polygon(getDrill(tool).get_segmentgroup().getSegments())
+            else:
+                sign = -1 if post_from_parameters({"ToolPost": tool.ToolPost}) == "Rear" else 1
+                polygon = insert_polygon(helpers.getToolSegments(tool.Shape))
+                polygon = [(sign * x, z) for x, z in polygon]
             moves = feeds(commands, sign)
             if not moves:
                 raise ValueError("Stock guide found no generated cutting feeds")

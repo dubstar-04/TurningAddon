@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "name": "Centreline drill",
+  "shape": "Drill.fcstd",
+  "shape-type": "TurningCustom",
+  "parameter": {
+    "Diameter": "5 mm",
+    "TipAngle": "118 deg",
+    "Length": "50 mm"
+  },
+  "attribute": {
+    "description": "Centreline drill with a tip datum, variable diameter, included tip angle (118 degrees by default; 135 degrees also supported) and overall length."
+  }
+}

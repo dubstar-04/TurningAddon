@@ -76,15 +76,16 @@ class ContainmentPreview:
 
     def update(self, obj):
         self.clear()
-        values = (obj.MinDiameter.Value, obj.MaxDiameter.Value,
-                  obj.FinalDepth.Value, obj.StartDepth.Value)
+        bounds = getContainment(obj)
+        values = (bounds.XMin, bounds.XMax, bounds.ZMin, bounds.ZMax)
         if (not all(math.isfinite(value) for value in values)
-                or values[0] < 0 or values[0] >= values[1] or values[2] >= values[3]):
+                or values[0] >= values[1] or values[2] >= values[3]
+                or (not getattr(obj.Proxy, "centreline_drilling", False)
+                    and obj.MinDiameter.Value < 0)):
             raise ValueError(FreeCAD.Qt.translate(
                 "PathTurn", "Containment requires 0 <= minimum diameter < maximum diameter "
                 "and final depth < start depth."))
 
-        bounds = getContainment(obj)
         job = PathUtils.findParentJob(obj)
         if job is None:
             raise ValueError(FreeCAD.Qt.translate(
@@ -108,7 +109,11 @@ class ContainmentPreview:
             [(x0, 0, z1), (x1, 0, z1)], magenta)
         self._boundary(
             [(x0, 0, z0), (x1, 0, z0)], magenta)
-        if not getattr(obj.Proxy, "internal_finishing", False):
+        if getattr(obj.Proxy, "centreline_drilling", False):
+            self._boundary(
+                [(x0, 0, z1 + clearance), (x1, 0, z1 + clearance)], magenta,
+                dashed=True)
+        elif not getattr(obj.Proxy, "internal_finishing", False):
             clearance_x = outer + sign * clearance
             self._boundary(
                 [(clearance_x, 0, z0), (clearance_x, 0, z1)], magenta,

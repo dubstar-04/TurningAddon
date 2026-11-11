@@ -27,6 +27,7 @@ import FreeCADGui
 import Path.Log as PathLog
 import Path.Op.Gui.Base as PathOpGui
 import Path.Op.Gui.Selection as PathSelection
+from PathScripts import PathUtils
 #import PathGui
 
 import Path.Base.Gui.Util as PathGuiUtil
@@ -55,7 +56,7 @@ _path_selection = PathSelection.select
 
 
 def _select_with_turning_fallback(op):
-    if op == "TurnBore":
+    if op in ("TurnBore", "TurnDrill"):
         return PathSelection.profileselect
     try:
         return _path_selection(op)
@@ -78,14 +79,28 @@ if not getattr(PathOpGui.ViewProvider.setEdit, "_turning_tool_check", False):
         if mode == 0 and self.OpPageModule.startswith("PathTurnScripts."):
             controller = getattr(view.Object, "ToolController", None)
             tool = getattr(controller, "Tool", None)
+            if not view.Object.Proxy.isToolSupported(view.Object, tool):
+                compatible = PathUtils.findToolController(view.Object, view.Object.Proxy)
+                if compatible is not None:
+                    PathLog.warning(FreeCAD.Qt.translate(
+                        "PathTurn", "Replacing incompatible Tool Controller with {name}.").format(
+                            name=compatible.Label))
+                    view.Object.ToolController = compatible
+                    tool = compatible.Tool
             try:
-                post_from_parameters({"ToolPost": getattr(tool, "ToolPost", None)})
-            except ValueError:
-                message = FreeCAD.Qt.translate(
-                    "PathTurn", "The selected tool is not configured for turning: "
-                    "ToolPost must be Front or Rear.\n\n"
-                    "Select a turning tool with a valid ToolPost in the operation's "
-                    "Tool Controller before editing.")
+                if getattr(view.Object.Proxy, "centreline_drilling", False):
+                    from .PathTurnDrill import getDrill
+
+                    getDrill(tool)
+                else:
+                    post_from_parameters({"ToolPost": getattr(tool, "ToolPost", None)})
+            except ValueError as error:
+                message = (str(error) if getattr(view.Object.Proxy, "centreline_drilling", False) else
+                           FreeCAD.Qt.translate(
+                               "PathTurn", "The selected tool is not configured for turning: "
+                               "ToolPost must be Front or Rear.\n\n"
+                               "Select a turning tool with a valid ToolPost in the operation's "
+                               "Tool Controller before editing."))
                 PathLog.warning(message)
                 QtGui.QMessageBox.warning(
                     FreeCADGui.getMainWindow(),

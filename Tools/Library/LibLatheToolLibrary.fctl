@@ -23,6 +23,10 @@
     {
       "nr": 6,
       "path": "grooving.fctb"
+    },
+    {
+      "nr": 7,
+      "path": "drill.fctb"
     }
   ],
   "version": 1
