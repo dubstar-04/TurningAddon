@@ -59,6 +59,7 @@ class ObjectTurnFace(PathTurnBase.ObjectOp):
 
         containmentBounds = PathTurnHelpers.getContainment(obj)
         facingOP.add_containment(containmentBounds)
+        facingOP.add_stock(PathTurnHelpers.getStock(obj))
 
         facingOP.addPartSegments(self.part_outline)
         facingOP.add_tool(turnTool)

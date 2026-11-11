@@ -121,7 +121,7 @@ class ObjectOp(PathOp.ObjectOp):
         path.Commands = []
         obj.Path = path
 
-        self.part_outline = self.get_part_outline()
+        self.part_outline = self.get_part_outline(obj)
         self.generate_gcode(obj)
 
     def opSetDefaultValues(self, obj, job):
@@ -147,7 +147,7 @@ class ObjectOp(PathOp.ObjectOp):
         }
         return params
 
-    def get_part_outline(self):
+    def get_part_outline(self, obj):
         return PathTurnHelpers.getPartOutline(base.Shape for base in self.model)
 
     def generate_gcode(self, obj):
