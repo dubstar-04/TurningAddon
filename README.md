@@ -15,6 +15,7 @@ workbench is activated. It uses an externally installed
 * Turning Profiling operation
 * Turning Parting operation
 * Turning Grooving operation
+* Turning Thread operation
 * Turning Tool Library
 
 ## Requirements
