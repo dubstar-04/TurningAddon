@@ -45,8 +45,13 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
         try:
             self.bindings = self.mapping(obj)
             expressions = dict(obj.ExpressionEngine)
+            standard_dimensions = (
+                hasattr(obj, "ThreadStandard") and obj.ThreadStandard != "Custom")
             for name, (prop, scale) in self.bindings.items():
                 widget = self.widgets[name]
+                preset_locked = standard_dimensions and prop in ("MinDiameter", "MaxDiameter")
+                widget.setEnabled(not preset_locked)
+                getattr(self.form, name + "Set").setEnabled(not preset_locked)
                 widget.setProperty(
                     "unit", FreeCAD.Units.Quantity(1, FreeCAD.Units.Length).getUserPreferred()[2])
                 widget.setProperty("minimum", -1e9 if scale < 0 or name.endswith("Z") else 0)
@@ -61,7 +66,8 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
                         value=f"({expression}) * {scale:g}") if expression else
                     FreeCAD.Qt.translate(
                         "PathTurn", "Signed coordinate in mm (X is radius, not diameter). "
-                        "Right-click to set an expression."))
+                        "Right-click to set an expression." if not preset_locked else
+                        "The selected standard thread size controls this diameter. Choose Custom to edit it."))
         finally:
             self.updating = False
         self.updateSelection(obj, FreeCADGui.Selection.getSelectionEx())
@@ -90,7 +96,7 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
     def updateData(self, obj, prop):
         if not self.updating and prop in (
                 "MinDiameter", "MaxDiameter", "StartDepth", "FinalDepth",
-                "ExpressionEngine", "ToolController"):
+                "ExpressionEngine", "ToolController", "ThreadStandard"):
             self.setFields(obj)
 
     def expressionMenu(self, name, position):
@@ -162,7 +168,8 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
     def updateSelection(self, obj, selection):
         for name in self.widgets:
             getattr(self.form, name + "Set").setEnabled(
-                self.selectionValue(name, selection) is not None)
+                self.widgets[name].isEnabled()
+                and self.selectionValue(name, selection) is not None)
 
     def setFromSelection(self, name):
         value = self.selectionValue(name, FreeCADGui.Selection.getSelectionEx())
