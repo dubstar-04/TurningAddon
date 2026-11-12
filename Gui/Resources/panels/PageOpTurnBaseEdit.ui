@@ -99,7 +99,47 @@
         </property>
        </widget>
       </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="pitchLabel">
+        <property name="text">
+         <string>Thread Pitch / Lead</string>
+        </property>
+        <property name="visible">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="Gui::InputField" name="pitch">
+        <property name="toolTip">
+         <string>G33 distance per spindle revolution.</string>
+        </property>
+        <property name="visible">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
       <item row="6" column="0">
+       <widget class="QLabel" name="springPassesLabel">
+        <property name="text">
+         <string>Spring Passes</string>
+        </property>
+        <property name="visible">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QSpinBox" name="springPasses">
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="visible">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="0">
        <spacer name="verticalSpacer">
         <property name="orientation">
          <enum>Qt::Vertical</enum>
