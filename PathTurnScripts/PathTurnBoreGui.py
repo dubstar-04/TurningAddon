@@ -12,8 +12,6 @@ from . import PathTurnBore
 
 
 _icon = Path(__file__).parent.parent / "Gui/Resources/Icons/CAM-TurnBore.svg"
-FreeCADGui.addIcon("CAM-TurnBore", _icon.read_text(), "SVG")
-FreeCADGui.addIcon(":/icons/CAM-TurnBore.svg", _icon.read_text(), "SVG")
 
 
 class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):

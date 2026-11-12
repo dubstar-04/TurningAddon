@@ -13,8 +13,6 @@ from .PathTurnContainmentGui import TaskPanelContainment
 
 
 _icon = Path(__file__).parent.parent / "Gui/Resources/Icons/CAM-TurnDrill.svg"
-FreeCADGui.addIcon("CAM-TurnDrill", _icon.read_text(), "SVG")
-FreeCADGui.addIcon(":/icons/CAM-TurnDrill.svg", _icon.read_text(), "SVG")
 
 
 class TaskPanelDrillContainment(TaskPanelContainment):

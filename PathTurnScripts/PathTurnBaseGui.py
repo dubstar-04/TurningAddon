@@ -22,6 +22,8 @@
 # *                                                                         *
 # ***************************************************************************
 
+import os
+
 import FreeCAD
 import FreeCADGui
 import Path.Log as PathLog
@@ -43,6 +45,16 @@ __title__ = "Path Turn Base Gui"
 __author__ = "dubstar-04 (Daniel Wood)"
 __url__ = "http://www.freecadweb.org"
 __doc__ = "Base class Gui implementation for turning operations."
+
+# Operation view providers resolve tree icons as ":/icons/<pixmap>.svg",
+# so register every addon icon under that resource-style name.
+_iconDir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Gui", "Resources", "Icons")
+for _iconFile in os.listdir(_iconDir):
+    if _iconFile.endswith(".svg"):
+        with open(os.path.join(_iconDir, _iconFile), encoding="utf-8") as _f:
+            _svg = _f.read()
+        FreeCADGui.addIcon(os.path.splitext(_iconFile)[0], _svg, "SVG")
+        FreeCADGui.addIcon(":/icons/" + _iconFile, _svg, "SVG")
 
 LOGLEVEL = False
 
