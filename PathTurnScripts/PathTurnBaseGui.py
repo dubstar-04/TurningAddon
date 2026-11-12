@@ -144,8 +144,9 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         if not getattr(obj.Proxy, "supports_stock_guide", True):
             self.form.showStock.setChecked(False)
             self.form.showStock.setEnabled(False)
-            self.form.showStock.setToolTip(FreeCAD.Qt.translate(
-                "PathTurn", "The stock guide is unavailable for internal boring."))
+            reason = getattr(obj.Proxy, "stock_guide_unavailable_reason", None)
+            self.form.showStock.setToolTip(
+                reason or FreeCAD.Qt.translate("PathTurn", "The stock guide is unavailable for this operation."))
         self.containment = ContainmentPreview(obj.ViewObject.RootNode)
         from .PathTurnStockPreview import StockGuide
 
