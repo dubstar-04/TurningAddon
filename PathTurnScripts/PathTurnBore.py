@@ -99,7 +99,8 @@ class ObjectTurnBore(PathTurnBase.ObjectOp):
     @staticmethod
     def _addCutDirection(obj):
         direction = "Radial"
-        if not hasattr(obj, "CutDirection"):
+        created = not hasattr(obj, "CutDirection")
+        if created:
             obj.addProperty("App::PropertyEnumeration", "CutDirection", "Turn Path",
                             FreeCAD.Qt.translate("TurnPath", "Internal clearing feed direction"))
         else:
@@ -108,7 +109,7 @@ class ObjectTurnBore(PathTurnBase.ObjectOp):
             if current not in directions:
                 raise ValueError(f"Unsupported boring cut direction: {current}")
             direction = directions[current]
-        if obj.getEnumerationsOfProperty("CutDirection") != ["Radial", "Axial"]:
+        if created or obj.getEnumerationsOfProperty("CutDirection") != ["Radial", "Axial"]:
             obj.CutDirection = ["Radial", "Axial"]
             obj.CutDirection = direction
 
