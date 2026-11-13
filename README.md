@@ -15,6 +15,7 @@ turning paths for use with a CNC lathe. It uses an externally installed
 * Turning Threading
 * Turning Drilling
 * Turning Tool Library
+* Turning Simulation
 
 ## Requirements
 * FreeCAD v1.1 or later with the CAM workbench

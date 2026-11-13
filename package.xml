@@ -14,6 +14,7 @@
       <freecadmin>1.1.0</freecadmin>
       <depend>liblathe</depend>
       <depend>packaging</depend>
+      <depend>numpy</depend>
     </workbench>
   </content>
 
