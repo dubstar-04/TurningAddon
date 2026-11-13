@@ -68,7 +68,7 @@ _path_selection = PathSelection.select
 
 
 def _select_with_turning_fallback(op):
-    if op in ("TurnBore", "TurnDrill"):
+    if op == "TurnDrill":
         return PathSelection.profileselect
     try:
         return _path_selection(op)
