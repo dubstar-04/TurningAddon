@@ -50,7 +50,8 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
     def setOpFields(self, obj):
         '''setFields(obj) ... transfers obj's property values to UI'''
 
-        self.form.finishPasses.setEnabled(False)
+        self.form.finishPasses.hide()
+        self.form.label_5.hide()
 
 
 
