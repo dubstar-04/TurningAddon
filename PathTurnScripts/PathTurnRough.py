@@ -46,6 +46,8 @@ class ObjectTurnRough(PathTurnBase.ObjectOp):
     '''Proxy class for turning roughing operations.'''
 
     supports_internal_mode = True
+    uses_stock_to_leave = True
+    uses_allow_grooving = True
     direction_tooltip = translate("TurnPath", "Roughing direction")
     pass_offset_label = translate("TurnPath", "Radial Pass Offset")
 
@@ -80,7 +82,6 @@ def SetupProperties():
     setup.append("Mode")
     setup.append("Direction")
     setup.append("PassOffset")
-    setup.append("FinishPasses")
     setup.append("AllowGrooving")
     return setup
 

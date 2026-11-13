@@ -68,10 +68,7 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
 
 
 def SetupProperties():
-    setup = []
-    setup.append("FinishPasses")
-    setup.append("AllowGrooving")
-    return setup
+    return []
 
 
 def Create(name, obj=None, parentJob=None):

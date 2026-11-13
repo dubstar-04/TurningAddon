@@ -27,7 +27,7 @@ class ObjectTurnDrill(PathTurnBase.ObjectOp):
 
     def setEditorModes(self, obj, features):
         super().setEditorModes(obj, features)
-        for name in ("MinDiameter", "MaxDiameter", "FinishPasses", "StockToLeave", "AllowGrooving"):
+        for name in ("MinDiameter", "MaxDiameter"):
             if hasattr(obj, name):
                 obj.setEditorMode(name, 2)
 

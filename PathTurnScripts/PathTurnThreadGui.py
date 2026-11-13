@@ -125,11 +125,6 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
         obj.SpringPasses = self.form.springPasses.value()
 
     def setOpFields(self, obj):
-        for name in (
-                "label_6", "stockToLeave", "label_5", "finishPasses",
-                "finishPassOffsetLabel", "finishPassOffset", "allowGrooving"):
-            getattr(self.form, name).hide()
-
         standard = str(getattr(obj, "ThreadStandard", "Custom"))
         thread_class = str(getattr(obj, "ThreadClass", ""))
         thread_size = str(getattr(obj, "ThreadSize", ""))

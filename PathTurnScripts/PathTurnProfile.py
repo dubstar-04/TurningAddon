@@ -45,6 +45,9 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
     '''Proxy class for turning profile operations.'''
 
     supports_internal_mode = True
+    uses_finish_passes = True
+    uses_stock_to_leave = True
+    uses_allow_grooving = True
     direction_tooltip = translate("TurnPath", "Profiling direction")
 
     def op_generate_gcode(self, obj, turnTool):
