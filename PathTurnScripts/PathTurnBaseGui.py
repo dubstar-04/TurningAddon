@@ -219,6 +219,10 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             message = ""
             if show_after and not complete:
                 message = FreeCAD.Qt.translate("PathTurn", "No current path: showing stock before operation.")
+            if self.stock_guide.omitted_operations:
+                note = FreeCAD.Qt.translate(
+                    "PathTurn", "Threading passes are shown as uncut in the 2D stock preview.")
+                message = "\n".join(filter(None, (message, note)))
             self.stock_status.setText(message)
             self.stock_status.setVisible(bool(message))
         except (ValueError, RuntimeError) as error:

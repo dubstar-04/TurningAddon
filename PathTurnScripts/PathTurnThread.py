@@ -80,9 +80,7 @@ class ThreadData:
 
 class ObjectTurnThread(PathTurnBase.ObjectOp):
     pass_offset_label = FreeCAD.Qt.translate("TurnPath", "Radial Pass Offset")
-    supports_stock_guide = False
-    stock_guide_unavailable_reason = FreeCAD.Qt.translate(
-        "PathTurn", "The stock guide cannot represent helical thread geometry.")
+    stock_guide_skip_feeds = True
 
     def initOperation(self, obj):
         had_pass_offset = hasattr(obj, "PassOffset")
