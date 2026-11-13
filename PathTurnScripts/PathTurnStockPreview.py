@@ -55,6 +55,7 @@ class StockGuide:
         self.before = None
         self.after = None
         self.complete = False
+        self.omitted_operations = ()
 
     def calculate(self, obj, *, include_current=True):
         from .PathTurnBase import ObjectOp
@@ -86,7 +87,7 @@ class StockGuide:
             if not isinstance(getattr(operation, "Proxy", None), ObjectOp):
                 raise ValueError("Stock guide cannot model preceding non-turning operations")
             if not getattr(operation.Proxy, "supports_stock_guide", True):
-                raise ValueError("Stock guide does not support internal boring operations")
+                raise ValueError("Stock guide does not support this operation")
             if "Touched" in operation.State:
                 raise ValueError("Stock guide is stale; apply/recompute the operations first")
             commands = list(operation.Path.Commands)
@@ -94,6 +95,11 @@ class StockGuide:
                 if operation != obj:
                     raise ValueError("Stock guide requires a valid path for every preceding operation")
                 break
+            if getattr(operation.Proxy, "stock_guide_skip_feeds", False):
+                records.append((operation.Name, None, ()))
+                if operation == obj:
+                    complete = True
+                continue
             tool = operation.ToolController.Tool
             if "Touched" in tool.State or "Touched" in operation.ToolController.State:
                 raise ValueError("Stock guide is stale; recompute the tool and operations first")
@@ -112,7 +118,8 @@ class StockGuide:
             records.append((operation.Name, polygon, moves))
             if operation == obj:
                 complete = True
-        key = (tuple(vertices), tuple((name, tuple(tool), tuple(moves))
+        omitted_operations = tuple(name for name, tool, moves in records if tool is None)
+        key = (tuple(vertices), tuple((name, None if tool is None else tuple(tool), tuple(moves))
                                      for name, tool, moves in records), complete)
         if key == self.key:
             return self.before, self.after, self.complete
@@ -121,6 +128,8 @@ class StockGuide:
         for name, tool, moves in records:
             if name == obj.Name:
                 before = state.copy()
+            if tool is None:
+                continue
             state.remove_feeds(tool, moves)
         if not complete:
             before = state.copy()
@@ -131,4 +140,5 @@ class StockGuide:
             if not math.isclose(area, snapshot.area, rel_tol=1e-7, abs_tol=1e-7):
                 raise ValueError("Stock guide boundary is numerically unresolved")
         self.key, self.before, self.after, self.complete = key, before, after, complete
+        self.omitted_operations = omitted_operations
         return before, after, complete
