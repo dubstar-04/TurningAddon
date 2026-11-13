@@ -5,24 +5,19 @@ A FreeCAD CAM Addon to encourage the development of CNC turning functionality fo
 
 ## Description
 This addon appears under **CAM -> CAM Addons -> Turning Addon** and allows the creation of
-turning paths for use with a CNC lathe. The menu is restored whenever the CAM
-workbench is activated. It uses an externally installed
+turning paths for use with a CNC lathe. It uses an externally installed
 [LibLathe](https://github.com/dubstar-04/LibLathe) library; no library is bundled.
 
 ## Features
-* Turning Roughing operation: external/internal, axial `-Z`/`+Z` or `Radial`
-* Turning Profiling operation: external/internal, axial `-Z`/`+Z` or `Radial`
-* Turning Parting operation
-* Turning Thread operation
+* Turning Roughing
+* Turning Profiling
+* Turning Parting
+* Turning Threading
+* Turning Drilling
 * Turning Tool Library
-
 
 ## Requirements
 * FreeCAD v1.1 or later with the CAM workbench
-* The matching LibLathe `feature/architecture` build installed in FreeCAD's
-  Python environment, including its native extensions. Released LibLathe
-  packages do not yet provide this branch's architecture API. Restart FreeCAD
-  after updating LibLathe; updating the Addon alone does not update the library.
 
 ## Tool management
 
@@ -45,14 +40,7 @@ Containment visually sets the limits for operations.
 
 ## Remaining-stock guide
 
-The Containment page shows predicted remaining stock in amber. Choose
-**Stock before operation** or **Stock after operation**, and use
-**Show remaining stock** to toggle the preview. Apply/recompute changes to
-keep the results up to date.
-
-
-## Feedback
-If you have feedback or need to report bugs please participate on the related [Path Forum](https://forum.freecadweb.org/viewtopic.php?f=15&t=30563&start=0).
+**Stock before operation** or **Stock after operation**
 
 ## Disclaimer
 This is an experimental tool for development purposes and must be used at your own risk. Machine tools are dangerous and the author of this tool will not be responsible for any damage or personal injury caused by using incorrect tool paths or machining parameters.
