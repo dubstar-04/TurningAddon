@@ -135,7 +135,12 @@ class ObjectOp(PathOp.ObjectOp):
     def isToolSupported(self, obj, tool):
         from .PathTurnToolBit import is_drill_tool
 
-        return not is_drill_tool(tool) and getattr(tool, "ToolPost", None) in ("Front", "Rear")
+        if is_drill_tool(tool) or getattr(tool, "ToolPost", None) not in ("Front", "Rear"):
+            return False
+        return getattr(tool, "Mode", None) in (None, self.required_tool_mode())
+
+    def required_tool_mode(self):
+        return "Internal" if getattr(self, "internal_finishing", False) else "External"
 
     def opUpdateDepths(self, obj):
         obj.OpStartDepth = obj.OpStockZMax
@@ -164,6 +169,11 @@ class ObjectOp(PathOp.ObjectOp):
         Base function to generate gcode for the OP by writing path command to self.commandlist
         Calls operations op_generate_gcode.
         '''
+        mode = getattr(obj.ToolController.Tool, "Mode", None)
+        if mode not in (None, self.required_tool_mode()):
+            raise RuntimeError(translate(
+                "PathTurn", "This operation needs an {required} tool, but the selected tool is {mode}.").format(
+                    required=self.required_tool_mode(), mode=mode))
         if getattr(obj.ToolController.Tool, "Compensation", "Tip Tangent") != "Tip":
             from liblathe.version import __version__
             from packaging.version import Version
