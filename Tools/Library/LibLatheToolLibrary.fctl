@@ -27,6 +27,10 @@
     {
       "nr": 7,
       "path": "drill.fctb"
+    },
+    {
+      "nr": 8,
+      "path": "threading.fctb"
     }
   ],
   "version": 1
