@@ -32,6 +32,7 @@ import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
 from PySide import QtCore
 
+from liblathe.op.base import MachiningMode
 from liblathe.tool.tool import Tool, ToolSide
 
 __title__ = "Path Turn Base Operation"
@@ -60,6 +61,7 @@ class ObjectOp(PathOp.ObjectOp):
     uses_pass_offset = True
     pass_offset_label = translate("TurnPath", "Pass Offset")
     has_finish_offset = False
+    supports_internal_mode = False
 
     def opFeatures(self, obj):
         '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
@@ -80,7 +82,35 @@ class ObjectOp(PathOp.ObjectOp):
             obj.FinishPassOffset = 0.0
         obj.FinishPasses = 2
         obj.StockToLeave = 0
+        if self.supports_internal_mode:
+            self._addMachiningMode(obj)
         self.setEditorModes(obj, self.opFeatures(obj))
+
+    def opOnDocumentRestored(self, obj):
+        super().opOnDocumentRestored(obj)
+        if self.supports_internal_mode:
+            self._addMachiningMode(obj)
+
+    def onChanged(self, obj, prop):
+        parent = getattr(super(), "onChanged", None)
+        if parent is not None:
+            parent(obj, prop)
+        if self.supports_internal_mode and prop == "Mode" and hasattr(obj, "Direction"):
+            obj.Direction = (self.internal_direction if str(obj.Mode) == "Internal"
+                             else self.external_direction)
+
+    @staticmethod
+    def _addMachiningMode(obj):
+        values = ["External", "Internal"]
+        created = not hasattr(obj, "Mode")
+        if created:
+            obj.addProperty(
+                "App::PropertyEnumeration", "Mode", "Turn Path",
+                translate("TurnPath", "Machining mode"))
+        current = "External" if created else str(obj.Mode)
+        if created or obj.getEnumerationsOfProperty("Mode") != values:
+            obj.Mode = values
+            obj.Mode = current if current in values else "External"
 
     def setEditorModes(self, obj, features):
         super().setEditorModes(obj, features)
@@ -137,10 +167,15 @@ class ObjectOp(PathOp.ObjectOp):
 
         if is_drill_tool(tool) or getattr(tool, "ToolPost", None) not in ("Front", "Rear"):
             return False
-        return getattr(tool, "Mode", None) in (None, self.required_tool_mode())
+        return getattr(tool, "Mode", None) in (None, self.required_tool_mode(obj))
 
-    def required_tool_mode(self):
-        return "Internal" if getattr(self, "internal_finishing", False) else "External"
+    def required_tool_mode(self, obj=None):
+        if self.supports_internal_mode and obj is not None:
+            mode = str(getattr(obj, "Mode", "External"))
+            if mode not in ("External", "Internal"):
+                raise ValueError(f"Unsupported machining mode: {mode}")
+            return mode
+        return "External"
 
     def opUpdateDepths(self, obj):
         obj.OpStartDepth = obj.OpStockZMax
@@ -159,9 +194,13 @@ class ObjectOp(PathOp.ObjectOp):
             'vfeed': obj.ToolController.VertFeed.Value,
             'clearance': parentJob.SetupSheet.SafeHeightOffset.Value,
         }
+        if self.supports_internal_mode:
+            params["mode"] = MachiningMode[str(obj.Mode).upper()]
         return params
 
     def get_part_outline(self, obj):
+        if self.supports_internal_mode and str(obj.Mode) == "Internal":
+            return PathTurnHelpers.getInternalOutline(obj, self.model)
         return PathTurnHelpers.getPartOutline(base.Shape for base in self.model)
 
     def generate_gcode(self, obj):
@@ -169,11 +208,12 @@ class ObjectOp(PathOp.ObjectOp):
         Base function to generate gcode for the OP by writing path command to self.commandlist
         Calls operations op_generate_gcode.
         '''
-        mode = getattr(obj.ToolController.Tool, "Mode", None)
-        if mode not in (None, self.required_tool_mode()):
+        tool_mode = getattr(obj.ToolController.Tool, "Mode", None)
+        required_mode = self.required_tool_mode(obj)
+        if tool_mode not in (None, required_mode):
             raise RuntimeError(translate(
                 "PathTurn", "This operation needs an {required} tool, but the selected tool is {mode}.").format(
-                    required=self.required_tool_mode(), mode=mode))
+                    required=required_mode, mode=tool_mode))
         if getattr(obj.ToolController.Tool, "Compensation", "Tip Tangent") != "Tip":
             from liblathe.version import __version__
             from packaging.version import Version

@@ -30,6 +30,7 @@ from PySide import QtCore
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
 import liblathe.op.rough as LLP
+from liblathe.op.rough import RoughDirection
 
 __title__ = "Path Turn Rough Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -44,7 +45,50 @@ def translate(context, text, disambig=None):
 class ObjectTurnRough(PathTurnBase.ObjectOp):
     '''Proxy class for turning roughing operations.'''
 
+    supports_internal_mode = True
+    external_direction = "-Z"
+    internal_direction = "Radial"
     pass_offset_label = translate("TurnPath", "Radial Pass Offset")
+
+    def pass_offset_label_for(self, obj):
+        label = "Axial Pass Offset" if str(obj.Direction) == "Radial" else "Radial Pass Offset"
+        return translate("TurnPath", label)
+
+    @staticmethod
+    def _addDirection(obj):
+        values = ["-Z", "+Z", "Radial"]
+        created = not hasattr(obj, "Direction")
+        if created:
+            obj.addProperty(
+                "App::PropertyEnumeration", "Direction", "Turn Path",
+                translate("TurnPath", "Roughing direction"))
+        default = "Radial" if str(getattr(obj, "Mode", "External")) == "Internal" else "-Z"
+        current = default if created else str(obj.Direction)
+        if current == "-X":
+            current = "Radial"
+        if created or obj.getEnumerationsOfProperty("Direction") != values:
+            obj.Direction = values
+            obj.Direction = current if current in values else default
+
+    def initOperation(self, obj):
+        super().initOperation(obj)
+        self._addDirection(obj)
+
+    def opOnDocumentRestored(self, obj):
+        super().opOnDocumentRestored(obj)
+        self._addDirection(obj)
+
+    def getProps(self, obj):
+        directions = {
+            "-Z": RoughDirection.NEGATIVE_Z,
+            "+Z": RoughDirection.POSITIVE_Z,
+            "Radial": RoughDirection.RADIAL,
+        }
+        try:
+            direction = directions[str(obj.Direction)]
+        except KeyError as error:
+            raise ValueError(f"Unsupported roughing direction: {obj.Direction}") from error
+        return {**super().getProps(obj), "direction": direction}
 
     def op_generate_gcode(self, obj, turnTool):
         '''
@@ -69,6 +113,8 @@ class ObjectTurnRough(PathTurnBase.ObjectOp):
 
 def SetupProperties():
     setup = []
+    setup.append("Mode")
+    setup.append("Direction")
     setup.append("PassOffset")
     setup.append("FinishPasses")
     setup.append("AllowGrooving")

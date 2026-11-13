@@ -131,6 +131,83 @@ def getPartOutline(models):
     return segments
 
 
+def _internalSections(shape):
+    """Return coaxial internal walls and inward-facing floors from a solid."""
+    box = shape.BoundBox
+    radius = max(abs(box.XMin), abs(box.XMax), abs(box.YMin), abs(box.YMax)) + 1
+    plane = Part.makePlane(
+        box.ZLength + 2, radius, FreeCAD.Vector(0, 0, box.ZMin - 1), FreeCAD.Vector(0, 1, 0))
+    walls, floors = [], []
+    for face in shape.Faces:
+        surface = face.Surface
+        planar = isinstance(surface, Part.Plane)
+        if not isinstance(surface, (Part.Plane, Part.Cylinder, Part.Cone, Part.Toroid)):
+            continue
+        if abs(abs(surface.Axis.z) - 1) > 1e-7:
+            continue
+        if not planar and (abs(surface.Center.x) > 1e-7 or abs(surface.Center.y) > 1e-7):
+            continue
+        for edge in face.section(plane).Edges:
+            middle = edge.valueAt((edge.FirstParameter + edge.LastParameter) / 2)
+            u, v = surface.parameter(middle)
+            normal = face.normalAt(u, v)
+            if planar and normal.z > 0:
+                floors.append(edge)
+            elif not planar and normal.x < -1e-7:
+                walls.append(edge)
+    edges = list(walls)
+    for floor in floors:
+        endpoints = [vertex.Point for vertex in floor.Vertexes]
+        if len(endpoints) != 2:
+            continue
+        outer = max(endpoints, key=lambda point: point.x)
+        if any(outer.distanceToPoint(vertex.Point) < 1e-7
+               and abs(vertex.Point.z - wall.BoundBox.ZMin) < 1e-7
+               for wall in walls for vertex in wall.Vertexes):
+            edges.append(floor)
+    return edges
+
+
+def getInternalOutline(obj, models=None):
+    """Select exactly one connected coaxial internal contour using containment."""
+    if models is None:
+        from PathScripts import PathUtils
+
+        job = PathUtils.findParentJob(obj)
+        if job is None:
+            raise ValueError(FreeCAD.Qt.translate("PathTurn", "Internal machining requires a parent CAM job."))
+        models = job.Model.Group
+    bounds = getContainment(obj)
+    inner, outer = sorted((abs(bounds.XMin), abs(bounds.XMax)))
+    window = Part.Face(Part.makePolygon([
+        FreeCAD.Vector(inner, 0, bounds.ZMin), FreeCAD.Vector(outer, 0, bounds.ZMin),
+        FreeCAD.Vector(outer, 0, bounds.ZMax), FreeCAD.Vector(inner, 0, bounds.ZMax),
+        FreeCAD.Vector(inner, 0, bounds.ZMin)]))
+    contours = []
+    for model in models:
+        shape = model.Shape
+        if shape.isNull() or not shape.Solids or not shape.isValid():
+            raise ValueError(FreeCAD.Qt.translate(
+                "PathTurn", "Internal machining requires valid solid job models."))
+        for group in Part.sortEdges(_internalSections(shape), 1e-7):
+            if not any(edge.common(window).Length > 1e-7 for edge in group):
+                continue
+            wire = Part.Wire(group)
+            if wire.isClosed():
+                raise ValueError(FreeCAD.Qt.translate(
+                    "PathTurn", "The selected internal contour must be open from its mouth to its bottom."))
+            segments = getSegmentsFromEdges(wire.OrderedEdges, True)
+            if segments[0].start.Z < segments[-1].end.Z:
+                segments = [Segment(edge.end, edge.start, -edge.bulge) for edge in reversed(segments)]
+            contours.append(segments)
+    if len(contours) != 1:
+        raise ValueError(FreeCAD.Qt.translate(
+            "PathTurn", "Containment must select exactly one connected coaxial internal contour; "
+            "found {count}. Adjust the X/Z limits. Supported walls are cylinders, cones "
+            "and tori, with flat floors.").format(count=len(contours)))
+    return contours[0]
+
+
 def getRotationalProfile(model, tolerance=0.01):
     """Return a verified positive-X face enclosing the model's rotation about Z.
 

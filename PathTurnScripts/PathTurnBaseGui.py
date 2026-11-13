@@ -258,6 +258,19 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         if obj.Proxy.uses_pass_offset:
             PathGuiUtil.updateInputField(obj, "PassOffset", self.form.passOffset)
 
+        has_mode = hasattr(obj, "Mode")
+        has_direction = hasattr(obj, "Direction")
+        mode_changed = has_mode and str(obj.Mode) != self.form.mode.currentText()
+        if mode_changed:
+            obj.Mode = self.form.mode.currentText()
+            self.form.direction.blockSignals(True)
+            self.form.direction.setCurrentIndex(
+                self.form.direction.findText(str(obj.Direction)))
+            self.form.direction.blockSignals(False)
+        elif has_direction:
+            obj.Direction = self.form.direction.currentText()
+        self._setPassOffsetLabel(obj)
+
         obj.FinishPasses = self.form.finishPasses.value()
         obj.StockToLeave = self.form.stockToLeave.value()
         if hasattr(obj, "FinishPassOffset"):
@@ -275,7 +288,7 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
 
         self.form.passOffset.setVisible(obj.Proxy.uses_pass_offset)
         self.form.passOffsetLabel.setVisible(obj.Proxy.uses_pass_offset)
-        self.form.passOffsetLabel.setText(obj.Proxy.pass_offset_label)
+        self._setPassOffsetLabel(obj)
         self.form.passOffset.setText(obj.PassOffset.UserString)
         self.form.finishPasses.setValue(obj.FinishPasses)
         self.form.stockToLeave.setValue(obj.StockToLeave)
@@ -292,8 +305,27 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         else:
             self.form.allowGrooving.setCheckState(QtCore.Qt.Unchecked)
 
+        has_mode = hasattr(obj, "Mode")
+        has_direction = hasattr(obj, "Direction")
+        self.form.modeLabel.setVisible(has_mode)
+        self.form.mode.setVisible(has_mode)
+        self.form.directionLabel.setVisible(has_direction)
+        self.form.direction.setVisible(has_direction)
+        for field, prop in ((self.form.mode, "Mode"), (self.form.direction, "Direction")):
+            field.blockSignals(True)
+            field.clear()
+            if hasattr(obj, prop):
+                field.addItems(obj.getEnumerationsOfProperty(prop))
+                field.setCurrentIndex(field.findText(str(getattr(obj, prop))))
+            field.blockSignals(False)
+
         self.setOpFields(obj)
         self.updateContainment()
+
+    def _setPassOffsetLabel(self, obj):
+        label_for = getattr(obj.Proxy, "pass_offset_label_for", None)
+        label = label_for(obj) if label_for else obj.Proxy.pass_offset_label
+        self.form.passOffsetLabel.setText(label)
 
     def getSignalsForUpdate(self, obj):
         '''getSignalsForUpdate(obj) ... return list of signals for updating obj'''
@@ -301,6 +333,10 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
 
         if obj.Proxy.uses_pass_offset:
             signals.append(self.form.passOffset.editingFinished)
+        if hasattr(obj, "Mode"):
+            signals.append(self.form.mode.currentIndexChanged)
+        if hasattr(obj, "Direction"):
+            signals.append(self.form.direction.currentIndexChanged)
         signals.append(self.form.finishPasses.valueChanged)
         signals.append(self.form.stockToLeave.valueChanged)
         if hasattr(obj, "FinishPassOffset"):
