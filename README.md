@@ -15,6 +15,7 @@ turning paths for use with a CNC lathe. It uses an externally installed
 * Turning Threading
 * Turning Drilling
 * Turning Tool Library
+* CAM Simulation with turning-profile and generic dexel engines
 
 ## Requirements
 * FreeCAD v1.1 or later with the CAM workbench
@@ -41,6 +42,25 @@ Containment visually sets the limits for operations.
 ## Remaining-stock guide
 
 **Stock before operation** or **Stock after operation**
+
+## Simulation
+
+Open **CAM -> CAM Addons -> Turning Addon -> Simulation**, select the job,
+operations and engine, then use the timeline to play, pause, seek or step 1 mm
+forwards/backwards. Both turning and milling are retained. The
+`turning_profile_engine` uses NumPy and requires complete cylindrical stock
+centred on the Z spindle; `dexel_engine` also supports milling.
+
+Thread operations show tool motion only and leave the simulated stock unchanged.
+Helical thread geometry and turning arcs/G33/G76 commands are not supported.
+Close the simulation panel before editing the job or switching documents.
+
+The simulator is imported from [FreeCAD-CAM-Sim](https://github.com/dubstar-04/FreeCAD-CAM-Sim).
+Its original GPL-2.0 licence and source notices are retained separately in
+[PathTurnSimulation/LICENSE](PathTurnSimulation/LICENSE); the existing addon
+code retains its LGPL-2.1 licence.
+
+Simulator tests: `python3 -m pytest -q tests/simulation`.
 
 ## Disclaimer
 This is an experimental tool for development purposes and must be used at your own risk. Machine tools are dangerous and the author of this tool will not be responsible for any damage or personal injury caused by using incorrect tool paths or machining parameters.
