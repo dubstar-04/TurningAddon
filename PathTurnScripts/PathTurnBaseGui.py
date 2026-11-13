@@ -22,10 +22,14 @@
 # *                                                                         *
 # ***************************************************************************
 
+import os
+
 import FreeCAD
 import FreeCADGui
 import Path.Log as PathLog
 import Path.Op.Gui.Base as PathOpGui
+import Path.Op.Gui.Selection as PathSelection
+from PathScripts import PathUtils
 #import PathGui
 
 import Path.Base.Gui.Util as PathGuiUtil
@@ -33,11 +37,24 @@ import Path.Base.Gui.Util as PathGuiUtil
 from PySide import QtCore, QtGui
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
+from PathTurnScripts.PathTurnContainment import ContainmentPreview
+from PathTurnScripts.PathTurnContainmentGui import TaskPanelContainment
+from PathTurnScripts.PathTurnToolBit import post_from_parameters
 
 __title__ = "Path Turn Base Gui"
 __author__ = "dubstar-04 (Daniel Wood)"
 __url__ = "http://www.freecadweb.org"
 __doc__ = "Base class Gui implementation for turning operations."
+
+# Operation view providers resolve tree icons as ":/icons/<pixmap>.svg",
+# so register every addon icon under that resource-style name.
+_iconDir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Gui", "Resources", "Icons")
+for _iconFile in os.listdir(_iconDir):
+    if _iconFile.endswith(".svg"):
+        with open(os.path.join(_iconDir, _iconFile), encoding="utf-8") as _f:
+            _svg = _f.read()
+        FreeCADGui.addIcon(os.path.splitext(_iconFile)[0], _svg, "SVG")
+        FreeCADGui.addIcon(":/icons/" + _iconFile, _svg, "SVG")
 
 LOGLEVEL = False
 
@@ -47,12 +64,194 @@ if LOGLEVEL:
 else:
     PathLog.setLevel(PathLog.Level.NOTICE, PathLog.thisModule())
 
+_path_selection = PathSelection.select
+
+
+def _select_with_turning_fallback(op):
+    if op == "TurnDrill":
+        return PathSelection.profileselect
+    try:
+        return _path_selection(op)
+    except KeyError:
+        if op.startswith("Turn"):
+            return PathSelection.turnselect
+        raise
+
+
+_select_with_turning_fallback._turning_fallback = True
+if not getattr(PathSelection.select, "_turning_fallback", False):
+    PathSelection.select = _select_with_turning_fallback
+
+
+if not getattr(PathOpGui.ViewProvider.setEdit, "_turning_tool_check", False):
+    _set_edit = PathOpGui.ViewProvider.setEdit
+
+    def _set_edit_with_turning_tool_check(self, vobj=None, mode=0):
+        view = vobj if vobj is not None else self.vobj
+        if mode == 0 and self.OpPageModule.startswith("PathTurnScripts."):
+            controller = getattr(view.Object, "ToolController", None)
+            tool = getattr(controller, "Tool", None)
+            if not view.Object.Proxy.isToolSupported(view.Object, tool):
+                compatible = PathUtils.findToolController(view.Object, view.Object.Proxy)
+                if compatible is not None:
+                    PathLog.warning(FreeCAD.Qt.translate(
+                        "PathTurn", "Replacing incompatible Tool Controller with {name}.").format(
+                            name=compatible.Label))
+                    view.Object.ToolController = compatible
+                    tool = compatible.Tool
+            try:
+                if getattr(view.Object.Proxy, "centreline_drilling", False):
+                    from .PathTurnDrill import getDrill
+
+                    getDrill(tool)
+                else:
+                    post_from_parameters({"ToolPost": getattr(tool, "ToolPost", None)})
+            except ValueError as error:
+                message = (str(error) if getattr(view.Object.Proxy, "centreline_drilling", False) else
+                           FreeCAD.Qt.translate(
+                               "PathTurn", "The selected tool is not configured for turning: "
+                               "ToolPost must be Front or Rear.\n\n"
+                               "Select a turning tool with a valid ToolPost in the operation's "
+                               "Tool Controller before editing."))
+                PathLog.warning(message)
+                QtGui.QMessageBox.warning(
+                    FreeCADGui.getMainWindow(),
+                    FreeCAD.Qt.translate("PathTurn", "Invalid turning tool"), message)
+                return False
+        return _set_edit(self, vobj, mode)
+
+    _set_edit_with_turning_tool_check._turning_tool_check = True
+    PathOpGui.ViewProvider.setEdit = _set_edit_with_turning_tool_check
+
 
 class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
     '''Page controller class for turning operations '''
 
+    # Panel widgets for each optional parameter, shown only when the operation uses it.
+    optional_fields = {
+        "PassOffset": ("passOffset", "passOffsetLabel"),
+        "FinishPasses": ("finishPasses", "label_5"),
+        "StockToLeave": ("stockToLeave", "label_6"),
+        "AllowGrooving": ("allowGrooving",),
+    }
+
+    taskPanelDepthsPage = TaskPanelContainment
+
     def initPage(self, obj):
         self.updating = False  # pylint: disable=attribute-defined-outside-init
+        # CAM initializes this operation page last, before constructing the panel layout.
+        for page in list(self.parent.featurePages):
+            if isinstance(page, PathOpGui.TaskPanelDiametersPage):
+                page.pageCleanup()
+                self.parent.featurePages.remove(page)
+                page.form.deleteLater()
+        self.containment_page = next(
+            page for page in self.parent.featurePages if isinstance(page, TaskPanelContainment))
+        self.form.showContainment = self.containment_page.form.showContainment
+        self.form.showStock = self.containment_page.form.showStock
+        if not getattr(obj.Proxy, "supports_stock_guide", True):
+            self.form.showStock.setChecked(False)
+            self.form.showStock.setEnabled(False)
+            reason = getattr(obj.Proxy, "stock_guide_unavailable_reason", None)
+            self.form.showStock.setToolTip(
+                reason or FreeCAD.Qt.translate("PathTurn", "The stock guide is unavailable for this operation."))
+        self.containment = ContainmentPreview(obj.ViewObject.RootNode)
+        from .PathTurnStockPreview import StockGuide
+
+        self.stock_guide = StockGuide()
+        self.stock_mode = QtGui.QComboBox()
+        self.stock_mode.addItems([
+            FreeCAD.Qt.translate("PathTurn", "Stock before operation"),
+            FreeCAD.Qt.translate("PathTurn", "Stock after operation")])
+        self.stock_mode.setCurrentIndex(0)
+        self.stock_status = QtGui.QLabel()
+        self.stock_status.setWordWrap(True)
+        layout = self.containment_page.form.layout()
+        row = layout.rowCount()
+        layout.addWidget(self.stock_mode, row, 0, 1, 3)
+        layout.addWidget(self.stock_status, row + 1, 0, 1, 3)
+        self.stock_mode.currentIndexChanged.connect(self.updateContainment)
+        self.stock_timer = QtCore.QTimer(self.form)
+        self.stock_timer.setSingleShot(True)
+        self.stock_timer.timeout.connect(self.updateContainment)
+        self.containment_error = None
+        self.form.showContainment.toggled.connect(self.updateContainment)
+        self.form.showStock.toggled.connect(self.updateContainment)
+        self.updateContainment()
+        self.observing = True
+        FreeCAD.addDocumentObserver(self)
+        self.form.destroyed.connect(self.stopObserving)
+        self.containment_page.form.destroyed.connect(self.stopObserving)
+
+    def stopObserving(self, *args):
+        if self.observing:
+            self.stock_timer.stop()
+            FreeCAD.removeDocumentObserver(self)
+            self.observing = False
+
+    def slotChangedObject(self, obj, prop):
+        if obj.Document == self.obj.Document:
+            self.stock_guide.key = None
+            self.stock_status.setText(FreeCAD.Qt.translate("PathTurn", "Stock guide updating..."))
+            self.containment.clear()
+            self.stock_timer.start(250)
+        if ((obj == getattr(self.job, "SetupSheet", None) and prop == "SafeHeightOffset")
+                or (obj == getattr(self.obj.ToolController, "Tool", None) and prop == "ToolPost")):
+            self.containment_page.setFields(self.obj)
+            self.updateContainment()
+
+    def updateContainment(self, *args):
+        self.containment.clear()
+        if self.form.showContainment.isChecked():
+            try:
+                self.containment.update(self.obj)
+            except ValueError as error:
+                message = str(error)
+                if message != self.containment_error:
+                    PathLog.warning(message)
+                self.containment_error = message
+            else:
+                self.containment_error = None
+        show_stock = self.form.showStock.isChecked()
+        self.stock_mode.setEnabled(show_stock)
+        self.stock_status.setVisible(show_stock)
+        if not show_stock:
+            return
+        try:
+            show_after = bool(self.stock_mode.currentIndex())
+            before, after, complete = self.stock_guide.calculate(
+                self.obj, include_current=show_after)
+            snapshot = after if self.stock_mode.currentIndex() else before
+            rear = PathTurnHelpers.getContainment(self.obj).XMax <= 0
+            self.containment.show_stock(snapshot.edges(), rear, polygons=snapshot.polygons())
+            message = ""
+            if show_after and not complete:
+                message = FreeCAD.Qt.translate("PathTurn", "No current path: showing stock before operation.")
+            if self.stock_guide.omitted_operations:
+                note = FreeCAD.Qt.translate(
+                    "PathTurn", "Threading passes are shown as uncut in the 2D stock preview.")
+                message = "\n".join(filter(None, (message, note)))
+            self.stock_status.setText(message)
+            self.stock_status.setVisible(bool(message))
+        except (ValueError, RuntimeError) as error:
+            self.stock_status.setText(FreeCAD.Qt.translate(
+                "PathTurn", "Stock guide unavailable: {error}").format(error=str(error)))
+
+    def updateData(self, obj, prop):
+        if prop in ("MinDiameter", "MaxDiameter", "StartDepth", "FinalDepth", "ToolController"):
+            self.updateContainment()
+
+    def cleanupPage(self, obj):
+        self.stopObserving()
+        try:
+            self.form.showContainment.toggled.disconnect(self.updateContainment)
+            self.form.showStock.toggled.disconnect(self.updateContainment)
+        except (ReferenceError, RuntimeError) as error:
+            PathLog.debug("Containment controls already destroyed: {}".format(error))
+        try:
+            self.containment.close()
+        except (ReferenceError, RuntimeError) as error:
+            PathLog.debug("Containment view already destroyed: {}".format(error))
 
     def getForm(self):
         '''getForm() ... return UI'''
@@ -64,13 +263,31 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         '''getFields(obj) ... transfers values from UI to obj's proprties'''
         PathLog.track()
 
-        PathGuiUtil.updateInputField(obj, 'StepOver', self.form.stepOver)
-
-        obj.FinishPasses = self.form.finishPasses.value()
-        obj.StockToLeave = self.form.stockToLeave.value()
-
-        if obj.AllowGrooving != self.form.allowGrooving.isChecked():
+        used = dict(obj.Proxy.optional_parameters())
+        if used["PassOffset"]:
+            PathGuiUtil.updateInputField(obj, "PassOffset", self.form.passOffset)
+        if used["FinishPasses"]:
+            obj.FinishPasses = self.form.finishPasses.value()
+        if used["StockToLeave"]:
+            obj.StockToLeave = self.form.stockToLeave.value()
+        if used["AllowGrooving"] and obj.AllowGrooving != self.form.allowGrooving.isChecked():
             obj.AllowGrooving = self.form.allowGrooving.isChecked()
+
+        has_mode = hasattr(obj, "Mode")
+        has_direction = hasattr(obj, "Direction")
+        mode_changed = has_mode and str(obj.Mode) != self.form.mode.currentText()
+        if mode_changed:
+            obj.Mode = self.form.mode.currentText()
+            self.form.direction.blockSignals(True)
+            self.form.direction.setCurrentIndex(
+                self.form.direction.findText(str(obj.Direction)))
+            self.form.direction.blockSignals(False)
+        elif has_direction:
+            obj.Direction = self.form.direction.currentText()
+        self._setPassOffsetLabel(obj)
+
+        if hasattr(obj, "FinishPassOffset"):
+            PathGuiUtil.updateInputField(obj, 'FinishPassOffset', self.form.finishPassOffset)
 
         self.updateToolController(obj, self.form.toolController)
         self.updateCoolant(obj, self.form.coolantController)
@@ -79,27 +296,68 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         '''setFields(obj) ... transfers obj's property values to UI'''
         PathLog.track()
 
-        self.form.stepOver.setText(FreeCAD.Units.Quantity(obj.StepOver.Value, FreeCAD.Units.Length).UserString)
-        self.form.finishPasses.setValue(obj.FinishPasses)
-        self.form.stockToLeave.setValue(obj.StockToLeave)
+        used = dict(obj.Proxy.optional_parameters())
+        for name, widgets in self.optional_fields.items():
+            for widget in widgets:
+                getattr(self.form, widget).setVisible(used[name])
+        if used["PassOffset"]:
+            self._setPassOffsetLabel(obj)
+            self.form.passOffset.setText(obj.PassOffset.UserString)
+        if used["FinishPasses"]:
+            self.form.finishPasses.setValue(obj.FinishPasses)
+        if used["StockToLeave"]:
+            self.form.stockToLeave.setValue(obj.StockToLeave)
+        if used["AllowGrooving"]:
+            self.form.allowGrooving.setChecked(obj.AllowGrooving)
+        has_finish_offset = hasattr(obj, "FinishPassOffset")
+        self.form.finishPassOffset.setVisible(has_finish_offset)
+        self.form.finishPassOffsetLabel.setVisible(has_finish_offset)
+        if has_finish_offset:
+            self.form.finishPassOffset.setText(obj.FinishPassOffset.UserString)
         self.setupToolController(obj, self.form.toolController)
         self.setupCoolant(obj, self.form.coolantController)
 
-        if obj.AllowGrooving:
-            self.form.allowGrooving.setCheckState(QtCore.Qt.Checked)
-        else:
-            self.form.allowGrooving.setCheckState(QtCore.Qt.Unchecked)
+        has_mode = hasattr(obj, "Mode")
+        has_direction = hasattr(obj, "Direction")
+        self.form.modeLabel.setVisible(has_mode)
+        self.form.mode.setVisible(has_mode)
+        self.form.directionLabel.setVisible(has_direction)
+        self.form.direction.setVisible(has_direction)
+        for field, prop in ((self.form.mode, "Mode"), (self.form.direction, "Direction")):
+            field.blockSignals(True)
+            field.clear()
+            if hasattr(obj, prop):
+                field.addItems(obj.getEnumerationsOfProperty(prop))
+                field.setCurrentIndex(field.findText(str(getattr(obj, prop))))
+            field.blockSignals(False)
 
         self.setOpFields(obj)
+        self.updateContainment()
+
+    def _setPassOffsetLabel(self, obj):
+        label_for = getattr(obj.Proxy, "pass_offset_label_for", None)
+        label = label_for(obj) if label_for else obj.Proxy.pass_offset_label
+        self.form.passOffsetLabel.setText(label)
 
     def getSignalsForUpdate(self, obj):
         '''getSignalsForUpdate(obj) ... return list of signals for updating obj'''
+        used = dict(obj.Proxy.optional_parameters())
         signals = []
 
-        signals.append(self.form.stepOver.editingFinished)
-        signals.append(self.form.finishPasses.valueChanged)
-        signals.append(self.form.stockToLeave.valueChanged)
-        signals.append(self.form.allowGrooving.stateChanged)
+        if used["PassOffset"]:
+            signals.append(self.form.passOffset.editingFinished)
+        if used["FinishPasses"]:
+            signals.append(self.form.finishPasses.valueChanged)
+        if used["StockToLeave"]:
+            signals.append(self.form.stockToLeave.valueChanged)
+        if used["AllowGrooving"]:
+            signals.append(self.form.allowGrooving.stateChanged)
+        if hasattr(obj, "Mode"):
+            signals.append(self.form.mode.currentIndexChanged)
+        if hasattr(obj, "Direction"):
+            signals.append(self.form.direction.currentIndexChanged)
+        if hasattr(obj, "FinishPassOffset"):
+            signals.append(self.form.finishPassOffset.editingFinished)
 
         signals.append(self.form.toolController.currentIndexChanged)
         signals.append(self.form.coolantController.currentIndexChanged)

@@ -15,6 +15,22 @@
     {
       "nr": 4,
       "path": "iso_t.fctb"
+    },
+    {
+      "nr": 5,
+      "path": "iso_m.fctb"
+    },
+    {
+      "nr": 6,
+      "path": "grooving.fctb"
+    },
+    {
+      "nr": 7,
+      "path": "drill.fctb"
+    },
+    {
+      "nr": 8,
+      "path": "threading.fctb"
     }
   ],
   "version": 1

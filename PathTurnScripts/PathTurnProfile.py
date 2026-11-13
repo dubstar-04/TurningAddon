@@ -44,6 +44,12 @@ def translate(context, text, disambig=None):
 class ObjectTurnProfile(PathTurnBase.ObjectOp):
     '''Proxy class for turning profile operations.'''
 
+    supports_internal_mode = True
+    uses_finish_passes = True
+    uses_stock_to_leave = True
+    uses_allow_grooving = True
+    direction_tooltip = translate("TurnPath", "Profiling direction")
+
     def op_generate_gcode(self, obj, turnTool):
         '''
         Generate GCode for the op
@@ -51,8 +57,9 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
         profileOP = LLP.ProfileOP()
         profileOP.setParams(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(obj)
-        profileOP.add_stock(stockBoundbox)
+        containmentBounds = PathTurnHelpers.getContainment(obj)
+        profileOP.add_containment(containmentBounds)
+        profileOP.add_stock(PathTurnHelpers.getStock(obj))
 
         profileOP.addPartSegments(self.part_outline)
         profileOP.add_tool(turnTool)
@@ -66,7 +73,9 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
 
 def SetupProperties():
     setup = []
-    setup.append("StepOver")
+    setup.append("Mode")
+    setup.append("Direction")
+    setup.append("PassOffset")
     setup.append("FinishPasses")
     setup.append("AllowGrooving")
     return setup

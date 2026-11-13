@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "name": "Threading",
+  "shape": "Threading.fcstd",
+  "shape-type": "TurningCustom",
+  "parameter": {
+    "ProfileAngle": "60 deg",
+    "Width": "8 mm",
+    "TipRadius": "0.05 mm",
+    "Thickness": "3 mm",
+    "Mode": "External",
+    "ToolPost": "Front"
+  },
+  "attribute": {
+    "description": "Pointed threading insert; select Internal or External mode."
+  }
+}

@@ -44,6 +44,8 @@ def translate(context, text, disambig=None):
 class ObjectTurnPart(PathTurnBase.ObjectOp):
     '''Proxy class for turning Part operations.'''
 
+    uses_pass_offset = False
+
     def op_generate_gcode(self, obj, turnTool):
         '''
         Generate GCode for the op
@@ -51,8 +53,9 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
         PartOP = LLP.PartoffOP()
         PartOP.setParams(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(obj)
-        PartOP.add_stock(stockBoundbox)
+        containmentBounds = PathTurnHelpers.getContainment(obj)
+        PartOP.add_containment(containmentBounds)
+        PartOP.add_stock(PathTurnHelpers.getStock(obj))
 
         PartOP.addPartSegments(self.part_outline)
         PartOP.add_tool(turnTool)
@@ -65,11 +68,7 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
 
 
 def SetupProperties():
-    setup = []
-    setup.append("StepOver")
-    setup.append("FinishPasses")
-    setup.append("AllowGrooving")
-    return setup
+    return []
 
 
 def Create(name, obj=None, parentJob=None):

@@ -32,6 +32,7 @@ import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
 from PySide import QtCore
 
+from liblathe.op.base import Direction, MachiningMode
 from liblathe.tool.tool import Tool, ToolSide
 
 __title__ = "Path Turn Base Operation"
@@ -57,25 +58,92 @@ else:
 class ObjectOp(PathOp.ObjectOp):
     '''Base class for proxy objects of all turning operations.'''
 
+    uses_pass_offset = True
+    uses_finish_passes = False
+    uses_stock_to_leave = False
+    uses_allow_grooving = False
+    pass_offset_label = translate("TurnPath", "Pass Offset")
+    has_finish_offset = False
+    supports_internal_mode = False
+    direction_tooltip = translate("TurnPath", "Cutting direction")
+
     def opFeatures(self, obj):
         '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
         return PathOp.FeatureDiameters | PathOp.FeatureTool | PathOp.FeatureDepths | PathOp.FeatureCoolant
 
+    @classmethod
+    def optional_parameters(cls):
+        """Return (property name, used by this operation) for the shared optional parameters."""
+        return (("PassOffset", cls.uses_pass_offset),
+                ("FinishPasses", cls.uses_finish_passes),
+                ("StockToLeave", cls.uses_stock_to_leave),
+                ("AllowGrooving", cls.uses_allow_grooving))
+
     def initOperation(self, obj):
         '''initOperation(obj)'''
 
-        obj.addProperty("App::PropertyLength", "StepOver", "Turn Path", translate("TurnPath", "Operation Stepover"))
-        obj.addProperty("App::PropertyInteger", "FinishPasses", "Turn Path", translate("TurnPath", "Number of Finish Passes"))
-        obj.addProperty("App::PropertyFloat", "StockToLeave", "Turn Path", translate("TurnPath", "Distance for stock to leave uncut"))
-        obj.addProperty("App::PropertyBool", "AllowGrooving", "Turn Path", translate("TurnPath", "Minimum Diameter for Operation"))
-
-        obj.StepOver = FreeCAD.Units.Quantity(1.0, FreeCAD.Units.Length)
-        obj.FinishPasses = 2
-        obj.StockToLeave = 0
+        if self.uses_pass_offset:
+            obj.addProperty("App::PropertyLength", "PassOffset", "Turn Path", self.pass_offset_label)
+            obj.PassOffset = 1.0
+        if self.uses_finish_passes:
+            obj.addProperty("App::PropertyInteger", "FinishPasses", "Turn Path",
+                            translate("TurnPath", "Number of Finish Passes"))
+            obj.FinishPasses = 2
+        if self.uses_stock_to_leave:
+            obj.addProperty("App::PropertyFloat", "StockToLeave", "Turn Path",
+                            translate("TurnPath", "Distance for stock to leave uncut"))
+            obj.StockToLeave = 0
+        if self.uses_allow_grooving:
+            obj.addProperty("App::PropertyBool", "AllowGrooving", "Turn Path",
+                            translate("TurnPath", "Minimum Diameter for Operation"))
+        if self.has_finish_offset:
+            obj.addProperty("App::PropertyLength", "FinishPassOffset", "Turn Path",
+                            translate("TurnPath", "Finish Pass Offset"))
+            obj.FinishPassOffset = 0.0
+        if self.supports_internal_mode:
+            self._addModeAndDirection(obj)
         self.setEditorModes(obj, self.opFeatures(obj))
+
+    def opOnDocumentRestored(self, obj):
+        super().opOnDocumentRestored(obj)
+        if self.supports_internal_mode:
+            self._addModeAndDirection(obj)
+
+    def onChanged(self, obj, prop):
+        parent = getattr(super(), "onChanged", None)
+        if parent is not None:
+            parent(obj, prop)
+        if self.supports_internal_mode and prop == "Mode" and hasattr(obj, "Direction"):
+            obj.Direction = self._defaultDirection(obj).value
+
+    @staticmethod
+    def _defaultDirection(obj):
+        internal = str(getattr(obj, "Mode", "")) == MachiningMode.INTERNAL.value
+        return Direction.RADIAL if internal else Direction.NEGATIVE_Z
+
+    def _addModeAndDirection(self, obj):
+        self._addEnumeration(obj, "Mode", MachiningMode, MachiningMode.EXTERNAL,
+                             translate("TurnPath", "Machining mode"))
+        self._addEnumeration(obj, "Direction", Direction, self._defaultDirection(obj),
+                             self.direction_tooltip)
+
+    @staticmethod
+    def _addEnumeration(obj, name, enum, default, tooltip):
+        """Add or refresh an enumeration property whose choices are the enum values."""
+        values = [member.value for member in enum]
+        created = not hasattr(obj, name)
+        if created:
+            obj.addProperty("App::PropertyEnumeration", name, "Turn Path", tooltip)
+        current = default.value if created else str(getattr(obj, name))
+        if created or obj.getEnumerationsOfProperty(name) != values:
+            setattr(obj, name, values)
+            setattr(obj, name, current if current in values else default.value)
 
     def setEditorModes(self, obj, features):
         super().setEditorModes(obj, features)
+        for name, used in self.optional_parameters():
+            if hasattr(obj, name):
+                obj.setEditorMode(name, 0 if used else 2)
         for name in ("OpStartDepth", "OpFinalDepth", "OpToolDiameter", "OpStockZMax", "OpStockZMin"):
             if hasattr(obj, name):
                 obj.setEditorMode(name, 2)
@@ -97,25 +165,39 @@ class ObjectOp(PathOp.ObjectOp):
         if obj.StartDepth.Value <= obj.FinalDepth.Value:
             raise RuntimeError(translate('PathTurn', "Start depth is equal or less than final depth"))
 
-        if not math.isfinite(obj.StepOver.Value) or obj.StepOver.Value <= 0:
-            raise RuntimeError(translate('PathTurn', "Stepover must be finite and positive"))
-
-        self.allowGrooving = obj.AllowGrooving
-        self.stepOver = obj.StepOver.Value
-        self.finishPasses = obj.FinishPasses
-        self.stockToLeave = obj.StockToLeave
+        if self.uses_pass_offset:
+            if not math.isfinite(obj.PassOffset.Value) or obj.PassOffset.Value <= 0:
+                raise RuntimeError(translate(
+                    'PathTurn', "{name} must be finite and positive").format(name=self.pass_offset_label))
 
         # Clear any existing gcode
         path = obj.Path
         path.Commands = []
         obj.Path = path
 
-        self.part_outline = self.get_part_outline()
+        self.part_outline = self.get_part_outline(obj)
         self.generate_gcode(obj)
 
     def opSetDefaultValues(self, obj, job):
         obj.OpStartDepth = job.Stock.Shape.BoundBox.ZMax
         obj.OpFinalDepth = job.Stock.Shape.BoundBox.ZMin
+        if not self.isToolSupported(obj, getattr(obj.ToolController, "Tool", None)):
+            obj.ToolController = next(
+                (controller for controller in job.Tools.Group
+                 if self.isToolSupported(obj, controller.Tool)), None)
+
+    def isToolSupported(self, obj, tool):
+        from .PathTurnToolBit import is_drill_tool
+
+        if is_drill_tool(tool) or getattr(tool, "ToolPost", None) not in ("Front", "Rear"):
+            return False
+        return getattr(tool, "Mode", None) in (None, self.required_tool_mode(obj))
+
+    def required_tool_mode(self, obj=None):
+        """Return the tool Mode string required by this operation."""
+        if self.supports_internal_mode and obj is not None:
+            return MachiningMode(str(obj.Mode)).value
+        return MachiningMode.EXTERNAL.value
 
     def opUpdateDepths(self, obj):
         obj.OpStartDepth = obj.OpStockZMax
@@ -125,17 +207,27 @@ class ObjectOp(PathOp.ObjectOp):
     def getProps(self, obj):
         parentJob = PathUtils.findParentJob(obj)
 
-        return {
-            'allow_grooving': self.allowGrooving,
-            'step_over': self.stepOver,
-            'finish_passes': self.finishPasses,
-            'stock_to_leave': self.stockToLeave,
+        params = {
             'hfeed': obj.ToolController.HorizFeed.Value,
             'vfeed': obj.ToolController.VertFeed.Value,
             'clearance': parentJob.SetupSheet.SafeHeightOffset.Value,
         }
+        if self.uses_pass_offset:
+            params['pass_offset'] = obj.PassOffset.Value
+        if self.uses_finish_passes:
+            params['finish_passes'] = obj.FinishPasses
+        if self.uses_stock_to_leave:
+            params['stock_to_leave'] = obj.StockToLeave
+        if self.uses_allow_grooving:
+            params['allow_grooving'] = obj.AllowGrooving
+        if self.supports_internal_mode:
+            params["mode"] = MachiningMode(str(obj.Mode))
+            params["direction"] = Direction(str(obj.Direction))
+        return params
 
-    def get_part_outline(self):
+    def get_part_outline(self, obj):
+        if self.supports_internal_mode and str(obj.Mode) == MachiningMode.INTERNAL.value:
+            return PathTurnHelpers.getInternalOutline(obj, self.model)
         return PathTurnHelpers.getPartOutline(base.Shape for base in self.model)
 
     def generate_gcode(self, obj):
@@ -143,6 +235,12 @@ class ObjectOp(PathOp.ObjectOp):
         Base function to generate gcode for the OP by writing path command to self.commandlist
         Calls operations op_generate_gcode.
         '''
+        tool_mode = getattr(obj.ToolController.Tool, "Mode", None)
+        required_mode = self.required_tool_mode(obj)
+        if tool_mode not in (None, required_mode):
+            raise RuntimeError(translate(
+                "PathTurn", "This operation needs an {required} tool, but the selected tool is {mode}.").format(
+                    required=required_mode, mode=tool_mode))
         if getattr(obj.ToolController.Tool, "Compensation", "Tip Tangent") != "Tip":
             from liblathe.version import __version__
             from packaging.version import Version
