@@ -33,7 +33,7 @@ class TaskPanelDrillContainment(TaskPanelContainment):
 
 
 class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
-    taskPanelDepthsPage = TaskPanelDrillContainment
+    taskPanelDiametersPage = TaskPanelDrillContainment
 
     def getIcon(self, obj):
         return str(_icon)

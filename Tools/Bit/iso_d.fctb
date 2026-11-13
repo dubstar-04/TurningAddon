@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "ISO D - 55°",
+  "name": "ISO D",
   "shape": "Iso_D.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {

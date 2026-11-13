@@ -337,14 +337,13 @@ def load_tool_entry(uri, number):
 
 def job_choices():
     """Return active-document job identities and a selection-aware default."""
-    import Path.Main.Job as jobs
+    import PathScripts.PathUtils as utils
 
     document = FreeCAD.ActiveDocument
-    available = jobs.Instances()
+    available = utils.GetJobs()
     selected = set()
     if FreeCAD.GuiUp:
         import FreeCADGui
-        import PathScripts.PathUtils as utils
 
         selected = {
             job.Name

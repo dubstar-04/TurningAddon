@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "ISO M - 86°",
+  "name": "ISO M",
   "shape": "Iso_M.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {

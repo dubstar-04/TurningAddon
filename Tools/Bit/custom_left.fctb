@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "custom-left",
+  "name": "Custom Left",
   "shape": "Custom_left.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {

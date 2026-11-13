@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "Centreline drill",
+  "name": "Drill",
   "shape": "Drill.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {

@@ -141,7 +141,7 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
 
     def selectionValue(self, name, selection):
         if name.endswith("Z"):
-            return PathOpGui.TaskPanelDepthsPage.selectionZLevel(self, selection)
+            return PathOpGui.TaskPanelHeightsPage.selectionZLevel(self, self.obj, selection)
         if len(selection) != 1 or len(selection[0].SubObjects) != 1:
             return None
         sub = selection[0].SubObjects[0]

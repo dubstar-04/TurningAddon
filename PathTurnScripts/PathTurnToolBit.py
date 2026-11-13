@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 
 import FreeCAD
 import Path.Tool.Bit as PathToolBit
+from Path.Tool.shape.models.base import ToolBitShape
 
 
 TOOL_POSTS = ("Front", "Rear")
@@ -36,64 +37,78 @@ def validate_native_parameters(bag):
             raise ValueError(bag.getDocumentationOfProperty(name) or f"Tool parameter check failed: {name}.")
 
 
-if not hasattr(PathToolBit, "Factory"):
-    class ToolBitShapeTurningCustom(PathToolBit.ToolBitShape):
-        """Use the schema and enum choices supplied by each native file."""
+class ToolBitShapeTurningCustom(ToolBitShape):
+    """Load file-defined turning geometry without applying milling parameters."""
 
-        name = "TurningCustom"
-        aliases = ("turningcustom",)
+    name = "TurningCustom"
+    aliases = (
+        "turningcustom",
+        "turn drill",
+        "turn grooving",
+        "turn threading",
+        "turn iso c",
+        "turn iso d",
+        "turn iso m",
+        "turn iso s",
+        "turn iso t",
+        "turn custom left",
+        "turn custom neutral",
+        "turn custom right",
+    )
 
-        @classmethod
-        def schema(cls):
-            return {}
+    @classmethod
+    def schema(cls):
+        return {}
 
-        def set_parameter(self, name, value):
-            fields = getattr(self, "fields", {})
-            if name not in fields:
-                raise ValueError(f"The native shape does not define {name}.")
-            field = fields[name]
-            kind = field["type"]
-            if kind == "App::PropertyEnumeration":
-                if value not in field["choices"]:
-                    raise ValueError(f"Unsupported choice for {name}.")
-            elif kind == "App::PropertyBool":
-                if type(value) is not bool:
-                    raise ValueError(f"{name} must be a boolean.")
-            elif kind == "App::PropertyString":
-                if not isinstance(value, str):
-                    raise ValueError(f"{name} must be text.")
+    def set_parameter(self, name, value):
+        fields = getattr(self, "fields", {})
+        if name not in fields:
+            raise ValueError(f"The native shape does not define {name}.")
+        field = fields[name]
+        kind = field["type"]
+        if kind == "App::PropertyEnumeration":
+            if value not in field["choices"]:
+                raise ValueError(f"Unsupported choice for {name}.")
+        elif kind == "App::PropertyBool":
+            if type(value) is not bool:
+                raise ValueError(f"{name} must be a boolean.")
+        elif kind == "App::PropertyString":
+            if not isinstance(value, str):
+                raise ValueError(f"{name} must be text.")
+        else:
+            if isinstance(value, bool):
+                raise ValueError(f"{name} must be a number.")
+            quantity = FreeCAD.Units.Quantity(value)
+            default = FreeCAD.Units.Quantity(self._defaults[name])
+            if quantity.Unit not in (default.Unit, FreeCAD.Units.Quantity(1).Unit):
+                raise ValueError(f"Unexpected units for {name}.")
+            if not math.isfinite(quantity.Value):
+                raise ValueError(f"{name} must be finite.")
+            if name == "Diameter" and quantity.Value <= 0:
+                raise ValueError("CAM Diameter must be positive.")
+            if kind == "App::PropertyInteger":
+                if quantity.Value != int(quantity.Value):
+                    raise ValueError(f"{name} must be an integer.")
+                value = int(quantity.Value)
+            elif kind == "App::PropertyFloat":
+                value = quantity.Value
             else:
-                if isinstance(value, bool):
-                    raise ValueError(f"{name} must be a number.")
-                quantity = FreeCAD.Units.Quantity(value)
-                default = FreeCAD.Units.Quantity(self._defaults[name])
-                if quantity.Unit not in (default.Unit, FreeCAD.Units.Quantity(1).Unit):
-                    raise ValueError(f"Unexpected units for {name}.")
-                if not math.isfinite(quantity.Value):
-                    raise ValueError(f"{name} must be finite.")
-                if name == "Diameter" and quantity.Value <= 0:
-                    raise ValueError("CAM Diameter must be positive.")
-                if kind == "App::PropertyInteger":
-                    if quantity.Value != int(quantity.Value):
-                        raise ValueError(f"{name} must be an integer.")
-                    value = int(quantity.Value)
-                elif kind == "App::PropertyFloat":
-                    value = quantity.Value
-                else:
-                    value = quantity if quantity.Unit == default.Unit else FreeCAD.Units.Quantity(
-                        quantity.Value, default.Unit)
-            self._params[name] = value
+                value = quantity if quantity.Unit == default.Unit else FreeCAD.Units.Quantity(
+                    quantity.Value, default.Unit)
+        self._params[name] = value
 
-        def get_parameter(self, name):
-            return self._params[name]
+    def get_parameter(self, name):
+        return self._params[name]
 
-        def get_parameters(self):
-            return dict(self._params)
+    def get_parameters(self):
+        return dict(self._params)
 
-        @property
-        def label(self):
-            return FreeCAD.Qt.translate("CAM", "Custom turning tool")
+    @property
+    def label(self):
+        return FreeCAD.Qt.translate("CAM", "Custom turning tool")
 
+
+if not hasattr(PathToolBit, "Factory"):
     class ToolBitTurningCustom(PathToolBit.ToolBit):
         """Preserve file-defined custom parameters and embedded native geometry."""
 

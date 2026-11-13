@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "custom-neutral",
+  "name": "Custom Neutral",
   "shape": "Custom_neutral.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {

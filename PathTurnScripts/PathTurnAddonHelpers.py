@@ -282,10 +282,10 @@ def getNativeProfile(model, section, plane, tolerance):
                   if len(profiles) > 1 else profiles[0])
         if len(merged.Faces) != 1:
             continue
-        # Square joins, bi-arc error and arc fitting share the existing allowance.
+        # The offset margin, bi-arc error and arc fitting share the existing allowance.
         expanded = Path.Area().add(merged).setParams(
             Offset=tolerance / 2, FitArcs=True,
-            Accuracy=tolerance / 16, JoinType=1).getShape()
+            Accuracy=tolerance / 16).getShape()
         candidate = getPositiveProfile(expanded, plane)
         if candidate is not None and profileContainsModel(candidate, model):
             return candidate
@@ -444,7 +444,7 @@ def getRadialMeshProjection(model, deflection):
     face = Part.Face(Part.makePolygon(outline + [outline[0]]))
     return Path.Area().add(face).setParams(
         FitArcs=True, Accuracy=deflection / 2, Deflection=deflection,
-        CleanDistance=deflection / 2, Offset=4 * deflection, JoinType=1).getShape()
+        Offset=4 * deflection).getShape()
 
 
 def pruneRadialSpans(spans):

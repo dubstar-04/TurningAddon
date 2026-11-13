@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "ISO C - 80°",
+  "name": "ISO C",
   "shape": "Iso_C.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {
