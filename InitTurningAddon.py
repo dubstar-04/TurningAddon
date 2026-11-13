@@ -43,6 +43,12 @@ import os
 __dir__ = os.path.dirname(__file__)
 iconPath = os.path.join(__dir__, 'Gui/Resources/Icons')
 
+commands = [
+    'TurnRough', 'TurnProfile','TurnDrill','TurnThread','TurnPartoff',
+    'TurnToolLibrary', 'TurnSimulation',
+]
+FreeCADGui.addIconPath(iconPath)
+
 
 def getIcon(iconName):
     return os.path.join(iconPath, iconName)
@@ -52,6 +58,12 @@ def updateMenu(workbench):
     if workbench == 'CAMWorkbench':
 
         print('FreeCAD Turning Addon loaded:', workbench)
+
+        activeWorkbench = FreeCADGui.activeWorkbench()
+        if 'Turning Addon' not in activeWorkbench.listToolbars():
+            activeWorkbench.appendToolbar(
+                'Turning Addon', ['CAM_' + command for command in commands])
+            activeWorkbench.reloadActive()
 
         mw = FreeCADGui.getMainWindow()
         addonMenu = None
@@ -94,9 +106,6 @@ def updateMenu(workbench):
             addonMenu.setObjectName("Turning_Addons")
             addonMenu.setIcon(QtGui.QIcon(getIcon('CAM-TurningAddon.svg')))
             camAddons.addMenu(addonMenu)
-
-        # list of commands to add to the menu, add new commands here:
-        commands = ['TurnDrill', 'TurnProfile', 'TurnPartoff', 'TurnRough', 'TurnThread', 'TurnToolLibrary', 'TurnSimulation']
 
         # load the commands to the FreeCAD Menu
         for command in commands:
