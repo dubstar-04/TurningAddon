@@ -21,26 +21,12 @@ turning paths for use with a CNC lathe. It uses an externally installed
 * FreeCAD 26.3 or later
 
 ## Tool management
-
 Use the **Turning Tool Library** to create and edit tools from native templates,
-preview their geometry and add Tool Controllers to a CAM job. Tool geometry and
-parameters are stored with the native ToolBit.
-
-New paths retain a compatible inherited Tool Controller when available.
-Otherwise, a compatible controller is selected from the job. Opening an existing
-path with an incompatible controller selects an available compatible controller
-and reports the replacement. If none exists, add a suitable Tool Controller
-to the job before editing.
-
-The user is responsible for selecting the correct tool, datum, physical
-orientation, feeds, spindle settings and coolant.
 
 ## Containment
-
 Containment visually sets the limits for operations.
 
 ## Remaining-stock guide
-
 **Stock before operation** or **Stock after operation**
 
 ## Disclaimer

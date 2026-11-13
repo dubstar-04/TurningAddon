@@ -129,6 +129,5 @@ Implement an external radial grooving operation for front and rear tools.
 - Invalid step values, uncertifiable moves, and generation failures produce an
   explicit error without leaving partial or stale output.
 
-- rename grooving tool
 - check M Iso tool
 - Cache tool images to make the form load faster

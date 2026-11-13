@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "ISO T - Triangle",
+  "name": "ISO T",
   "shape": "Iso_T.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {

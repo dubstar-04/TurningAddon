@@ -135,16 +135,10 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         "AllowGrooving": ("allowGrooving",),
     }
 
-    taskPanelDepthsPage = TaskPanelContainment
+    taskPanelDiametersPage = TaskPanelContainment
 
     def initPage(self, obj):
         self.updating = False  # pylint: disable=attribute-defined-outside-init
-        # CAM initializes this operation page last, before constructing the panel layout.
-        for page in list(self.parent.featurePages):
-            if isinstance(page, PathOpGui.TaskPanelDiametersPage):
-                page.pageCleanup()
-                self.parent.featurePages.remove(page)
-                page.form.deleteLater()
         self.containment_page = next(
             page for page in self.parent.featurePages if isinstance(page, TaskPanelContainment))
         self.form.showContainment = self.containment_page.form.showContainment
@@ -282,15 +276,27 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             self.form.direction.setCurrentIndex(
                 self.form.direction.findText(str(obj.Direction)))
             self.form.direction.blockSignals(False)
+            controller_page = next(
+                (page for page in self.parent.featurePages
+                 if isinstance(page, PathOpGui.TaskPanelToolControllerPage)), None)
+            if controller_page is None:
+                raise RuntimeError(FreeCAD.Qt.translate(
+                    "PathTurn", "CAM did not create a Tool Controller page."))
+            previous = obj.ToolController
+            controller_page.setupToolController()
+            if obj.ToolController != previous and obj.ToolController is not None:
+                PathLog.warning(FreeCAD.Qt.translate(
+                    "PathTurn", "Replacing incompatible Tool Controller with {name}.").format(
+                        name=obj.ToolController.Label))
+            elif not obj.Proxy.isToolSupported(obj, getattr(obj.ToolController, "Tool", None)):
+                PathLog.warning(FreeCAD.Qt.translate(
+                    "PathTurn", "No compatible Tool Controller for the selected machining mode."))
         elif has_direction:
             obj.Direction = self.form.direction.currentText()
         self._setPassOffsetLabel(obj)
 
         if hasattr(obj, "FinishPassOffset"):
             PathGuiUtil.updateInputField(obj, 'FinishPassOffset', self.form.finishPassOffset)
-
-        self.updateToolController(obj, self.form.toolController)
-        self.updateCoolant(obj, self.form.coolantController)
 
     def setFields(self, obj):
         '''setFields(obj) ... transfers obj's property values to UI'''
@@ -314,11 +320,9 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         self.form.finishPassOffsetLabel.setVisible(has_finish_offset)
         if has_finish_offset:
             self.form.finishPassOffset.setText(obj.FinishPassOffset.UserString)
-        self.setupToolController(obj, self.form.toolController)
-        self.setupCoolant(obj, self.form.coolantController)
-
         has_mode = hasattr(obj, "Mode")
         has_direction = hasattr(obj, "Direction")
+        self.form.frame.setVisible(has_mode or has_direction)
         self.form.modeLabel.setVisible(has_mode)
         self.form.mode.setVisible(has_mode)
         self.form.directionLabel.setVisible(has_direction)
@@ -358,9 +362,6 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             signals.append(self.form.direction.currentIndexChanged)
         if hasattr(obj, "FinishPassOffset"):
             signals.append(self.form.finishPassOffset.editingFinished)
-
-        signals.append(self.form.toolController.currentIndexChanged)
-        signals.append(self.form.coolantController.currentIndexChanged)
 
         return signals
 

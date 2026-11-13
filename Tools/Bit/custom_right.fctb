@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "custom-right",
+  "name": "Custom Right",
   "shape": "Custom_right.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {
