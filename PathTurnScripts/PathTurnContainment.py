@@ -113,7 +113,8 @@ class ContainmentPreview:
             self._boundary(
                 [(x0, 0, z1 + clearance), (x1, 0, z1 + clearance)], magenta,
                 dashed=True)
-        elif not getattr(obj.Proxy, "internal_finishing", False):
+        elif not (getattr(obj.Proxy, "supports_internal_mode", False)
+                  and str(getattr(obj, "Mode", "External")) == "Internal"):
             clearance_x = outer + sign * clearance
             self._boundary(
                 [(clearance_x, 0, z0), (clearance_x, 0, z1)], magenta,
