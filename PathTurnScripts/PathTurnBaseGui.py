@@ -127,6 +127,14 @@ if not getattr(PathOpGui.ViewProvider.setEdit, "_turning_tool_check", False):
 class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
     '''Page controller class for turning operations '''
 
+    # Panel widgets for each optional parameter, shown only when the operation uses it.
+    optional_fields = {
+        "PassOffset": ("passOffset", "passOffsetLabel"),
+        "FinishPasses": ("finishPasses", "label_5"),
+        "StockToLeave": ("stockToLeave", "label_6"),
+        "AllowGrooving": ("allowGrooving",),
+    }
+
     taskPanelDepthsPage = TaskPanelContainment
 
     def initPage(self, obj):
@@ -255,8 +263,15 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         '''getFields(obj) ... transfers values from UI to obj's proprties'''
         PathLog.track()
 
-        if obj.Proxy.uses_pass_offset:
+        used = dict(obj.Proxy.optional_parameters())
+        if used["PassOffset"]:
             PathGuiUtil.updateInputField(obj, "PassOffset", self.form.passOffset)
+        if used["FinishPasses"]:
+            obj.FinishPasses = self.form.finishPasses.value()
+        if used["StockToLeave"]:
+            obj.StockToLeave = self.form.stockToLeave.value()
+        if used["AllowGrooving"] and obj.AllowGrooving != self.form.allowGrooving.isChecked():
+            obj.AllowGrooving = self.form.allowGrooving.isChecked()
 
         has_mode = hasattr(obj, "Mode")
         has_direction = hasattr(obj, "Direction")
@@ -271,13 +286,8 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             obj.Direction = self.form.direction.currentText()
         self._setPassOffsetLabel(obj)
 
-        obj.FinishPasses = self.form.finishPasses.value()
-        obj.StockToLeave = self.form.stockToLeave.value()
         if hasattr(obj, "FinishPassOffset"):
             PathGuiUtil.updateInputField(obj, 'FinishPassOffset', self.form.finishPassOffset)
-
-        if obj.AllowGrooving != self.form.allowGrooving.isChecked():
-            obj.AllowGrooving = self.form.allowGrooving.isChecked()
 
         self.updateToolController(obj, self.form.toolController)
         self.updateCoolant(obj, self.form.coolantController)
@@ -286,12 +296,19 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         '''setFields(obj) ... transfers obj's property values to UI'''
         PathLog.track()
 
-        self.form.passOffset.setVisible(obj.Proxy.uses_pass_offset)
-        self.form.passOffsetLabel.setVisible(obj.Proxy.uses_pass_offset)
-        self._setPassOffsetLabel(obj)
-        self.form.passOffset.setText(obj.PassOffset.UserString)
-        self.form.finishPasses.setValue(obj.FinishPasses)
-        self.form.stockToLeave.setValue(obj.StockToLeave)
+        used = dict(obj.Proxy.optional_parameters())
+        for name, widgets in self.optional_fields.items():
+            for widget in widgets:
+                getattr(self.form, widget).setVisible(used[name])
+        if used["PassOffset"]:
+            self._setPassOffsetLabel(obj)
+            self.form.passOffset.setText(obj.PassOffset.UserString)
+        if used["FinishPasses"]:
+            self.form.finishPasses.setValue(obj.FinishPasses)
+        if used["StockToLeave"]:
+            self.form.stockToLeave.setValue(obj.StockToLeave)
+        if used["AllowGrooving"]:
+            self.form.allowGrooving.setChecked(obj.AllowGrooving)
         has_finish_offset = hasattr(obj, "FinishPassOffset")
         self.form.finishPassOffset.setVisible(has_finish_offset)
         self.form.finishPassOffsetLabel.setVisible(has_finish_offset)
@@ -299,11 +316,6 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             self.form.finishPassOffset.setText(obj.FinishPassOffset.UserString)
         self.setupToolController(obj, self.form.toolController)
         self.setupCoolant(obj, self.form.coolantController)
-
-        if obj.AllowGrooving:
-            self.form.allowGrooving.setCheckState(QtCore.Qt.Checked)
-        else:
-            self.form.allowGrooving.setCheckState(QtCore.Qt.Unchecked)
 
         has_mode = hasattr(obj, "Mode")
         has_direction = hasattr(obj, "Direction")
@@ -329,19 +341,23 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
 
     def getSignalsForUpdate(self, obj):
         '''getSignalsForUpdate(obj) ... return list of signals for updating obj'''
+        used = dict(obj.Proxy.optional_parameters())
         signals = []
 
-        if obj.Proxy.uses_pass_offset:
+        if used["PassOffset"]:
             signals.append(self.form.passOffset.editingFinished)
+        if used["FinishPasses"]:
+            signals.append(self.form.finishPasses.valueChanged)
+        if used["StockToLeave"]:
+            signals.append(self.form.stockToLeave.valueChanged)
+        if used["AllowGrooving"]:
+            signals.append(self.form.allowGrooving.stateChanged)
         if hasattr(obj, "Mode"):
             signals.append(self.form.mode.currentIndexChanged)
         if hasattr(obj, "Direction"):
             signals.append(self.form.direction.currentIndexChanged)
-        signals.append(self.form.finishPasses.valueChanged)
-        signals.append(self.form.stockToLeave.valueChanged)
         if hasattr(obj, "FinishPassOffset"):
             signals.append(self.form.finishPassOffset.editingFinished)
-        signals.append(self.form.allowGrooving.stateChanged)
 
         signals.append(self.form.toolController.currentIndexChanged)
         signals.append(self.form.coolantController.currentIndexChanged)

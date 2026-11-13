@@ -133,8 +133,7 @@ class ObjectTurnThread(PathTurnBase.ObjectOp):
 
     def setEditorModes(self, obj, features):
         super().setEditorModes(obj, features)
-        for name in ("FinishPasses", "StockToLeave", "AllowGrooving",
-                     "ThreadStandard", "ThreadSize", "ThreadClass"):
+        for name in ("ThreadStandard", "ThreadSize", "ThreadClass"):
             if hasattr(obj, name):
                 obj.setEditorMode(name, 2)
         # Setup Sheet prototypes are write-only, so hasattr is False and values are never read.

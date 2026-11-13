@@ -59,6 +59,9 @@ class ObjectOp(PathOp.ObjectOp):
     '''Base class for proxy objects of all turning operations.'''
 
     uses_pass_offset = True
+    uses_finish_passes = False
+    uses_stock_to_leave = False
+    uses_allow_grooving = False
     pass_offset_label = translate("TurnPath", "Pass Offset")
     has_finish_offset = False
     supports_internal_mode = False
@@ -68,21 +71,35 @@ class ObjectOp(PathOp.ObjectOp):
         '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
         return PathOp.FeatureDiameters | PathOp.FeatureTool | PathOp.FeatureDepths | PathOp.FeatureCoolant
 
+    @classmethod
+    def optional_parameters(cls):
+        """Return (property name, used by this operation) for the shared optional parameters."""
+        return (("PassOffset", cls.uses_pass_offset),
+                ("FinishPasses", cls.uses_finish_passes),
+                ("StockToLeave", cls.uses_stock_to_leave),
+                ("AllowGrooving", cls.uses_allow_grooving))
+
     def initOperation(self, obj):
         '''initOperation(obj)'''
 
-        obj.addProperty("App::PropertyInteger", "FinishPasses", "Turn Path", translate("TurnPath", "Number of Finish Passes"))
-        obj.addProperty("App::PropertyFloat", "StockToLeave", "Turn Path", translate("TurnPath", "Distance for stock to leave uncut"))
-        obj.addProperty("App::PropertyBool", "AllowGrooving", "Turn Path", translate("TurnPath", "Minimum Diameter for Operation"))
-
-        obj.addProperty("App::PropertyLength", "PassOffset", "Turn Path", self.pass_offset_label)
-        obj.PassOffset = 1.0
+        if self.uses_pass_offset:
+            obj.addProperty("App::PropertyLength", "PassOffset", "Turn Path", self.pass_offset_label)
+            obj.PassOffset = 1.0
+        if self.uses_finish_passes:
+            obj.addProperty("App::PropertyInteger", "FinishPasses", "Turn Path",
+                            translate("TurnPath", "Number of Finish Passes"))
+            obj.FinishPasses = 2
+        if self.uses_stock_to_leave:
+            obj.addProperty("App::PropertyFloat", "StockToLeave", "Turn Path",
+                            translate("TurnPath", "Distance for stock to leave uncut"))
+            obj.StockToLeave = 0
+        if self.uses_allow_grooving:
+            obj.addProperty("App::PropertyBool", "AllowGrooving", "Turn Path",
+                            translate("TurnPath", "Minimum Diameter for Operation"))
         if self.has_finish_offset:
             obj.addProperty("App::PropertyLength", "FinishPassOffset", "Turn Path",
                             translate("TurnPath", "Finish Pass Offset"))
             obj.FinishPassOffset = 0.0
-        obj.FinishPasses = 2
-        obj.StockToLeave = 0
         if self.supports_internal_mode:
             self._addModeAndDirection(obj)
         self.setEditorModes(obj, self.opFeatures(obj))
@@ -124,8 +141,9 @@ class ObjectOp(PathOp.ObjectOp):
 
     def setEditorModes(self, obj, features):
         super().setEditorModes(obj, features)
-        if hasattr(obj, "PassOffset"):
-            obj.setEditorMode("PassOffset", 0 if self.uses_pass_offset else 2)
+        for name, used in self.optional_parameters():
+            if hasattr(obj, name):
+                obj.setEditorMode(name, 0 if used else 2)
         for name in ("OpStartDepth", "OpFinalDepth", "OpToolDiameter", "OpStockZMax", "OpStockZMin"):
             if hasattr(obj, name):
                 obj.setEditorMode(name, 2)
@@ -151,10 +169,6 @@ class ObjectOp(PathOp.ObjectOp):
             if not math.isfinite(obj.PassOffset.Value) or obj.PassOffset.Value <= 0:
                 raise RuntimeError(translate(
                     'PathTurn', "{name} must be finite and positive").format(name=self.pass_offset_label))
-
-        self.allowGrooving = obj.AllowGrooving
-        self.finishPasses = obj.FinishPasses
-        self.stockToLeave = obj.StockToLeave
 
         # Clear any existing gcode
         path = obj.Path
@@ -194,14 +208,18 @@ class ObjectOp(PathOp.ObjectOp):
         parentJob = PathUtils.findParentJob(obj)
 
         params = {
-            'pass_offset': obj.PassOffset.Value,
-            'allow_grooving': self.allowGrooving,
-            'finish_passes': self.finishPasses,
-            'stock_to_leave': self.stockToLeave,
             'hfeed': obj.ToolController.HorizFeed.Value,
             'vfeed': obj.ToolController.VertFeed.Value,
             'clearance': parentJob.SetupSheet.SafeHeightOffset.Value,
         }
+        if self.uses_pass_offset:
+            params['pass_offset'] = obj.PassOffset.Value
+        if self.uses_finish_passes:
+            params['finish_passes'] = obj.FinishPasses
+        if self.uses_stock_to_leave:
+            params['stock_to_leave'] = obj.StockToLeave
+        if self.uses_allow_grooving:
+            params['allow_grooving'] = obj.AllowGrooving
         if self.supports_internal_mode:
             params["mode"] = MachiningMode(str(obj.Mode))
             params["direction"] = Direction(str(obj.Direction))

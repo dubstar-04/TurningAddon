@@ -47,13 +47,6 @@ else:
 class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
     '''Page controller class for Turning operations.'''
 
-    def setOpFields(self, obj):
-        '''setFields(obj) ... transfers obj's property values to UI'''
-
-        self.form.finishPasses.hide()
-        self.form.label_5.hide()
-
-
 
 Command = PathOpGui.SetupOperation('TurnRough',
                                    PathTurnRough.Create,

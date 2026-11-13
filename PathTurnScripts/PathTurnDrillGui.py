@@ -39,8 +39,6 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
         return str(_icon)
 
     def setOpFields(self, obj):
-        for name in ("stockToLeave", "label_6", "finishPasses", "label_5", "allowGrooving"):
-            getattr(self.form, name).hide()
         self.form.setToolTip(FreeCAD.Qt.translate(
             "PathTurn", "Straight centreline drilling with a native Drill ToolBit and vertical feed. "
             "No pecking, canned cycles, automatic breakthrough, flute-length or holder-clearance checks."))
