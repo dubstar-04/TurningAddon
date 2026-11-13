@@ -88,10 +88,12 @@ class ObjectTurnThread(PathTurnBase.ObjectOp):
         if not had_pass_offset:
             obj.PassOffset = 0.1
         self._addThreadProperties(obj)
+        self.setEditorModes(obj, self.opFeatures(obj))
 
     def opOnDocumentRestored(self, obj):
         super().opOnDocumentRestored(obj)
         self._addThreadProperties(obj)
+        self.setEditorModes(obj, self.opFeatures(obj))
 
     @staticmethod
     def _addThreadProperties(obj):
@@ -128,21 +130,14 @@ class ObjectTurnThread(PathTurnBase.ObjectOp):
                 "App::PropertyString", "ThreadClass", "Thread",
                 FreeCAD.Qt.translate("PathTurn", "Thread tolerance class"))
             obj.ThreadClass = ""
-        is_custom = obj.ThreadStandard == "Custom"
-        obj.setEditorMode("Pitch", 0 if is_custom else 2)
-        obj.setEditorMode("SpringPasses", 0)
-        obj.setEditorMode("ThreadStandard", 2)
-        obj.setEditorMode("ThreadSize", 2)
-        obj.setEditorMode("ThreadClass", 2)
-        for name in ("MinDiameter", "MaxDiameter"):
-            if hasattr(obj, name):
-                obj.setEditorMode(name, 0 if is_custom else 2)
 
     def setEditorModes(self, obj, features):
         super().setEditorModes(obj, features)
-        for name in ("FinishPasses", "StockToLeave", "AllowGrooving"):
+        for name in ("FinishPasses", "StockToLeave", "AllowGrooving",
+                     "ThreadStandard", "ThreadSize", "ThreadClass"):
             if hasattr(obj, name):
                 obj.setEditorMode(name, 2)
+        # Setup Sheet prototypes are write-only, so hasattr is False and values are never read.
         if hasattr(obj, "ThreadStandard"):
             is_custom = obj.ThreadStandard == "Custom"
             obj.setEditorMode("Pitch", 0 if is_custom else 2)
