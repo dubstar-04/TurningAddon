@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "External grooving",
+  "name": "Grooving",
   "shape": "Grooving.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {
@@ -9,6 +9,7 @@
     "Length": "12 mm",
     "Thickness": "3 mm",
     "ToolNosePosition": "Right",
+    "Mode": "External",
     "ToolPost": "Front"
   },
   "attribute": {
