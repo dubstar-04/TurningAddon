@@ -32,7 +32,7 @@ import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
 from PySide import QtCore
 
-from liblathe.op.base import MachiningMode
+from liblathe.op.base import Direction, MachiningMode
 from liblathe.tool.tool import Tool, ToolSide
 
 __title__ = "Path Turn Base Operation"
@@ -62,6 +62,7 @@ class ObjectOp(PathOp.ObjectOp):
     pass_offset_label = translate("TurnPath", "Pass Offset")
     has_finish_offset = False
     supports_internal_mode = False
+    direction_tooltip = translate("TurnPath", "Cutting direction")
 
     def opFeatures(self, obj):
         '''opFeatures(obj) ... returns the OR'ed list of features used and supported by the operation.'''
@@ -83,34 +84,43 @@ class ObjectOp(PathOp.ObjectOp):
         obj.FinishPasses = 2
         obj.StockToLeave = 0
         if self.supports_internal_mode:
-            self._addMachiningMode(obj)
+            self._addModeAndDirection(obj)
         self.setEditorModes(obj, self.opFeatures(obj))
 
     def opOnDocumentRestored(self, obj):
         super().opOnDocumentRestored(obj)
         if self.supports_internal_mode:
-            self._addMachiningMode(obj)
+            self._addModeAndDirection(obj)
 
     def onChanged(self, obj, prop):
         parent = getattr(super(), "onChanged", None)
         if parent is not None:
             parent(obj, prop)
         if self.supports_internal_mode and prop == "Mode" and hasattr(obj, "Direction"):
-            obj.Direction = (self.internal_direction if str(obj.Mode) == "Internal"
-                             else self.external_direction)
+            obj.Direction = self._defaultDirection(obj).value
 
     @staticmethod
-    def _addMachiningMode(obj):
-        values = ["External", "Internal"]
-        created = not hasattr(obj, "Mode")
+    def _defaultDirection(obj):
+        internal = str(getattr(obj, "Mode", "")) == MachiningMode.INTERNAL.value
+        return Direction.RADIAL if internal else Direction.NEGATIVE_Z
+
+    def _addModeAndDirection(self, obj):
+        self._addEnumeration(obj, "Mode", MachiningMode, MachiningMode.EXTERNAL,
+                             translate("TurnPath", "Machining mode"))
+        self._addEnumeration(obj, "Direction", Direction, self._defaultDirection(obj),
+                             self.direction_tooltip)
+
+    @staticmethod
+    def _addEnumeration(obj, name, enum, default, tooltip):
+        """Add or refresh an enumeration property whose choices are the enum values."""
+        values = [member.value for member in enum]
+        created = not hasattr(obj, name)
         if created:
-            obj.addProperty(
-                "App::PropertyEnumeration", "Mode", "Turn Path",
-                translate("TurnPath", "Machining mode"))
-        current = "External" if created else str(obj.Mode)
-        if created or obj.getEnumerationsOfProperty("Mode") != values:
-            obj.Mode = values
-            obj.Mode = current if current in values else "External"
+            obj.addProperty("App::PropertyEnumeration", name, "Turn Path", tooltip)
+        current = default.value if created else str(getattr(obj, name))
+        if created or obj.getEnumerationsOfProperty(name) != values:
+            setattr(obj, name, values)
+            setattr(obj, name, current if current in values else default.value)
 
     def setEditorModes(self, obj, features):
         super().setEditorModes(obj, features)
@@ -170,12 +180,10 @@ class ObjectOp(PathOp.ObjectOp):
         return getattr(tool, "Mode", None) in (None, self.required_tool_mode(obj))
 
     def required_tool_mode(self, obj=None):
+        """Return the tool Mode string required by this operation."""
         if self.supports_internal_mode and obj is not None:
-            mode = str(getattr(obj, "Mode", "External"))
-            if mode not in ("External", "Internal"):
-                raise ValueError(f"Unsupported machining mode: {mode}")
-            return mode
-        return "External"
+            return MachiningMode(str(obj.Mode)).value
+        return MachiningMode.EXTERNAL.value
 
     def opUpdateDepths(self, obj):
         obj.OpStartDepth = obj.OpStockZMax
@@ -195,11 +203,12 @@ class ObjectOp(PathOp.ObjectOp):
             'clearance': parentJob.SetupSheet.SafeHeightOffset.Value,
         }
         if self.supports_internal_mode:
-            params["mode"] = MachiningMode[str(obj.Mode).upper()]
+            params["mode"] = MachiningMode(str(obj.Mode))
+            params["direction"] = Direction(str(obj.Direction))
         return params
 
     def get_part_outline(self, obj):
-        if self.supports_internal_mode and str(obj.Mode) == "Internal":
+        if self.supports_internal_mode and str(obj.Mode) == MachiningMode.INTERNAL.value:
             return PathTurnHelpers.getInternalOutline(obj, self.model)
         return PathTurnHelpers.getPartOutline(base.Shape for base in self.model)
 

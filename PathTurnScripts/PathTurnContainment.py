@@ -5,6 +5,7 @@ import math
 import FreeCAD
 from pivy import coin
 from PathScripts import PathUtils
+from liblathe.op.base import MachiningMode
 
 from .PathTurnAddonHelpers import getContainment
 
@@ -114,7 +115,7 @@ class ContainmentPreview:
                 [(x0, 0, z1 + clearance), (x1, 0, z1 + clearance)], magenta,
                 dashed=True)
         elif not (getattr(obj.Proxy, "supports_internal_mode", False)
-                  and str(getattr(obj, "Mode", "External")) == "Internal"):
+                  and str(getattr(obj, "Mode", "")) == MachiningMode.INTERNAL.value):
             clearance_x = outer + sign * clearance
             self._boundary(
                 [(clearance_x, 0, z0), (clearance_x, 0, z1)], magenta,

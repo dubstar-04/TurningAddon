@@ -30,7 +30,6 @@ from PySide import QtCore
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
 import liblathe.op.profile as LLP
-from liblathe.op.profile import ProfileDirection
 
 __title__ = "Path Turn Profile Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -46,45 +45,7 @@ class ObjectTurnProfile(PathTurnBase.ObjectOp):
     '''Proxy class for turning profile operations.'''
 
     supports_internal_mode = True
-    external_direction = "-Z"
-    internal_direction = "Radial"
-
-    @staticmethod
-    def _addDirection(obj):
-        values = ["-Z", "+Z", "Radial"]
-        created = not hasattr(obj, "Direction")
-        if created:
-            obj.addProperty(
-                "App::PropertyEnumeration", "Direction", "Turn Path",
-                translate("TurnPath", "Profiling direction"))
-        default = "Radial" if str(getattr(obj, "Mode", "External")) == "Internal" else "-Z"
-        current = default if created else str(obj.Direction)
-        if current == "Inward":
-            current = "Radial"
-        if created or obj.getEnumerationsOfProperty("Direction") != values:
-            obj.Direction = values
-            obj.Direction = current if current in values else default
-
-    def initOperation(self, obj):
-        super().initOperation(obj)
-        self._addDirection(obj)
-
-    def opOnDocumentRestored(self, obj):
-        super().opOnDocumentRestored(obj)
-        self._addDirection(obj)
-
-    def getProps(self, obj):
-        directions = {
-            "-Z": ProfileDirection.NEGATIVE_Z,
-            "+Z": ProfileDirection.POSITIVE_Z,
-            "Radial": ProfileDirection.RADIAL,
-        }
-        try:
-            direction = directions[str(obj.Direction)]
-        except KeyError as error:
-            raise ValueError(f"Unsupported profiling direction: {obj.Direction}") from error
-        return {**super().getProps(obj), "direction": direction}
-
+    direction_tooltip = translate("TurnPath", "Profiling direction")
 
     def op_generate_gcode(self, obj, turnTool):
         '''
