@@ -10,16 +10,19 @@ workbench is activated. It uses an externally installed
 [LibLathe](https://github.com/dubstar-04/LibLathe) library; no library is bundled.
 
 ## Features
-* Turning Roughing operation
-* Turning Facing operation
-* Turning Profiling operation
+* Turning Roughing operation: external/internal, axial `-Z`/`+Z` or `Radial`
+* Turning Profiling operation: external/internal, axial `-Z`/`+Z` or `Radial`
 * Turning Parting operation
-* Turning Grooving operation
 * Turning Thread operation
 * Turning Tool Library
 
+
 ## Requirements
 * FreeCAD v1.1 or later with the CAM workbench
+* The matching LibLathe `feature/architecture` build installed in FreeCAD's
+  Python environment, including its native extensions. Released LibLathe
+  packages do not yet provide this branch's architecture API. Restart FreeCAD
+  after updating LibLathe; updating the Addon alone does not update the library.
 
 ## Tool management
 
