@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "ISO C rhombic 80°",
+  "name": "ISO C - 80°",
   "shape": "Iso_C.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {

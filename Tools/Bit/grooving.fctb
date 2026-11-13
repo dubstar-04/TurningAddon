@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "name": "Grooving",
+  "shape": "Grooving.fcstd",
+  "shape-type": "TurningCustom",
+  "parameter": {
+    "Width": "2 mm",
+    "CornerRadius": "0.2 mm",
+    "Length": "12 mm",
+    "Thickness": "3 mm",
+    "ToolNosePosition": "Right",
+    "Mode": "External",
+    "ToolPost": "Front"
+  },
+  "attribute": {
+    "description": "Rectangular grooving insert."
+  }
+}

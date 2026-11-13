@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "ISO S square",
+  "name": "ISO S - Square",
   "shape": "Iso_S.fcstd",
   "shape-type": "TurningCustom",
   "parameter": {

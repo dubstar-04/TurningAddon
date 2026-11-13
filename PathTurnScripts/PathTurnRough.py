@@ -30,6 +30,7 @@ from PySide import QtCore
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 
 import liblathe.op.rough as LLP
+from liblathe.op.base import Direction
 
 __title__ = "Path Turn Rough Operation"
 __author__ = "dubstar-04 (Daniel Wood)"
@@ -44,6 +45,17 @@ def translate(context, text, disambig=None):
 class ObjectTurnRough(PathTurnBase.ObjectOp):
     '''Proxy class for turning roughing operations.'''
 
+    supports_internal_mode = True
+    uses_stock_to_leave = True
+    uses_allow_grooving = True
+    direction_tooltip = translate("TurnPath", "Roughing direction")
+    pass_offset_label = translate("TurnPath", "Radial Pass Offset")
+
+    def pass_offset_label_for(self, obj):
+        if str(obj.Direction) == Direction.RADIAL.value:
+            return translate("TurnPath", "Axial Pass Offset")
+        return translate("TurnPath", "Radial Pass Offset")
+
     def op_generate_gcode(self, obj, turnTool):
         '''
         Generate GCode for the op
@@ -51,8 +63,9 @@ class ObjectTurnRough(PathTurnBase.ObjectOp):
         RoughOP = LLP.RoughOP()
         RoughOP.setParams(self.getProps(obj))
 
-        stockBoundbox = PathTurnHelpers.getliblatheBoundBox(obj)
-        RoughOP.add_stock(stockBoundbox)
+        containmentBounds = PathTurnHelpers.getContainment(obj)
+        RoughOP.add_containment(containmentBounds)
+        RoughOP.add_stock(PathTurnHelpers.getStock(obj))
 
         RoughOP.addPartSegments(self.part_outline)
         RoughOP.add_tool(turnTool)
@@ -66,8 +79,9 @@ class ObjectTurnRough(PathTurnBase.ObjectOp):
 
 def SetupProperties():
     setup = []
-    setup.append("StepOver")
-    setup.append("FinishPasses")
+    setup.append("Mode")
+    setup.append("Direction")
+    setup.append("PassOffset")
     setup.append("AllowGrooving")
     return setup
 
