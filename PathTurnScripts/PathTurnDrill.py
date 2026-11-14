@@ -37,10 +37,13 @@ class ObjectTurnDrill(PathTurnBase.ObjectOp):
         obj.RetractionMode = NO_RETRACT
         obj.addProperty("App::PropertyLength", "PeckDepth", "Turn Path", FreeCAD.Qt.translate(
             "PathTurn", "Maximum new depth per step."))
-        obj.setExpression("PeckDepth", "OpToolDiameter * 1")
         obj.addProperty("App::PropertyBool", "TipCompensation", "Turn Path", FreeCAD.Qt.translate(
             "PathTurn", "Extend the tip beyond Final Depth so the full drill diameter reaches that depth."))
         self.setEditorModes(obj, self.opFeatures(obj))
+
+    def opSetDefaultValues(self, obj, job):
+        super().opSetDefaultValues(obj, job)
+        self.applyExpression(obj, "PeckDepth", "OpToolDiameter * 1")
 
     @staticmethod
     def _length(obj, name):
