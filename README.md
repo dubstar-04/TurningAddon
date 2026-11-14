@@ -4,9 +4,7 @@ A FreeCAD CAM Addon to encourage the development of CNC turning functionality fo
 | :warning: WARNING: Turning Addon is currently experimental / proof of concept and only suitable for testing. |
 
 ## Description
-This addon appears under **CAM -> CAM Addons -> Turning Addon** and allows the creation of
-turning paths for use with a CNC lathe. It uses an externally installed
-[LibLathe](https://github.com/dubstar-04/LibLathe) library; no library is bundled.
+This addon appears under **CAM -> CAM Addons -> Turning Addon** and allows the creation of turning paths for use with a CNC lathe. It uses [LibLathe](https://github.com/dubstar-04/LibLathe); no library is bundled.
 
 ## Features
 * Turning Roughing
@@ -19,6 +17,7 @@ turning paths for use with a CNC lathe. It uses an externally installed
 
 ## Requirements
 * FreeCAD 26.3 or later
+* [LibLathe](https://pypi.org/project/liblathe/) from PyPI
 
 ## Tool management
 Use the **Turning Tool Library** to create and edit tools from native templates,
