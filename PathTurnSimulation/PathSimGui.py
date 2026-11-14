@@ -150,14 +150,6 @@ class PathSimPanel:
 	def reject(self):
 		self.quit()
 
-	def accept(self):
-		FreeCAD.Console.PrintMessage("\nAccept Signal")
-		self.quit()
-
-	def clicked(self, button):
-		if button == QtGui.QDialogButtonBox.Apply:
-			FreeCAD.Console.PrintMessage("\nApply Signal")
-
 	def quit(self):
 		self._closing = True
 		self.simStop()
@@ -167,7 +159,7 @@ class PathSimPanel:
 		FreeCADGui.Control.closeDialog()
 		
 	def getStandardButtons(self):
-		return QtGui.QDialogButtonBox.Ok | QtGui.QDialogButtonBox.Cancel
+		return QtGui.QDialogButtonBox.Close
 
 	def onJobChange(self):
 		j = self.jobs[self.form.comboJobs.currentIndex()]
