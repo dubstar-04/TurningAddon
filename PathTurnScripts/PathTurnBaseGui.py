@@ -138,6 +138,9 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
     taskPanelDiametersPage = TaskPanelContainment
 
     def initPage(self, obj):
+        if getattr(self, "icon", None):
+            # CAM constructs tab icons with QIcon, which needs the SVG path.
+            self.setIcon(os.path.join(_iconDir, os.path.basename(self.icon)))
         self.updating = False  # pylint: disable=attribute-defined-outside-init
         self.containment_page = next(
             page for page in self.parent.featurePages if isinstance(page, TaskPanelContainment))
