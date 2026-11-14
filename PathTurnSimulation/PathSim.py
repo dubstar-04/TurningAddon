@@ -525,7 +525,13 @@ class PathSim (QtCore.QThread):
 		if not math.isfinite(progress):
 			raise ValueError("Seek progress must be finite")
 		with self._stateLock:
-			self._seekTarget = int(max(0.0, min(1.0, progress)) * len(self.pathPoints))
+			progress = max(0.0, min(1.0, progress))
+			count = len(self.pathPoints)
+			target = int(progress * count)
+			# A normalized sample boundary can round just below its integer index.
+			if target < count and progress == (target + 1) / count:
+				target += 1
+			self._seekTarget = target
 			self._stepRequests = 0
 			self._stepBackRequests = 0
 			self._seekSerial += 1

@@ -51,6 +51,8 @@ class PathSimPanel:
 		self._resetMeshTiming()
 		self.counter = 0
 		self._closing = False
+		self._pressedOperation = None
+		self.operationStarts = {}
 		self.cleanup()
 
 		self.timeline = PathSimTimelineGui.timeline()
@@ -61,6 +63,8 @@ class PathSimPanel:
 		# connect ui components
 		self.form.comboJobs.currentIndexChanged.connect(self.onJobChange)
 		self.form.listOperations.itemChanged.connect(self.updateTimeline)
+		self.form.listOperations.itemPressed.connect(self.onOperationPressed)
+		self.form.listOperations.itemClicked.connect(self.onOperationClicked)
 		self.sim.updatePos.connect(self.setPos)
 		self.sim.complete.connect(self.simComplete)
 		self.sim.meshReady.connect(self.onMeshReady)
@@ -169,7 +173,25 @@ class PathSimPanel:
 
 		return activeOps
 
+	def onOperationPressed(self, item):
+		self._pressedOperation = item
+
+	def onOperationClicked(self, item):
+		pressedOperation = self._pressedOperation
+		self._pressedOperation = None
+		if item is not pressedOperation or item.checkState() != QtCore.Qt.CheckState.Checked:
+			return
+		row = self.form.listOperations.row(item)
+		start = self.operationStarts.get(row + 1)
+		if start is None:
+			FreeCAD.Console.PrintWarning(
+				"PathSim: Operation '{}' has no simulated path.\n".format(self.operations[row].Label))
+			return
+		self.simSeek(start)
+
 	def updateTimeline(self):
+		# Checkbox changes also emit itemClicked, but should not seek.
+		self._pressedOperation = None
 		if not self.sim.isRunning():
 			operationIds = {op.Name: index + 1 for index, op in enumerate(self.operations)}
 			self.sim.setOperations(self.getOperations(), operationIds)
@@ -179,6 +201,9 @@ class PathSimPanel:
 			self.timeline.setProgress(0)
 
 	def onPathReady(self, ranges):
+		self.operationStarts = {}
+		for start, _, operationId in ranges:
+			self.operationStarts.setdefault(operationId, start)
 		self.timeline.setOperationRanges([
 			(start, end, QtGui.QColor.fromRgbF(
 				*OPERATION_COLOURS[(operationId - 1) % len(OPERATION_COLOURS)]))
