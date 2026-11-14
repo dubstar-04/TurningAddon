@@ -77,7 +77,9 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
             getattr(self.form, field).setEnabled(pecking)
 
     def setOpFields(self, obj):
-        self.form.drillOptions.show()
+        for name in ("retractionMode", "peckDepth", "tipCompensation"):
+            getattr(self.form, name).show()
+            getattr(self.form, name + "Label").show()
         for spin_box in self.quantitySpinBoxes.values():
             spin_box.updateWidget()
         blocked = self.form.retractionMode.blockSignals(True)

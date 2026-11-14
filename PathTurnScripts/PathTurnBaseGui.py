@@ -325,7 +325,6 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             self.form.finishPassOffset.setText(obj.FinishPassOffset.UserString)
         has_mode = hasattr(obj, "Mode")
         has_direction = hasattr(obj, "Direction")
-        self.form.frame.setVisible(has_mode or has_direction)
         self.form.modeLabel.setVisible(has_mode)
         self.form.mode.setVisible(has_mode)
         self.form.directionLabel.setVisible(has_direction)
