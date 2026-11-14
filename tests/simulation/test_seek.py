@@ -1,4 +1,5 @@
 import importlib.util
+import math
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -354,6 +355,18 @@ class SeekTests(unittest.TestCase):
                             for args in self.sim.changedOp.calls))
         self.assertLess(self.clock.now, 1.21)
         self.assertFalse(self.sim.running)
+
+    def test_seek_to_operation_boundary_uses_exact_sample(self):
+        self.sim.pathPoints = [
+            (SimpleNamespace(x=i, y=0, z=0), self.operations[0 if i < 15 else 1])
+            for i in range(22)]
+        start = self.sim.getOperationRanges()[1][0]
+        for progress, expected in ((start, 15), (math.nextafter(start, 0.0), 14)):
+            with self.subTest(progress=progress):
+                self.sim.skipTo(progress)
+                self.run_worker()
+                self.assertEqual(self.sim.idx, expected)
+                self.assertEqual(self.sim.engine.positions, list(range(expected)))
 
     def test_backward_seek_reconstructs_original_path(self):
         self.sim.idx = 18
