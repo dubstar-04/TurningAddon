@@ -18,9 +18,45 @@ def getDrill(tool):
     return Drill(tool.Diameter.Value, tool.TipAngle.Value, tool.Length.Value)
 
 
+NO_RETRACT = "None"
+PARTIAL_RETRACT = "Partial Retract"
+FULL_RETRACT = "Full Retract"
+RETRACTION_MODES = [NO_RETRACT, PARTIAL_RETRACT, FULL_RETRACT]
+
+
 class ObjectTurnDrill(PathTurnBase.ObjectOp):
     centreline_drilling = True
     uses_pass_offset = False
+
+    def initOperation(self, obj):
+        super().initOperation(obj)
+        obj.addProperty("App::PropertyEnumeration", "RetractionMode", "Turn Path", FreeCAD.Qt.translate(
+            "PathTurn", "None drills to depth in one feed. Partial Retract steps and retracts one drill "
+            "diameter. Full Retract steps and retracts to the clearance."))
+        obj.RetractionMode = RETRACTION_MODES
+        obj.RetractionMode = NO_RETRACT
+        obj.addProperty("App::PropertyLength", "PeckDepth", "Turn Path", FreeCAD.Qt.translate(
+            "PathTurn", "Maximum new depth per step."))
+        obj.addProperty("App::PropertyBool", "TipCompensation", "Turn Path", FreeCAD.Qt.translate(
+            "PathTurn", "Extend the tip beyond Final Depth so the full drill diameter reaches that depth."))
+        self.setEditorModes(obj, self.opFeatures(obj))
+
+    def opSetDefaultValues(self, obj, job):
+        super().opSetDefaultValues(obj, job)
+        self.applyExpression(obj, "PeckDepth", "OpToolDiameter * 1")
+
+    @staticmethod
+    def _length(obj, name):
+        # FreeCAD updates OpToolDiameter during execute, after expressions were evaluated.
+        expression = dict(obj.ExpressionEngine).get(name)
+        if expression:
+            return FreeCAD.Units.Quantity(obj.evalExpression(expression)).Value
+        return getattr(obj, name).Value
+
+    def opOnChanged(self, obj, prop):
+        super().opOnChanged(obj, prop)
+        if prop == "RetractionMode":
+            self.setEditorModes(obj, self.opFeatures(obj))
 
     def isToolSupported(self, obj, tool):
         return is_drill_tool(tool)
@@ -30,17 +66,19 @@ class ObjectTurnDrill(PathTurnBase.ObjectOp):
         for name in ("MinDiameter", "MaxDiameter"):
             if hasattr(obj, name):
                 obj.setEditorMode(name, 2)
+        if hasattr(obj, "RetractionMode") and hasattr(obj, "PeckDepth"):
+            obj.setEditorMode("PeckDepth", 0 if str(obj.RetractionMode) != NO_RETRACT else 2)
 
     def opExecute(self, obj):
         path = obj.Path
         path.Commands = []
         obj.Path = path
-        from liblathe.op.drill import DrillOP
+        from liblathe.op.drill import DrillOP, RetractMode
 
         depths = (obj.StartDepth.Value, obj.FinalDepth.Value)
         if not all(math.isfinite(value) for value in depths) or depths[0] <= depths[1]:
             raise ValueError(FreeCAD.Qt.translate(
-                "PathTurn", "Drilling requires finite depths with final tip depth below start depth."))
+                "PathTurn", "Drilling requires finite depths with final depth below start depth."))
         feed = obj.ToolController.VertFeed.Value
         clearance = self.getJob(obj).SetupSheet.SafeHeightOffset.Value
         if not math.isfinite(clearance) or clearance <= 0:
@@ -52,13 +90,22 @@ class ObjectTurnDrill(PathTurnBase.ObjectOp):
         operation.add_containment(helpers.getContainment(obj))
         operation.vfeed = feed
         operation.clearance = clearance
+        mode = str(obj.RetractionMode)
+        operation.setParams({
+            "peck_depth": self._length(obj, "PeckDepth") if mode != NO_RETRACT else 0.0,
+            "retract_mode": (RetractMode.PARTIAL_RETRACT if mode == PARTIAL_RETRACT
+                             else RetractMode.FULL_RETRACT),
+            "reentry_gap_diameters": 1.0,
+            "chip_break_retract_diameters": 1.0,
+            "tip_compensation": obj.TipCompensation,
+        })
         commands = operation.getGCode()
         self.commandlist.extend(
             Path.Command(command.get_movement(), command.getParams()) for command in commands)
 
 
 def SetupProperties():
-    return []
+    return ["RetractionMode", "PeckDepth", "TipCompensation"]
 
 
 def Create(name, obj=None, parentJob=None):

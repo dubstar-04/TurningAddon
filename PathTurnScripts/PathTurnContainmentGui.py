@@ -2,6 +2,7 @@
 
 import math
 from functools import partial
+from pathlib import Path
 
 import FreeCAD
 import FreeCADGui
@@ -22,6 +23,7 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
         return FreeCAD.Qt.translate("PathTurn", "Containment")
 
     def initPage(self, obj):
+        self.setIcon(str(Path(__file__).parent.parent / "Gui/Resources/Icons/CAM-TurnContainment.svg"))
         self.updating = False
         self.bindings = {}
         self.widgets = {name: getattr(self.form, name) for name in self.mapping(obj)}

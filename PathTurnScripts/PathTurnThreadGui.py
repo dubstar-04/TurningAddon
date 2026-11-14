@@ -168,8 +168,8 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
             "PathTurn", "Maximum radial depth per pass."))
         self.form.springPasses.setValue(obj.SpringPasses)
         self.form.setToolTip(FreeCAD.Qt.translate(
-            "PathTurn", "External single-start thread. Requires spindle synchronization "
-            "and run-in/run-out clearance."))
+            "PathTurn", "External, single-start thread.\n"
+            "Requires spindle synchronization and run-in/run-out clearance."))
 
     def getSignalsForUpdate(self, obj):
         return (super().getSignalsForUpdate(obj)

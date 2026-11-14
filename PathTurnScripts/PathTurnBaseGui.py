@@ -1,26 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# ***************************************************************************
-# *                                                                         *
-# *   Copyright (c) 2019 Daniel Wood <s.d.wood.82@gmail.com>                *
-# *                                                                         *
-# *   This program is free software; you can redistribute it and/or modify  *
-# *   it under the terms of the GNU Lesser General Public License (LGPL)    *
-# *   as published by the Free Software Foundation; either version 2 of     *
-# *   the License, or (at your option) any later version.                   *
-# *   for detail see the LICENCE text file.                                 *
-# *                                                                         *
-# *   This program is distributed in the hope that it will be useful,       *
-# *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
-# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
-# *   GNU Library General Public License for more details.                  *
-# *                                                                         *
-# *   You should have received a copy of the GNU Library General Public     *
-# *   License along with this program; if not, write to the Free Software   *
-# *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
-# *   USA                                                                   *
-# *                                                                         *
-# ***************************************************************************
+# Copyright (c) 2019 Daniel Wood <s.d.wood.82@gmail.com>
+# SPDX-License-Identifier: LGPL-2.0-or-later
+# See LICENSE for terms. This software is provided WITHOUT ANY WARRANTY.
 
 import os
 
@@ -138,6 +120,9 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
     taskPanelDiametersPage = TaskPanelContainment
 
     def initPage(self, obj):
+        if getattr(self, "icon", None):
+            # CAM constructs tab icons with QIcon, which needs the SVG path.
+            self.setIcon(os.path.join(_iconDir, os.path.basename(self.icon)))
         self.updating = False  # pylint: disable=attribute-defined-outside-init
         self.containment_page = next(
             page for page in self.parent.featurePages if isinstance(page, TaskPanelContainment))
@@ -322,7 +307,6 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             self.form.finishPassOffset.setText(obj.FinishPassOffset.UserString)
         has_mode = hasattr(obj, "Mode")
         has_direction = hasattr(obj, "Direction")
-        self.form.frame.setVisible(has_mode or has_direction)
         self.form.modeLabel.setVisible(has_mode)
         self.form.mode.setVisible(has_mode)
         self.form.directionLabel.setVisible(has_direction)
