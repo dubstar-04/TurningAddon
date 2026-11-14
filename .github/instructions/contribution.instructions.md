@@ -4,6 +4,10 @@ applyTo: "**"
 
 # Code guidelines
 
+## Operations
+
+- All operations must use LibLathe to generate G-code.
+
 ## UI
 
 - Keep UI elements aligned.
@@ -34,3 +38,8 @@ applyTo: "**"
 
 - Keep the README to a basic overview of the addon.
 - Do not add details about versions, operations or G-code.
+
+## Licensing
+
+- Use short copyright and SPDX headers when replacing long license notices; preserve the existing copyright and license terms.
+- Keep the root LICENSE file and third-party notices intact.
