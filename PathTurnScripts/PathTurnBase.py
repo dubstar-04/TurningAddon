@@ -185,6 +185,8 @@ class ObjectOp(PathOp.ObjectOp):
             obj.ToolController = next(
                 (controller for controller in job.Tools.Group
                  if self.isToolSupported(obj, controller.Tool)), None)
+            if obj.ToolController is not None and hasattr(obj, "OpToolDiameter"):
+                obj.OpToolDiameter = obj.ToolController.Tool.Diameter
 
     def isToolSupported(self, obj, tool):
         from .PathTurnToolBit import is_drill_tool

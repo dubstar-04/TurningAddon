@@ -167,6 +167,70 @@
         </property>
        </widget>
       </item>
+      <item row="9" column="0" colspan="2">
+       <widget class="QWidget" name="drillOptions" native="true">
+        <property name="visible">
+         <bool>false</bool>
+        </property>
+        <layout class="QFormLayout" name="drillLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="retractionModeLabel">
+           <property name="text">
+            <string>Retraction mode</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="retractionMode">
+           <property name="toolTip">
+            <string>None drills to depth in one feed. Partial Retract steps by Peck depth and retracts one drill diameter. Full Retract steps by Peck depth and retracts to the clearance.</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="peckDepthLabel">
+           <property name="text">
+            <string>Peck depth</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="Gui::QuantitySpinBox" name="peckDepth">
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="toolTip">
+            <string>Maximum new depth per peck. Defaults to one drill diameter.</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="tipCompensationLabel">
+           <property name="text">
+            <string>Extra offset</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QComboBox" name="tipCompensation">
+           <property name="toolTip">
+            <string>Final Depth specifies the full-diameter hole depth. The drill tip extends beyond it by the calculated point length.</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0" colspan="2">
+          <widget class="QLabel" name="drillHelp">
+           <property name="text">
+            <string>Uses explicit G0/G1 moves. Set Start Depth and Final Depth on the Containment page. Entry and fixture clearances remain the user's responsibility.</string>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
       <item row="10" column="0">
        <widget class="QLabel" name="pitchLabel">
         <property name="text">
@@ -272,6 +336,11 @@
   </layout>
  </widget>
  <customwidgets>
+  <customwidget>
+   <class>Gui::QuantitySpinBox</class>
+   <extends>QWidget</extends>
+   <header>Gui/QuantitySpinBox.h</header>
+  </customwidget>
   <customwidget>
    <class>Gui::InputField</class>
    <extends>QLineEdit</extends>
