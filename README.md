@@ -1,33 +1,55 @@
-# FreeCAD Turning Addon ![Python package](https://github.com/dubstar-04/FreeCAD_Turning_Addon/workflows/Python%20package/badge.svg?branch=master)
-A FreeCAD CAM Addon to encourage the development of CNC turning functionality for the CAM workbench.
+# FreeCAD Turning Addon
 
-| :warning: WARNING: Turning Addon is currently experimental / proof of concept and only suitable for testing. |
+A FreeCAD CAM workbench addon for creating CNC lathe toolpaths.
 
-## Description
-This addon appears under **CAM -> CAM Addons -> Turning Addon** and allows the creation of
-turning paths for use with a CNC lathe. It uses an externally installed
-[LibLathe](https://github.com/dubstar-04/LibLathe) library; no library is bundled.
+> **Experimental:** This addon is under development. Review and verify every toolpath before machining.
 
 ## Features
-* Turning Roughing
-* Turning Profiling
-* Turning Parting
-* Turning Threading
-* Turning Drilling
-* Turning Tool Library
-* Turning Simulation
+
+- Turning roughing, including facing and grooving
+- Turning profiling, parting, threading, and drilling
+- A turning tool library and toolpath simulation
+- Containment controls and a remaining-stock guide
 
 ## Requirements
-* FreeCAD 26.3 or later
 
-## Tool management
-Use the **Turning Tool Library** to create and edit tools from native templates,
+- FreeCAD 26.3 or later
+- [LibLathe](https://pypi.org/project/liblathe/)
 
-## Containment
-Containment visually sets the limits for operations.
+The addon is available from **CAM > CAM Addons > Turning Addon**.
 
-## Remaining-stock guide
-**Stock before operation** or **Stock after operation**
+## Turning operations
 
-## Disclaimer
-This is an experimental tool for development purposes and must be used at your own risk. Machine tools are dangerous and the author of this tool will not be responsible for any damage or personal injury caused by using incorrect tool paths or machining parameters.
+<table>
+  <tr>
+    <td align="center"><strong>Roughing</strong><br><img src="Screenshots/screenshot_op_rough_clear.png" alt="Roughing toolpath"></td>
+    <td align="center"><strong>Facing</strong><br><img src="Screenshots/screenshot_op_rough_face.png" alt="Facing toolpath"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Grooving</strong><br><img src="Screenshots/screenshot_op_grooving.png" alt="Grooving toolpath"></td>
+    <td align="center"><strong>Profiling</strong><br><img src="Screenshots/screenshot_op_profile.png" alt="Profiling toolpath"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Boring</strong><br><img src="Screenshots/screenshot_op_bore.png" alt="Boring toolpath"></td>
+    <td align="center"><strong>Containment</strong><br><img src="Screenshots/screenshot_containment.png" alt="Containment bounds"></td>
+  </tr>
+</table>
+
+## Tools and simulation
+
+Use the **Turning Tool Library** to create and edit tools. The containment controls set operation bounds, and the remaining-stock guide shows stock before or after an operation. Use **Turning Simulation** to preview a toolpath.
+
+<table>
+  <tr>
+    <td align="center"><strong>Tool library</strong><br><img src="Screenshots/screenshot_toollibrary.png" alt="Turning Tool Library"></td>
+    <td align="center"><strong>ToolBit shapes</strong><br><img src="Screenshots/screenshot_toollibrary_shape.png" alt="ToolBit shape selection"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Remaining-stock guide</strong><br><img src="Screenshots/screenshot_remainingstock.png" alt="Remaining-stock guide"></td>
+    <td align="center"><strong>Simulation</strong><br><img src="Screenshots/screenshot_simulation.png" alt="Turning simulation"></td>
+  </tr>
+</table>
+
+## License
+
+[LGPL-2.1](LICENSE)

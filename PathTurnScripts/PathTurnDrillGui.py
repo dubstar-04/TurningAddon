@@ -5,7 +5,7 @@ from pathlib import Path
 import FreeCAD
 import FreeCADGui
 import Path.Op.Gui.Base as PathOpGui
-from PySide import QtCore
+from PySide import QtCore, QtGui
 
 from . import PathTurnBaseGui
 from . import PathTurnDrill
@@ -38,10 +38,16 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
     def getIcon(self, obj):
         return str(_icon)
 
-    def setOpFields(self, obj):
-        self.form.setToolTip(FreeCAD.Qt.translate(
-            "PathTurn", "Straight centreline drilling with a native Drill ToolBit and vertical feed. "
+    def getForm(self):
+        form = super().getForm()
+        # drilling has no operation parameters; depths are set on the Containment page
+        description = QtGui.QLabel(FreeCAD.Qt.translate(
+            "PathTurn", "Straight centreline drilling with a native Drill ToolBit and vertical feed.\n\n"
+            "Set the start and final tip depths on the Containment page.\n\n"
             "No pecking, canned cycles, automatic breakthrough, flute-length or holder-clearance checks."))
+        description.setWordWrap(True)
+        form.widget.layout().addWidget(description, 9, 0, 1, 2)
+        return form
 
 
 Command = PathOpGui.SetupOperation(
