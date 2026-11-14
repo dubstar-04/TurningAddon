@@ -28,8 +28,9 @@ class TaskPanelDrillContainment(TaskPanelContainment):
         form.plusZLabel.setText(FreeCAD.Qt.translate("PathTurn", "Start depth"))
         form.minusZLabel.setText(FreeCAD.Qt.translate("PathTurn", "Final tip depth"))
         form.setToolTip(FreeCAD.Qt.translate(
-            "PathTurn", "Drilling at X=0. Final Depth is the tip depth unless drill-tip compensation "
-            "is enabled on the Operation page. Clearance uses the job Safe Height Offset."))
+            "PathTurn", "Drills on the spindle axis (X=0).\n"
+            "Final Depth is the tip depth unless Tool Tip offset is selected.\n"
+            "Clearance comes from the job Safe Height Offset."))
         return form
 
     def setFields(self, obj):
