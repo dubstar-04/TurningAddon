@@ -73,7 +73,7 @@ class ObjectTurnDrill(PathTurnBase.ObjectOp):
         path = obj.Path
         path.Commands = []
         obj.Path = path
-        from liblathe.op.drill import DrillOP, PeckMode
+        from liblathe.op.drill import DrillOP, RetractMode
 
         depths = (obj.StartDepth.Value, obj.FinalDepth.Value)
         if not all(math.isfinite(value) for value in depths) or depths[0] <= depths[1]:
@@ -93,7 +93,8 @@ class ObjectTurnDrill(PathTurnBase.ObjectOp):
         mode = str(obj.RetractionMode)
         operation.setParams({
             "peck_depth": self._length(obj, "PeckDepth") if mode != NO_RETRACT else 0.0,
-            "peck_mode": PeckMode.CHIP_BREAK if mode == PARTIAL_RETRACT else PeckMode.FULL_RETRACT,
+            "retract_mode": (RetractMode.PARTIAL_RETRACT if mode == PARTIAL_RETRACT
+                             else RetractMode.FULL_RETRACT),
             "reentry_gap_diameters": 1.0,
             "chip_break_retract_diameters": 1.0,
             "tip_compensation": obj.TipCompensation,
