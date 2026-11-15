@@ -39,6 +39,9 @@ def getContainment(operation):
 
     Diameter limits become signed radii; final and start depths bound the Z range.
     """
+    custom = getattr(getattr(operation, "Proxy", None), "getContainment", None)
+    if custom is not None:
+        return custom(operation)
     tool = getattr(getattr(operation, "ToolController", None), "Tool", None)
     if getattr(operation.Proxy, "centreline_drilling", False):
         from .PathTurnDrill import getDrill
