@@ -1,8 +1,12 @@
-"""Temporary, non-selectable turning containment graphics."""
+"""Temporary turning containment graphics and experimental drag handles."""
 
 import math
+from functools import partial
 
 import FreeCAD
+import FreeCADGui
+import Part
+import Path.Log as PathLog
 from pivy import coin
 from PathScripts import PathUtils
 from liblathe.op.base import MachiningMode
@@ -11,12 +15,15 @@ from .PathTurnAddonHelpers import getContainment
 
 
 class ContainmentPreview:
-    def __init__(self, root):
+    def __init__(self, root, set_limit, enabled):
         self.root = root
+        self.set_limit = set_limit
+        self.enabled = enabled
+        self.dragging = False
+        self.camera_sensors = []
+        self.dragger_callbacks = []
+        self.handle_positions = []
         self.node = coin.SoSeparator()
-        pick = coin.SoPickStyle()
-        pick.style = coin.SoPickStyle.UNPICKABLE
-        self.node.addChild(pick)
         # Keep the limits readable through the model without changing its display.
         depth = coin.SoDepthBuffer()
         depth.test = False
@@ -26,11 +33,53 @@ class ContainmentPreview:
         light.model = coin.SoLightModel.BASE_COLOR
         self.node.addChild(light)
         self.graphics = coin.SoSeparator()
+        pick = coin.SoPickStyle()
+        pick.style = coin.SoPickStyle.UNPICKABLE
+        self.graphics.addChild(pick)
         self.node.addChild(self.graphics)
-        self.root.addChild(self.node)
+        self.snap_highlight = coin.SoSeparator()
+        highlight_pick = coin.SoPickStyle()
+        highlight_pick.style = coin.SoPickStyle.UNPICKABLE
+        self.snap_highlight.addChild(highlight_pick)
+        self.node.addChild(self.snap_highlight)
+        self.handles = coin.SoSeparator()
+        handle_pick = coin.SoPickStyle()
+        handle_pick.style = coin.SoPickStyle.SHAPE
+        self.handles.addChild(handle_pick)
+        self.node.addChild(self.handles)
+        self.visibility = coin.SoSwitch()
+        self.visibility.whichChild = coin.SO_SWITCH_ALL
+        self.visibility.addChild(self.node)
+        self.root.addChild(self.visibility)
+
+    def set_visible(self, visible):
+        self.visibility.whichChild = coin.SO_SWITCH_ALL if visible else coin.SO_SWITCH_NONE
 
     def clear(self):
-        self.graphics.removeAllChildren()
+        if not self.dragging:
+            self._remove_dragger_callbacks()
+            for sensor in self.camera_sensors:
+                sensor.detach()
+            self.camera_sensors.clear()
+            self.handle_positions.clear()
+            self._clear_graphics()
+            self._clear_snap_highlight()
+            while self.handles.getNumChildren() > 1:
+                self.handles.removeChild(1)
+
+    def _remove_dragger_callbacks(self):
+        for view, dragger, kind, callback in self.dragger_callbacks:
+            view.removeDraggerCallback(dragger, kind, callback)
+        self.dragger_callbacks.clear()
+
+    def _clear_graphics(self):
+        # Preserve the unpickable style as the first child.
+        while self.graphics.getNumChildren() > 1:
+            self.graphics.removeChild(1)
+
+    def _clear_snap_highlight(self):
+        while self.snap_highlight.getNumChildren() > 1:
+            self.snap_highlight.removeChild(1)
 
     def show_stock(self, edges, rear=False, *, polygons=()):
         sign = -1 if rear else 1
@@ -52,7 +101,7 @@ class ContainmentPreview:
         faces.numVertices.setValues([len(polygon) for polygon in polygons])
         fill.addChild(faces)
         # Draw the fill first so the limit and stock outlines remain legible.
-        self.graphics.insertChild(fill, 0)
+        self.graphics.insertChild(fill, 1)
         group = coin.SoSeparator()
         material = coin.SoMaterial()
         material.diffuseColor = (0.95, 0.6, 0.12)
@@ -68,11 +117,15 @@ class ContainmentPreview:
         lines = coin.SoLineSet()
         lines.numVertices.setValues([2] * len(edges))
         group.addChild(lines)
-        self.graphics.insertChild(group, 1)
+        self.graphics.insertChild(group, 2)
 
     def close(self):
         if self.root is not None:
-            self.root.removeChild(self.node)
+            self._remove_dragger_callbacks()
+            for sensor in self.camera_sensors:
+                sensor.detach()
+            self.camera_sensors.clear()
+            self.root.removeChild(self.visibility)
             self.root = None
 
     def update(self, obj):
@@ -96,32 +149,411 @@ class ContainmentPreview:
             raise ValueError(FreeCAD.Qt.translate(
                 "PathTurn", "Clearance must be finite and non-negative."))
         clearance = max(offset.Value, 0.01)
-        x0, x1 = bounds.XMin, bounds.XMax
-        z0, z1 = bounds.ZMin, bounds.ZMax
+        self.obj = obj
+        self.job = job
+        self.clearance = clearance
+        self.bounds = (bounds.XMin, bounds.XMax, bounds.ZMin, bounds.ZMax)
+        self._draw(self.bounds)
+        self._make_handles()
+
+    def _draw(self, bounds, active=None, snapped=False):
+        self._clear_graphics()
+        x0, x1, z0, z1 = bounds
         rear = x1 <= 0
         inner, outer = (x1, x0) if rear else (x0, x1)
         sign = -1 if rear else 1
         magenta = (0.55, 0.05, 0.45)
+        self._sleeve(abs(inner), abs(outer), z0, z1)
+        highlight = (1.0, 0.7, 0.0) if snapped else (0.9, 0.1, 0.5)
         self._boundary(
-            [(outer, 0, z0), (outer, 0, z1)], magenta)
+            [(outer, 0, z0), (outer, 0, z1)],
+            highlight if active == ("minusX" if rear else "plusX") else magenta)
         self._boundary(
-            [(inner, 0, z0), (inner, 0, z1)], magenta)
+            [(inner, 0, z0), (inner, 0, z1)],
+            highlight if active == ("plusX" if rear else "minusX") else magenta)
         self._boundary(
-            [(x0, 0, z1), (x1, 0, z1)], magenta)
+            [(x0, 0, z1), (x1, 0, z1)], highlight if active == "plusZ" else magenta)
         self._boundary(
-            [(x0, 0, z0), (x1, 0, z0)], magenta)
-        if getattr(obj.Proxy, "centreline_drilling", False):
+            [(x0, 0, z0), (x1, 0, z0)], highlight if active == "minusZ" else magenta)
+        if getattr(self.obj.Proxy, "centreline_drilling", False):
             self._boundary(
-                [(x0, 0, z1 + clearance), (x1, 0, z1 + clearance)], magenta,
+                [(x0, 0, z1 + self.clearance), (x1, 0, z1 + self.clearance)], magenta,
                 dashed=True)
-        elif not (getattr(obj.Proxy, "supports_internal_mode", False)
-                  and str(getattr(obj, "Mode", "")) == MachiningMode.INTERNAL.value):
-            clearance_x = outer + sign * clearance
+        elif not (getattr(self.obj.Proxy, "supports_internal_mode", False)
+                  and str(getattr(self.obj, "Mode", "")) == MachiningMode.INTERNAL.value):
+            clearance_x = outer + sign * self.clearance
             self._boundary(
                 [(clearance_x, 0, z0), (clearance_x, 0, z1)], magenta,
                 dashed=True)
 
-    def _boundary(self, points, color, dashed=False):
+    def _sleeve(self, inner, outer, z0, z1):
+        count = 48
+        points = []
+        for radius, z in ((outer, z0), (outer, z1), (inner, z0), (inner, z1)):
+            points.extend((radius * math.cos(2 * math.pi * i / count),
+                           radius * math.sin(2 * math.pi * i / count), z)
+                          for i in range(count))
+        fill = coin.SoSeparator()
+        material = coin.SoMaterial()
+        material.diffuseColor = (0.75, 0.15, 0.65)
+        material.transparency = 0.88
+        fill.addChild(material)
+        hints = coin.SoShapeHints()
+        hints.vertexOrdering = coin.SoShapeHints.UNKNOWN_ORDERING
+        hints.shapeType = coin.SoShapeHints.UNKNOWN_SHAPE_TYPE
+        fill.addChild(hints)
+        coords = coin.SoCoordinate3()
+        coords.point.setValues(points)
+        fill.addChild(coords)
+        faces = coin.SoIndexedFaceSet()
+        indices = []
+        for i in range(count):
+            j = (i + 1) % count
+            for quad in ((i, j, count + j, count + i),
+                         (2 * count + i, 3 * count + i, 3 * count + j, 2 * count + j),
+                         (i, 2 * count + i, 2 * count + j, j),
+                         (count + i, count + j, 3 * count + j, 3 * count + i)):
+                indices.extend((*quad, -1))
+        faces.coordIndex.setValues(indices)
+        fill.addChild(faces)
+        self.graphics.addChild(fill)
+        for radius in (inner, outer):
+            if radius > 1e-9:
+                for z in (z0, z1):
+                    ring = [(radius * math.cos(2 * math.pi * i / count),
+                             radius * math.sin(2 * math.pi * i / count), z)
+                            for i in range(count + 1)]
+                    self._boundary(ring, (0.55, 0.05, 0.45))
+
+    @staticmethod
+    def _handle_shape(color):
+        shape = coin.SoSeparator()
+        light = coin.SoLightModel()
+        light.model = coin.SoLightModel.BASE_COLOR
+        shape.addChild(light)
+        # Retain the cube-sized pick area around the smaller visible handle.
+        hit_area = coin.SoSeparator()
+        hidden = coin.SoDrawStyle()
+        hidden.style = coin.SoDrawStyle.INVISIBLE
+        hit_area.addChild(hidden)
+        hit_area.addChild(coin.SoCube())
+        shape.addChild(hit_area)
+        for tint, scale in (((1, 1, 1), 1), (color, 0.84)):
+            layer = coin.SoSeparator()
+            material = coin.SoMaterial()
+            material.diffuseColor = tint
+            layer.addChild(material)
+            size = coin.SoScale()
+            size.scaleFactor.setValue(scale, scale, scale)
+            layer.addChild(size)
+            shaft = coin.SoSeparator()
+            rotation = coin.SoRotationXYZ()
+            rotation.axis = coin.SoRotationXYZ.Z
+            rotation.angle = -math.pi / 2
+            shaft.addChild(rotation)
+            cylinder = coin.SoCylinder()
+            cylinder.radius = 0.12
+            cylinder.height = 1.6
+            shaft.addChild(cylinder)
+            layer.addChild(shaft)
+            for direction in (-1, 1):
+                arrow = coin.SoSeparator()
+                transform = coin.SoTransform()
+                transform.translation.setValue(direction * 0.78, 0, 0)
+                transform.rotation.setValue(coin.SbVec3f(0, 0, 1), -direction * math.pi / 2)
+                arrow.addChild(transform)
+                cone = coin.SoCone()
+                cone.bottomRadius = 0.33
+                cone.height = 0.48
+                arrow.addChild(cone)
+                layer.addChild(arrow)
+            hub = coin.SoSphere()
+            hub.radius = 0.3
+            layer.addChild(hub)
+            shape.addChild(layer)
+        return shape
+
+    def _make_handles(self):
+        view = FreeCADGui.ActiveDocument.activeView()
+        x0, x1, z0, z1 = self.bounds
+        rear = x1 <= 0
+        inner, outer = (x1, x0) if rear else (x0, x1)
+        size = max(abs(outer - inner), z1 - z0, 1) * 0.055
+        zmid = (z0 + z1) / 2
+        xend = inner + (outer - inner) * 0.75
+        positions = {
+            "plusX": (x1, 0, zmid),
+            "minusX": (x0, 0, zmid),
+            "plusZ": (xend, 0, z1),
+            "minusZ": (xend, 0, z0),
+        }
+        for name, position in positions.items():
+            if not self.enabled(name):
+                continue
+            group = coin.SoSeparator()
+            transform = coin.SoTransform()
+            transform.translation.setValue(*position)
+            transform.scaleFactor.setValue(size, size, size)
+            if name.endswith("Z"):
+                transform.rotation.setValue(coin.SbVec3f(0, 1, 0), -math.pi / 2)
+            group.addChild(transform)
+            dragger = coin.SoTranslate1Dragger()
+            for part, color in (("translator", (0.9, 0.25, 0.72)),
+                                ("translatorActive", (1.0, 0.75, 0.0))):
+                dragger.setPart(part, self._handle_shape(color))
+            data = (name, position, size, transform)
+            # FreeCAD acquires the GIL when native mouse events invoke these callbacks.
+            for kind, method in (("addStartCallback", self._start_drag),
+                                 ("addValueChangedCallback", self._move_drag),
+                                 ("addFinishCallback", self._finish_drag)):
+                callback = partial(self._dispatch_drag, method, data, dragger)
+                callback = view.addDraggerCallback(dragger, kind, callback)
+                self.dragger_callbacks.append((view, dragger, kind, callback))
+            group.addChild(dragger)
+            self.handles.addChild(group)
+            self.handle_positions.append((transform, position, size))
+        camera = view.getCameraNode()
+        for field in (camera.orientation, camera.position):
+            sensor = coin.SoFieldSensor(self._camera_changed, None)
+            sensor.attach(field)
+            self.camera_sensors.append(sensor)
+        self._place_handles()
+
+    @staticmethod
+    def _dispatch_drag(method, data, dragger, _callback_dragger):
+        method(data, dragger)
+
+    def _camera_changed(self, data, sensor):
+        if not self.dragging:
+            self._place_handles()
+
+    def _geometry_objects(self):
+        objects = list(self.job.Model.Group)
+        if getattr(self.job, "Stock", None):
+            objects.append(self.job.Stock)
+        return objects
+
+    def _place_handles(self):
+        view = FreeCADGui.ActiveDocument.activeView()
+        direction = view.getCameraOrientation().multVec(FreeCAD.Vector(0, 0, 1))
+        camera = FreeCAD.Vector(*view.getCameraNode().position.getValue().getValue())
+        boxes = [obj.Shape.BoundBox for obj in self._geometry_objects() if not obj.Shape.isNull()]
+        if not boxes:
+            return
+        near = max(
+            direction.x * (box.XMax if direction.x >= 0 else box.XMin)
+            + direction.y * (box.YMax if direction.y >= 0 else box.YMin)
+            + direction.z * (box.ZMax if direction.z >= 0 else box.ZMin)
+            for box in boxes)
+        for transform, position, size in self.handle_positions:
+            point = FreeCAD.Vector(*position)
+            # Move handles toward the camera so the model cannot intercept their picks.
+            offset = max(0, near - direction.dot(point) + 2 * size)
+            offset = min(offset, max(0, direction.dot(camera - point) - 2 * size))
+            point += direction * offset
+            transform.translation.setValue(point.x, point.y, point.z)
+
+    def _start_drag(self, data, dragger):
+        self.dragging = True
+        self.drag_value = None
+        self.snap_values = (set(), set())
+        self.snap_sources = ({}, {})
+        self.snap_edge_points = {}
+        self._clear_snap_highlight()
+        self.snap_values, self.snap_sources, unsupported = self._snap_candidates()
+        if unsupported:
+            PathLog.warning(FreeCAD.Qt.translate(
+                "PathTurn", "Some model or stock geometry cannot be queried for snapping; "
+                "their vertices remain available as snap targets."))
+
+    def _snap_candidates(self):
+        radial = {0.0}
+        axial = set()
+        radial_sources, axial_sources = {}, {}
+        unsupported = 0
+        for obj in self._geometry_objects():
+            shape = obj.Shape
+            for vertex in shape.Vertexes:
+                point = vertex.Point
+                radius = math.hypot(point.x, point.y)
+                radial.add(radius)
+                axial.add(point.z)
+                radial_sources.setdefault(radius, []).append((None, point))
+                axial_sources.setdefault(point.z, []).append((None, point))
+            edges = shape.Edges
+            for edge in edges:
+                if edge.Degenerated:
+                    continue
+                vertices = edge.Vertexes
+                for vertex in vertices:
+                    point = vertex.Point
+                    radius = math.hypot(point.x, point.y)
+                    radial_sources.setdefault(radius, []).append((edge, point))
+                    axial_sources.setdefault(point.z, []).append((edge, point))
+                if edge.BoundBox.ZLength < 1e-6:
+                    for vertex in vertices:
+                        axial_sources.setdefault(vertex.Point.z, []).append((edge, None))
+            for element in (*edges, *shape.Faces):
+                try:
+                    geometry = element.Curve if element.ShapeType == "Edge" else element.Surface
+                except TypeError as error:
+                    if ("undefined curve type" not in str(error)
+                            and "undefined surface type" not in str(error)):
+                        raise
+                    unsupported += 1
+                    continue
+                if isinstance(geometry, (Part.Circle, Part.Cylinder)):
+                    axis, center = geometry.Axis, geometry.Center
+                    if abs(abs(axis.z) - 1) < 1e-7 and math.hypot(center.x, center.y) < 1e-7:
+                        radius = geometry.Radius
+                        radial.add(radius)
+                        matching_edges = [element] if element.ShapeType == "Edge" else element.Edges
+                        for edge in matching_edges:
+                            if not edge.Degenerated:
+                                radial_sources.setdefault(radius, []).append((edge, None))
+                elif element.ShapeType == "Edge" and isinstance(geometry, Part.Line) and not element.Degenerated:
+                    vertices = element.Vertexes
+                    if len(vertices) == 2:
+                        a, b = (vertex.Point for vertex in vertices)
+                        if math.hypot(a.x - b.x, a.y - b.y) < 1e-7:
+                            radial_sources.setdefault(math.hypot(a.x, a.y), []).append((element, None))
+        return (radial, axial), (radial_sources, axial_sources), unsupported
+
+    def _snap_edge_points(self, edge):
+        key = id(edge)
+        if key not in self.snap_edge_points:
+            try:
+                points = edge.discretize(Number=65)
+                if len(points) < 2:
+                    raise ValueError("edge has fewer than two points")
+            except (Part.OCCError, ValueError) as error:
+                PathLog.warning(FreeCAD.Qt.translate(
+                    "PathTurn", "Cannot highlight a snap edge: {error}").format(error=str(error)))
+                points = ()
+            self.snap_edge_points[key] = points
+        return self.snap_edge_points[key]
+
+    def _nearest_snap_source(self, axis, value, screen, view):
+        direction = view.getCameraOrientation().multVec(FreeCAD.Vector(0, 0, 1))
+        best = None
+        for edge, anchor in self.snap_sources[axis].get(value, ()):
+            if anchor is not None:
+                x, y = view.getPointOnScreen(anchor)
+                distance = (x - screen[0]) ** 2 + (y - screen[1]) ** 2
+                rank = (distance, edge is None, -direction.dot(anchor))
+                if best is None or rank < best[0]:
+                    best = (rank, edge, anchor)
+                continue
+            points = self._snap_edge_points(edge)
+            if not points:
+                continue
+            projected = [view.getPointOnScreen(point) for point in points]
+            for index, (a, b) in enumerate(zip(projected, projected[1:])):
+                dx, dy = b[0] - a[0], b[1] - a[1]
+                length = dx * dx + dy * dy
+                fraction = (max(0, min(1, ((screen[0] - a[0]) * dx
+                                            + (screen[1] - a[1]) * dy) / length))
+                            if length else 0)
+                x, y = a[0] + fraction * dx, a[1] + fraction * dy
+                distance = (x - screen[0]) ** 2 + (y - screen[1]) ** 2
+                point = points[index] + (points[index + 1] - points[index]) * fraction
+                rank = (distance, False, -direction.dot(point))
+                if best is None or rank < best[0]:
+                    best = (rank, edge, None)
+        return None if best is None else best[1:]
+
+    def _highlight_snap(self, axis, value, screen, view, size):
+        self._clear_snap_highlight()
+        source = self._nearest_snap_source(axis, value, screen, view)
+        if source is None:
+            return
+        edge, anchor = source
+        color = (0.0, 0.55, 1.0)
+        if edge is not None:
+            points = self._snap_edge_points(edge)
+            if points:
+                self._boundary([(point.x, point.y, point.z) for point in points],
+                               color, parent=self.snap_highlight)
+        if anchor is not None:
+            marker = coin.SoSeparator()
+            translation = coin.SoTranslation()
+            translation.translation.setValue(anchor.x, anchor.y, anchor.z)
+            marker.addChild(translation)
+            for tint, radius in (((1, 1, 1), size * 0.3), (color, size * 0.2)):
+                material = coin.SoMaterial()
+                material.diffuseColor = tint
+                marker.addChild(material)
+                sphere = coin.SoSphere()
+                sphere.radius = radius
+                marker.addChild(sphere)
+            self.snap_highlight.addChild(marker)
+
+    def _move_drag(self, data, dragger):
+        if not self.dragging:
+            return
+        name, position, size, transform = data
+        axis = 0 if name.endswith("X") else 2
+        value = position[axis] + dragger.translation.getValue().getValue()[0] * size
+        x0, x1, z0, z1 = self.bounds
+        gap = 1e-5
+        if name == "plusX":
+            value = max(x0 + gap, min(value, 0) if x1 <= 0 else value)
+        elif name == "minusX":
+            value = min(x1 - gap, max(value, 0) if x1 > 0 else value)
+        elif name == "plusZ":
+            value = max(z0 + gap, value)
+        else:
+            value = min(z1 - gap, value)
+        view = FreeCADGui.ActiveDocument.activeView()
+        point = list(transform.translation.getValue().getValue())
+        point[axis] += value - position[axis]
+        screen = view.getPointOnScreen(FreeCAD.Vector(*point))
+        candidates = self.snap_values[0 if axis == 0 else 1]
+        point[axis] += max(size, 1)
+        probe = view.getPointOnScreen(FreeCAD.Vector(*point))
+        if math.hypot(probe[0] - screen[0], probe[1] - screen[1]) < 2:
+            candidates = ()
+        sign = -1 if x1 <= 0 else 1
+        best = None
+        for candidate in candidates:
+            candidate = candidate * sign if axis == 0 else candidate
+            if ((name == "plusX" and (candidate <= x0 + gap or (x1 <= 0 and candidate > 0)))
+                    or (name == "minusX" and (candidate >= x1 - gap or (x1 > 0 and candidate < 0)))
+                    or (name == "plusZ" and candidate <= z0 + gap)
+                    or (name == "minusZ" and candidate >= z1 - gap)):
+                continue
+            point[axis] = transform.translation.getValue().getValue()[axis] + candidate - position[axis]
+            target = view.getPointOnScreen(FreeCAD.Vector(*point))
+            distance = math.hypot(target[0] - screen[0], target[1] - screen[1])
+            rank = (distance, abs(candidate - value), candidate)
+            if distance <= 10 and (best is None or rank < best):
+                best = rank
+        if best is not None:
+            value = best[2]
+        values = list(self.bounds)
+        values[{"minusX": 0, "plusX": 1, "minusZ": 2, "plusZ": 3}[name]] = value
+        self.drag_value = value
+        self._draw(values, name, best is not None)
+        if best is None:
+            self._clear_snap_highlight()
+        else:
+            index = 0 if axis == 0 else 1
+            self._highlight_snap(index, abs(value) if axis == 0 else value, screen, view, size)
+        label = (FreeCAD.Qt.translate("PathTurn", "Snap") if best is not None
+                 else FreeCAD.Qt.translate("PathTurn", "Limit"))
+        FreeCADGui.getMainWindow().statusBar().showMessage(f"{label}: {value:.3f} mm")
+
+    def _finish_drag(self, data, dragger):
+        name = data[0]
+        value = self.drag_value
+        self.dragging = False
+        self._clear_snap_highlight()
+        self.snap_edge_points.clear()
+        self.snap_sources = ({}, {})
+        FreeCADGui.getMainWindow().statusBar().clearMessage()
+        self.set_limit(name, value)
+
+    def _boundary(self, points, color, dashed=False, parent=None):
         group = coin.SoSeparator()
         coordinates = coin.SoCoordinate3()
         coordinates.point.setValues(points)
@@ -149,4 +581,4 @@ class ContainmentPreview:
         group.addChild(style)
         group.addChild(coordinates)
         group.addChild(line)
-        self.graphics.addChild(group)
+        (self.graphics if parent is None else parent).addChild(group)

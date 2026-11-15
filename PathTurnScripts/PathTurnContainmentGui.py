@@ -180,6 +180,9 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
                 "PathTurn", "Select a vertex, an axial edge or a spindle-centred circle/cylinder "
                 "for X; select a vertex or horizontal edge/face for Z."))
             return
+        self.setCoordinate(name, value)
+
+    def setCoordinate(self, name, value):
         prop, scale = self.bindings[name]
         if prop in dict(self.obj.ExpressionEngine):
             self.obj.setExpression(prop, None)
