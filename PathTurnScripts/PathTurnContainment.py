@@ -159,8 +159,8 @@ class ContainmentPreview:
                 or (not getattr(obj.Proxy, "centreline_drilling", False)
                     and obj.MinDiameter.Value < 0)):
             raise ValueError(FreeCAD.Qt.translate(
-                "PathTurn", "Containment requires 0 <= minimum diameter < maximum diameter "
-                "and final depth < start depth."))
+                "PathTurn", "Containment requires 0 <= Radial Min < Radial Max "
+                "and Axial Min < Axial Max."))
 
         job = PathUtils.findParentJob(obj)
         if job is None:
@@ -284,10 +284,10 @@ class ContainmentPreview:
                 points, self.HANDLE_COLOR if dragging else self.PREVIEW_COLOR,
                 dotted=dragging)
 
-        draw_limit("minusX" if rear else "plusX", [(outer, 0, z0), (outer, 0, z1)])
-        draw_limit("plusX" if rear else "minusX", [(inner, 0, z0), (inner, 0, z1)])
-        draw_limit("plusZ", [(x0, 0, z1), (x1, 0, z1)])
-        draw_limit("minusZ", [(x0, 0, z0), (x1, 0, z0)])
+        draw_limit("radialMax", [(outer, 0, z0), (outer, 0, z1)])
+        draw_limit("radialMin", [(inner, 0, z0), (inner, 0, z1)])
+        draw_limit("axialMax", [(x0, 0, z1), (x1, 0, z1)])
+        draw_limit("axialMin", [(x0, 0, z0), (x1, 0, z0)])
         if getattr(self.obj.Proxy, "centreline_drilling", False):
             self._boundary(
                 [(x0, 0, z1 + self.clearance), (x1, 0, z1 + self.clearance)], self.PREVIEW_COLOR,
@@ -371,10 +371,10 @@ class ContainmentPreview:
         zmid = (z0 + z1) / 2
         xend = inner + (outer - inner) * 0.5
         positions = {
-            "plusX": (x1, 0, zmid),
-            "minusX": (x0, 0, zmid),
-            "plusZ": (xend, 0, z1),
-            "minusZ": (xend, 0, z0),
+            "radialMax": (outer, 0, zmid),
+            "radialMin": (inner, 0, zmid),
+            "axialMax": (xend, 0, z1),
+            "axialMin": (xend, 0, z0),
         }
         for name, position in positions.items():
             if not self.enabled(name):
@@ -382,14 +382,14 @@ class ContainmentPreview:
             group = coin.SoSeparator()
             transform = coin.SoTransform()
             transform.translation.setValue(*position)
-            if name.endswith("Z"):
+            if name.startswith("axial"):
                 transform.rotation.setValue(coin.SbVec3f(0, 1, 0), -math.pi / 2)
             group.addChild(transform)
             dragger = coin.SoTranslate1Dragger()
             idle, arrow_switch = self._handle_shape(self.HANDLE_COLOR, False)
             dragger.setPart("translator", idle)
             dragger.setPart("translatorActive", self._handle_shape(self.HANDLE_COLOR, True)[0])
-            axis = FreeCAD.Vector(0, 0, 1) if name.endswith("Z") else FreeCAD.Vector(1, 0, 0)
+            axis = FreeCAD.Vector(0, 0, 1) if name.startswith("axial") else FreeCAD.Vector(1, 0, 0)
             # The world size is updated with the camera, so share it with the callbacks.
             size = [1.0]
             data = (name, position, size, transform)
@@ -679,15 +679,17 @@ class ContainmentPreview:
             return
         name, position, size, transform = data
         size = size[0]
-        axis = 0 if name.endswith("X") else 2
+        axis = 0 if name.startswith("radial") else 2
         value = position[axis] + dragger.translation.getValue().getValue()[0] * size
         x0, x1, z0, z1 = self.bounds
         gap = 1e-5
-        if name == "plusX":
+        # Clamp in signed coordinates, where the bound index says which side of the box moves.
+        index = self._bound_index(name)
+        if index == 1:
             value = max(x0 + gap, min(value, 0) if x1 <= 0 else value)
-        elif name == "minusX":
+        elif index == 0:
             value = min(x1 - gap, max(value, 0) if x1 > 0 else value)
-        elif name == "plusZ":
+        elif index == 3:
             value = max(z0 + gap, value)
         else:
             value = min(z1 - gap, value)
@@ -704,10 +706,10 @@ class ContainmentPreview:
         best = None
         for candidate in candidates:
             candidate = candidate * sign if axis == 0 else candidate
-            if ((name == "plusX" and (candidate <= x0 + gap or (x1 <= 0 and candidate > 0)))
-                    or (name == "minusX" and (candidate >= x1 - gap or (x1 > 0 and candidate < 0)))
-                    or (name == "plusZ" and candidate <= z0 + gap)
-                    or (name == "minusZ" and candidate >= z1 - gap)):
+            if ((index == 1 and (candidate <= x0 + gap or (x1 <= 0 and candidate > 0)))
+                    or (index == 0 and (candidate >= x1 - gap or (x1 > 0 and candidate < 0)))
+                    or (index == 3 and candidate <= z0 + gap)
+                    or (index == 2 and candidate >= z1 - gap)):
                 continue
             point[axis] = transform.translation.getValue().getValue()[axis] + candidate - position[axis]
             target = view.getPointOnScreen(FreeCAD.Vector(*point))
@@ -718,7 +720,7 @@ class ContainmentPreview:
         if best is not None:
             value = best[2]
         values = list(self.bounds)
-        values[{"minusX": 0, "plusX": 1, "minusZ": 2, "plusZ": 3}[name]] = value
+        values[index] = value
         self.drag_value = value
         self._draw(values, name, best is not None)
         if best is None:
@@ -738,7 +740,14 @@ class ContainmentPreview:
         self.snap_edge_points.clear()
         self.snap_sources = ({}, {})
         FreeCADGui.getMainWindow().statusBar().clearMessage()
-        self.set_limit(name, value)
+        # Radial limits are radii, so drop the rear-post sign.
+        self.set_limit(name, abs(value) if value is not None and name.startswith("radial") else value)
+
+    def _bound_index(self, name):
+        """Return the index in (XMin, XMax, ZMin, ZMax) that a named limit moves."""
+        rear = self.bounds[1] <= 0
+        return {"radialMin": 1 if rear else 0, "radialMax": 0 if rear else 1,
+                "axialMin": 2, "axialMax": 3}[name]
 
     def _boundary(self, points, color, dashed=False, dotted=False, parent=None, halo=True):
         group = coin.SoSeparator()

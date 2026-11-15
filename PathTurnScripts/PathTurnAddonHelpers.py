@@ -185,7 +185,7 @@ def getInternalOutline(obj, models=None):
     if len(contours) != 1:
         raise ValueError(FreeCAD.Qt.translate(
             "PathTurn", "Containment must select exactly one connected coaxial internal contour; "
-            "found {count}. Adjust the X/Z limits. Supported walls are cylinders, cones "
+            "found {count}. Adjust the radial and axial limits. Supported walls are cylinders, cones "
             "and tori, with flat floors.").format(count=len(contours)))
     return contours[0]
 
