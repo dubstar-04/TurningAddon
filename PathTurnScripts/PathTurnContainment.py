@@ -1,4 +1,4 @@
-"""Temporary turning containment graphics and experimental drag handles."""
+"""Turning containment section view with drag handles."""
 
 import math
 from functools import partial
@@ -23,6 +23,7 @@ class ContainmentPreview:
         self.camera_sensors = []
         self.dragger_callbacks = []
         self.handle_positions = []
+        self.clip_planes = {}
         self.node = coin.SoSeparator()
         # Keep the limits readable through the model without changing its display.
         depth = coin.SoDepthBuffer()
@@ -32,6 +33,11 @@ class ContainmentPreview:
         light = coin.SoLightModel()
         light.model = coin.SoLightModel.BASE_COLOR
         self.node.addChild(light)
+        self.section_caps = coin.SoSeparator()
+        caps_pick = coin.SoPickStyle()
+        caps_pick.style = coin.SoPickStyle.UNPICKABLE
+        self.section_caps.addChild(caps_pick)
+        self.node.addChild(self.section_caps)
         self.graphics = coin.SoSeparator()
         pick = coin.SoPickStyle()
         pick.style = coin.SoPickStyle.UNPICKABLE
@@ -121,6 +127,7 @@ class ContainmentPreview:
 
     def close(self):
         if self.root is not None:
+            self.exit_section()
             self._remove_dragger_callbacks()
             for sensor in self.camera_sensors:
                 sensor.detach()
@@ -153,8 +160,79 @@ class ContainmentPreview:
         self.job = job
         self.clearance = clearance
         self.bounds = (bounds.XMin, bounds.XMax, bounds.ZMin, bounds.ZMax)
+        self._enter_section()
         self._draw(self.bounds)
         self._make_handles()
+
+    def _enter_section(self):
+        # Cut away the half facing the front view without changing the document.
+        for obj in self._geometry_objects():
+            if obj.ViewObject is None or obj.Name in self.clip_planes:
+                continue
+            node = obj.ViewObject.RootNode
+            plane = coin.SoClipPlane()
+            plane.plane.setValue(coin.SbPlane(coin.SbVec3f(0, 1, 0), 0))
+            node.insertChild(plane, 0)
+            self.clip_planes[obj.Name] = (node, plane)
+        self._draw_section_caps()
+
+    def exit_section(self):
+        for node, plane in self.clip_planes.values():
+            index = node.findChild(plane)
+            if index >= 0:
+                node.removeChild(index)
+        self.clip_planes.clear()
+        while self.section_caps.getNumChildren() > 1:
+            self.section_caps.removeChild(1)
+
+    def _draw_section_caps(self):
+        while self.section_caps.getNumChildren() > 1:
+            self.section_caps.removeChild(1)
+        points, indices = [], []
+        for obj in self.job.Model.Group:
+            shape = obj.Shape
+            if shape.isNull() or not shape.Solids:
+                continue
+            box = shape.BoundBox
+            margin = max(box.XLength, box.ZLength, 1)
+            x0, x1 = box.XMin - margin, box.XMax + margin
+            z0, z1 = box.ZMin - margin, box.ZMax + margin
+            plane = Part.Face(Part.makePolygon([
+                FreeCAD.Vector(x0, 0, z0), FreeCAD.Vector(x1, 0, z0),
+                FreeCAD.Vector(x1, 0, z1), FreeCAD.Vector(x0, 0, z1),
+                FreeCAD.Vector(x0, 0, z0)]))
+            try:
+                section = shape.common(plane)
+            except Part.OCCError as error:
+                PathLog.warning(FreeCAD.Qt.translate(
+                    "PathTurn", "Cannot section {label}: {error}").format(
+                        label=obj.Label, error=str(error)))
+                continue
+            for face in section.Faces:
+                vertices, triangles = face.tessellate(max(margin * 1e-3, 0.01))
+                base = len(points)
+                points.extend((vertex.x, 0, vertex.z) for vertex in vertices)
+                for triangle in triangles:
+                    indices.extend((*(base + index for index in triangle), -1))
+            for edge in section.Edges:
+                self._boundary([(point.x, 0, point.z) for point in edge.discretize(Deflection=0.01)],
+                               (0.2, 0.22, 0.28), parent=self.section_caps, halo=False)
+        if indices:
+            fill = coin.SoSeparator()
+            material = coin.SoMaterial()
+            material.diffuseColor = (0.62, 0.64, 0.7)
+            fill.addChild(material)
+            hints = coin.SoShapeHints()
+            hints.vertexOrdering = coin.SoShapeHints.UNKNOWN_ORDERING
+            fill.addChild(hints)
+            coordinates = coin.SoCoordinate3()
+            coordinates.point.setValues(points)
+            fill.addChild(coordinates)
+            faces = coin.SoIndexedFaceSet()
+            faces.coordIndex.setValues(indices)
+            fill.addChild(faces)
+            # Draw the cap beneath its outline.
+            self.section_caps.insertChild(fill, 1)
 
     def _draw(self, bounds, active=None, snapped=False):
         self._clear_graphics()
@@ -163,7 +241,7 @@ class ContainmentPreview:
         inner, outer = (x1, x0) if rear else (x0, x1)
         sign = -1 if rear else 1
         magenta = (0.55, 0.05, 0.45)
-        self._sleeve(abs(inner), abs(outer), z0, z1)
+        self._fill(x0, x1, z0, z1)
         highlight = (1.0, 0.7, 0.0) if snapped else (0.9, 0.1, 0.5)
         self._boundary(
             [(outer, 0, z0), (outer, 0, z1)],
@@ -186,44 +264,22 @@ class ContainmentPreview:
                 [(clearance_x, 0, z0), (clearance_x, 0, z1)], magenta,
                 dashed=True)
 
-    def _sleeve(self, inner, outer, z0, z1):
-        count = 48
-        points = []
-        for radius, z in ((outer, z0), (outer, z1), (inner, z0), (inner, z1)):
-            points.extend((radius * math.cos(2 * math.pi * i / count),
-                           radius * math.sin(2 * math.pi * i / count), z)
-                          for i in range(count))
+    def _fill(self, x0, x1, z0, z1):
         fill = coin.SoSeparator()
         material = coin.SoMaterial()
         material.diffuseColor = (0.75, 0.15, 0.65)
-        material.transparency = 0.88
+        material.transparency = 0.75
         fill.addChild(material)
         hints = coin.SoShapeHints()
         hints.vertexOrdering = coin.SoShapeHints.UNKNOWN_ORDERING
-        hints.shapeType = coin.SoShapeHints.UNKNOWN_SHAPE_TYPE
         fill.addChild(hints)
-        coords = coin.SoCoordinate3()
-        coords.point.setValues(points)
-        fill.addChild(coords)
-        faces = coin.SoIndexedFaceSet()
-        indices = []
-        for i in range(count):
-            j = (i + 1) % count
-            for quad in ((i, j, count + j, count + i),
-                         (2 * count + i, 3 * count + i, 3 * count + j, 2 * count + j),
-                         (i, 2 * count + i, 2 * count + j, j),
-                         (count + i, count + j, 3 * count + j, 3 * count + i)):
-                indices.extend((*quad, -1))
-        faces.coordIndex.setValues(indices)
-        fill.addChild(faces)
+        coordinates = coin.SoCoordinate3()
+        coordinates.point.setValues([(x0, 0, z0), (x1, 0, z0), (x1, 0, z1), (x0, 0, z1)])
+        fill.addChild(coordinates)
+        face = coin.SoFaceSet()
+        face.numVertices.setValue(4)
+        fill.addChild(face)
         self.graphics.addChild(fill)
-        for radius in (inner, outer):
-            if radius > 1e-9:
-                for z in (z0, z1):
-                    ring = [(radius * math.cos(2 * math.pi * i / count),
-                             radius * math.sin(2 * math.pi * i / count), z)
-                            for i in range(count + 1)]
-                    self._boundary(ring, (0.55, 0.05, 0.45))
 
     @staticmethod
     def _handle_shape(color):
@@ -553,12 +609,13 @@ class ContainmentPreview:
         FreeCADGui.getMainWindow().statusBar().clearMessage()
         self.set_limit(name, value)
 
-    def _boundary(self, points, color, dashed=False, parent=None):
+    def _boundary(self, points, color, dashed=False, parent=None, halo=True):
         group = coin.SoSeparator()
         coordinates = coin.SoCoordinate3()
         coordinates.point.setValues(points)
         line = coin.SoLineSet()
         line.numVertices.setValues([len(points)])
+        halo_enabled = halo
         halo = coin.SoSeparator()
         white = coin.SoMaterial()
         white.diffuseColor = (1, 1, 1)
@@ -570,7 +627,8 @@ class ContainmentPreview:
         halo.addChild(halo_style)
         halo.addChild(coordinates)
         halo.addChild(line)
-        group.addChild(halo)
+        if halo_enabled:
+            group.addChild(halo)
         material = coin.SoMaterial()
         material.diffuseColor = color
         group.addChild(material)

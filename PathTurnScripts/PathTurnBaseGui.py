@@ -213,6 +213,8 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
                 self.containment_error = message
             else:
                 self.containment_error = None
+        else:
+            self.containment.exit_section()
         show_stock = self.form.showStock.isChecked()
         self.stock_mode.setEnabled(show_stock)
         self.stock_status.setVisible(show_stock)
