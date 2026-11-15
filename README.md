@@ -8,6 +8,7 @@ A FreeCAD CAM workbench addon for creating CNC lathe toolpaths.
 
 - Roughing: clears material with axial or radial cuts, including facing and grooving
 - Profiling: follows the part shape with offset passes
+- Chamfering: equal-distance 45-degree edge breaks
 - Drilling: drills holes on the spindle centreline
 - Threading: cuts external threads (does not currently produce valid G-code; see [#65](https://github.com/dubstar-04/TurningAddon/issues/65))
 - Parting: cuts through the workpiece to separate a finished part
