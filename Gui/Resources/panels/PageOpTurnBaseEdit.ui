@@ -56,7 +56,7 @@
     </widget>
    </item>
    <item row="2" column="1">
-    <widget class="Gui::InputField" name="passOffset" />
+    <widget class="Gui::QuantitySpinBox" name="passOffset" />
    </item>
    <item row="3" column="0">
     <widget class="QLabel" name="label_6">
@@ -66,7 +66,10 @@
     </widget>
    </item>
    <item row="3" column="1">
-    <widget class="QDoubleSpinBox" name="stockToLeave">
+    <widget class="Gui::QuantitySpinBox" name="stockToLeave">
+     <property name="minimum">
+      <double>0.000000000000000</double>
+     </property>
      <property name="maximum">
       <double>20.000000000000000</double>
      </property>
@@ -96,7 +99,7 @@
     </widget>
    </item>
    <item row="5" column="1">
-    <widget class="Gui::InputField" name="finishPassOffset">
+    <widget class="Gui::QuantitySpinBox" name="finishPassOffset">
      <property name="toolTip">
       <string>Offset between finishing contours. Zero repeats the final contour.</string>
      </property>
@@ -257,7 +260,7 @@ Defaults to one drill diameter.</string>
     </widget>
    </item>
    <item row="14" column="1">
-    <widget class="Gui::InputField" name="pitch">
+    <widget class="Gui::QuantitySpinBox" name="pitch">
      <property name="toolTip">
       <string>G33 distance per spindle revolution.</string>
      </property>
@@ -287,6 +290,26 @@ Defaults to one drill diameter.</string>
     </widget>
    </item>
    <item row="16" column="0">
+    <widget class="QLabel" name="chamferSizeLabel">
+     <property name="text">
+      <string>Chamfer Size</string>
+     </property>
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="16" column="1">
+    <widget class="Gui::QuantitySpinBox" name="chamferSize">
+     <property name="toolTip">
+      <string>Equal distance along each adjacent face for a 45-degree edge break.</string>
+     </property>
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="17" column="0">
     <spacer name="verticalSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
@@ -306,11 +329,6 @@ Defaults to one drill diameter.</string>
    <class>Gui::QuantitySpinBox</class>
    <extends>QWidget</extends>
    <header>Gui/QuantitySpinBox.h</header>
-  </customwidget>
-  <customwidget>
-   <class>Gui::InputField</class>
-   <extends>QLineEdit</extends>
-   <header>Gui/InputField.h</header>
   </customwidget>
  </customwidgets>
  <resources />

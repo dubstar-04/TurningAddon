@@ -2,6 +2,8 @@
 
 import math
 
+import FreeCAD
+import FreeCADGui
 from PySide import QtCore, QtGui
 
 from . import PathTurnAdapter as assets
@@ -331,7 +333,17 @@ class CustomToolDialog(QtGui.QDialog):
         for name, field in snapshot.fields.items():
             value = snapshot.values[name]
             kind = field["type"]
-            if field["readonly"]:
+            if kind in ("App::PropertyLength", "App::PropertyDistance"):
+                control = FreeCADGui.UiLoader().createWidget("Gui::QuantitySpinBox")
+                quantity = FreeCAD.Units.Quantity(str(value))
+                control.setProperty("unit", quantity.getUserPreferred()[2])
+                if kind == "App::PropertyLength":
+                    control.setProperty("minimum", 0)
+                control.setProperty("rawValue", quantity.Value)
+                control.setReadOnly(field["readonly"])
+                if not field["readonly"]:
+                    control.textChanged.connect(self._queue_preview)
+            elif field["readonly"]:
                 control = QtGui.QLineEdit(str(value))
                 control.setReadOnly(True)
             elif kind == "App::PropertyEnumeration":
@@ -394,6 +406,14 @@ class CustomToolDialog(QtGui.QDialog):
             control = self.controls[name]
             if field["readonly"]:
                 values[name] = self.snapshot.values[name]
+            elif field["type"] in ("App::PropertyLength", "App::PropertyDistance"):
+                if not control.hasAcceptableInput():
+                    raise ValueError(translate("CAM", "{name}: enter a valid length.").format(name=name))
+                original = self.snapshot.values[name]
+                value = control.property("rawValue")
+                values[name] = (
+                    original if value == FreeCAD.Units.Quantity(str(original)).Value
+                    else f"{value:.17g} mm")
             elif field["type"] == "App::PropertyEnumeration":
                 values[name] = control.currentText()
             elif field["type"] == "App::PropertyBool":
@@ -475,7 +495,10 @@ class CustomToolDialog(QtGui.QDialog):
             self.save_button.setEnabled(False)
             return
         for name, value in geometry.pop("calculated").items():
-            self.controls[name].setText(value)
+            if self.snapshot.fields[name]["type"] in ("App::PropertyLength", "App::PropertyDistance"):
+                self.controls[name].setProperty("rawValue", FreeCAD.Units.Quantity(str(value)).Value)
+            else:
+                self.controls[name].setText(value)
         self.preview.set_outline(**geometry)
         self.problem.clear()
         self.save_button.setEnabled(True)
