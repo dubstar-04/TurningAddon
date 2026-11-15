@@ -366,7 +366,7 @@ class ContainmentPreview:
         rear = x1 <= 0
         inner, outer = (x1, x0) if rear else (x0, x1)
         zmid = (z0 + z1) / 2
-        xend = inner + (outer - inner) * 0.75
+        xend = inner + (outer - inner) * 0.5
         positions = {
             "plusX": (x1, 0, zmid),
             "minusX": (x0, 0, zmid),
