@@ -17,6 +17,8 @@ from .PathTurnAddonHelpers import getContainment
 class ContainmentPreview:
     # Handle half-length in screen pixels, independent of zoom and containment size.
     HANDLE_PIXELS = 16
+    # Half-length of the hover/drag arrow, in handle units.
+    ARROW_REACH = 2.5
     PREVIEW_COLOR = (0.0, 1.0, 0.6)
     HANDLE_COLOR = (1.0, 0.0, 0.0)
 
@@ -30,6 +32,7 @@ class ContainmentPreview:
         self.event_callback = None
         self.dragger_callbacks = []
         self.handle_positions = []
+        self.handle_arrows = []
         self.clip_planes = {}
         self.section_key = None
         self.node = coin.SoSeparator()
@@ -80,6 +83,7 @@ class ContainmentPreview:
             self._remove_dragger_callbacks()
             self._stop_camera_tracking()
             self.handle_positions.clear()
+            self.handle_arrows.clear()
             self._clear_graphics()
             while self.stock_graphics.getNumChildren() > 1:
                 self.stock_graphics.removeChild(1)
@@ -312,8 +316,8 @@ class ContainmentPreview:
         fill.addChild(face)
         self.graphics.addChild(fill)
 
-    @staticmethod
-    def _handle_shape(color):
+    @classmethod
+    def _handle_shape(cls, color, arrow_visible):
         shape = coin.SoSeparator()
         light = coin.SoLightModel()
         light.model = coin.SoLightModel.BASE_COLOR
@@ -325,40 +329,39 @@ class ContainmentPreview:
         hit_area.addChild(hidden)
         hit_area.addChild(coin.SoCube())
         shape.addChild(hit_area)
-        for tint, scale in (((1, 1, 1), 1), (color, 0.84)):
-            layer = coin.SoSeparator()
-            material = coin.SoMaterial()
-            material.diffuseColor = tint
-            layer.addChild(material)
-            size = coin.SoScale()
-            size.scaleFactor.setValue(scale, scale, scale)
-            layer.addChild(size)
-            shaft = coin.SoSeparator()
-            rotation = coin.SoRotationXYZ()
-            rotation.axis = coin.SoRotationXYZ.Z
-            rotation.angle = -math.pi / 2
-            shaft.addChild(rotation)
-            cylinder = coin.SoCylinder()
-            cylinder.radius = 0.12
-            cylinder.height = 1.6
-            shaft.addChild(cylinder)
-            layer.addChild(shaft)
-            for direction in (-1, 1):
-                arrow = coin.SoSeparator()
-                transform = coin.SoTransform()
-                transform.translation.setValue(direction * 0.78, 0, 0)
-                transform.rotation.setValue(coin.SbVec3f(0, 0, 1), -direction * math.pi / 2)
-                arrow.addChild(transform)
-                cone = coin.SoCone()
-                cone.bottomRadius = 0.33
-                cone.height = 0.48
-                arrow.addChild(cone)
-                layer.addChild(arrow)
-            hub = coin.SoSphere()
-            hub.radius = 0.3
-            layer.addChild(hub)
-            shape.addChild(layer)
-        return shape
+        material = coin.SoMaterial()
+        material.diffuseColor = color
+        shape.addChild(material)
+        dot = coin.SoSphere()
+        dot.radius = 0.5
+        shape.addChild(dot)
+        arrow_switch = coin.SoSwitch()
+        arrow_switch.whichChild = coin.SO_SWITCH_ALL if arrow_visible else coin.SO_SWITCH_NONE
+        arrows = coin.SoSeparator()
+        shaft = coin.SoSeparator()
+        rotation = coin.SoRotationXYZ()
+        rotation.axis = coin.SoRotationXYZ.Z
+        rotation.angle = -math.pi / 2
+        shaft.addChild(rotation)
+        cylinder = coin.SoCylinder()
+        cylinder.radius = 0.1
+        cylinder.height = 2 * (cls.ARROW_REACH - 0.7)
+        shaft.addChild(cylinder)
+        arrows.addChild(shaft)
+        for direction in (-1, 1):
+            arrow = coin.SoSeparator()
+            transform = coin.SoTransform()
+            transform.translation.setValue(direction * (cls.ARROW_REACH - 0.35), 0, 0)
+            transform.rotation.setValue(coin.SbVec3f(0, 0, 1), -direction * math.pi / 2)
+            arrow.addChild(transform)
+            cone = coin.SoCone()
+            cone.bottomRadius = 0.35
+            cone.height = 0.7
+            arrow.addChild(cone)
+            arrows.addChild(arrow)
+        arrow_switch.addChild(arrows)
+        shape.addChild(arrow_switch)
+        return shape, arrow_switch
 
     def _make_handles(self):
         view = FreeCADGui.ActiveDocument.activeView()
@@ -383,8 +386,10 @@ class ContainmentPreview:
                 transform.rotation.setValue(coin.SbVec3f(0, 1, 0), -math.pi / 2)
             group.addChild(transform)
             dragger = coin.SoTranslate1Dragger()
-            for part in ("translator", "translatorActive"):
-                dragger.setPart(part, self._handle_shape(self.HANDLE_COLOR))
+            idle, arrow_switch = self._handle_shape(self.HANDLE_COLOR, False)
+            dragger.setPart("translator", idle)
+            dragger.setPart("translatorActive", self._handle_shape(self.HANDLE_COLOR, True)[0])
+            axis = FreeCAD.Vector(0, 0, 1) if name.endswith("Z") else FreeCAD.Vector(1, 0, 0)
             # The world size is updated with the camera, so share it with the callbacks.
             size = [1.0]
             data = (name, position, size, transform)
@@ -398,6 +403,7 @@ class ContainmentPreview:
             group.addChild(dragger)
             self.handles.addChild(group)
             self.handle_positions.append((transform, position, size))
+            self.handle_arrows.append((arrow_switch, transform, axis, size))
         self.camera_sensor = coin.SoNodeSensor(self._camera_changed, None)
         self._track_camera(view)
         # Changing the camera type replaces the camera node, so check it on view events.
@@ -412,8 +418,39 @@ class ContainmentPreview:
 
     def _view_event(self, event):
         view = FreeCADGui.ActiveDocument.activeView()
-        if not self.dragging and view.getCameraNode() != self.camera:
+        if self.dragging:
+            return
+        if view.getCameraNode() != self.camera:
             self._track_camera(view)
+        if event.get("Type") == "SoLocation2Event":
+            self._update_hover(view, event["Position"])
+
+    def _update_hover(self, view, mouse):
+        hovered = None
+        best = None
+        for arrow_switch, transform, axis, size in self.handle_arrows:
+            point = FreeCAD.Vector(*transform.translation.getValue().getValue())
+            centre = view.getPointOnScreen(point)
+            tip = view.getPointOnScreen(point + axis * size[0])
+            dx, dy = tip[0] - centre[0], tip[1] - centre[1]
+            unit = math.hypot(dx, dy)
+            mx, my = mouse[0] - centre[0], mouse[1] - centre[1]
+            # Once shown, the arrow extends the hover area along its drag axis.
+            reach = (self.ARROW_REACH if arrow_switch.whichChild.getValue() == coin.SO_SWITCH_ALL
+                     else 1)
+            if unit < 1:
+                along, across = 0, math.hypot(mx, my) / self.HANDLE_PIXELS
+            else:
+                along = (mx * dx + my * dy) / (unit * unit)
+                across = abs(mx * dy - my * dx) / (unit * self.HANDLE_PIXELS)
+            if abs(along) <= reach and across <= 1:
+                rank = math.hypot(mx, my)
+                if best is None or rank < best:
+                    best, hovered = rank, arrow_switch
+        for arrow_switch, *_rest in self.handle_arrows:
+            state = coin.SO_SWITCH_ALL if arrow_switch is hovered else coin.SO_SWITCH_NONE
+            if arrow_switch.whichChild.getValue() != state:
+                arrow_switch.whichChild = state
 
     def _stop_camera_tracking(self):
         if self.camera_sensor is not None:
