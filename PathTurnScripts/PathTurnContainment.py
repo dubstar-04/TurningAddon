@@ -15,12 +15,17 @@ from .PathTurnAddonHelpers import getContainment
 
 
 class ContainmentPreview:
+    # Handle half-length in screen pixels, independent of zoom and containment size.
+    HANDLE_PIXELS = 16
+
     def __init__(self, root, set_limit, enabled):
         self.root = root
         self.set_limit = set_limit
         self.enabled = enabled
         self.dragging = False
-        self.camera_sensors = []
+        self.camera_sensor = None
+        self.camera = None
+        self.event_callback = None
         self.dragger_callbacks = []
         self.handle_positions = []
         self.clip_planes = {}
@@ -64,9 +69,7 @@ class ContainmentPreview:
     def clear(self):
         if not self.dragging:
             self._remove_dragger_callbacks()
-            for sensor in self.camera_sensors:
-                sensor.detach()
-            self.camera_sensors.clear()
+            self._stop_camera_tracking()
             self.handle_positions.clear()
             self._clear_graphics()
             self._clear_snap_highlight()
@@ -129,9 +132,7 @@ class ContainmentPreview:
         if self.root is not None:
             self.exit_section()
             self._remove_dragger_callbacks()
-            for sensor in self.camera_sensors:
-                sensor.detach()
-            self.camera_sensors.clear()
+            self._stop_camera_tracking()
             self.root.removeChild(self.visibility)
             self.root = None
 
@@ -334,7 +335,6 @@ class ContainmentPreview:
         x0, x1, z0, z1 = self.bounds
         rear = x1 <= 0
         inner, outer = (x1, x0) if rear else (x0, x1)
-        size = max(abs(outer - inner), z1 - z0, 1) * 0.055
         zmid = (z0 + z1) / 2
         xend = inner + (outer - inner) * 0.75
         positions = {
@@ -349,7 +349,6 @@ class ContainmentPreview:
             group = coin.SoSeparator()
             transform = coin.SoTransform()
             transform.translation.setValue(*position)
-            transform.scaleFactor.setValue(size, size, size)
             if name.endswith("Z"):
                 transform.rotation.setValue(coin.SbVec3f(0, 1, 0), -math.pi / 2)
             group.addChild(transform)
@@ -357,6 +356,8 @@ class ContainmentPreview:
             for part, color in (("translator", (0.9, 0.25, 0.72)),
                                 ("translatorActive", (1.0, 0.75, 0.0))):
                 dragger.setPart(part, self._handle_shape(color))
+            # The world size is updated with the camera, so share it with the callbacks.
+            size = [1.0]
             data = (name, position, size, transform)
             # FreeCAD acquires the GIL when native mouse events invoke these callbacks.
             for kind, method in (("addStartCallback", self._start_drag),
@@ -368,12 +369,32 @@ class ContainmentPreview:
             group.addChild(dragger)
             self.handles.addChild(group)
             self.handle_positions.append((transform, position, size))
-        camera = view.getCameraNode()
-        for field in (camera.orientation, camera.position):
-            sensor = coin.SoFieldSensor(self._camera_changed, None)
-            sensor.attach(field)
-            self.camera_sensors.append(sensor)
+        self.camera_sensor = coin.SoNodeSensor(self._camera_changed, None)
+        self._track_camera(view)
+        # Changing the camera type replaces the camera node, so check it on view events.
+        self.event_callback = (view, view.addEventCallback("SoEvent", self._view_event))
+
+    def _track_camera(self, view):
+        self.camera = view.getCameraNode()
+        self.camera_sensor.detach()
+        # Node sensors cover orientation, position, orthographic height and perspective angle.
+        self.camera_sensor.attach(self.camera)
         self._place_handles()
+
+    def _view_event(self, event):
+        view = FreeCADGui.ActiveDocument.activeView()
+        if not self.dragging and view.getCameraNode() != self.camera:
+            self._track_camera(view)
+
+    def _stop_camera_tracking(self):
+        if self.camera_sensor is not None:
+            self.camera_sensor.detach()
+            self.camera_sensor = None
+        self.camera = None
+        if self.event_callback is not None:
+            view, callback = self.event_callback
+            view.removeEventCallback("SoEvent", callback)
+            self.event_callback = None
 
     @staticmethod
     def _dispatch_drag(method, data, dragger, _callback_dragger):
@@ -401,12 +422,25 @@ class ContainmentPreview:
             + direction.y * (box.YMax if direction.y >= 0 else box.YMin)
             + direction.z * (box.ZMax if direction.z >= 0 else box.ZMin)
             for box in boxes)
+        right = view.getCameraOrientation().multVec(FreeCAD.Vector(1, 0, 0))
+        step = max(max(box.DiagonalLength for box in boxes), 1)
+        def world_size(point):
+            start = view.getPointOnScreen(point)
+            end = view.getPointOnScreen(point + right * step)
+            pixels = math.hypot(end[0] - start[0], end[1] - start[1])
+            return self.HANDLE_PIXELS * step / pixels if pixels > 0 else None
+
         for transform, position, size in self.handle_positions:
             point = FreeCAD.Vector(*position)
+            # The clearance uses the size at the original depth, which is never smaller.
+            clearance = 2 * (world_size(point) or size[0])
             # Move handles toward the camera so the model cannot intercept their picks.
-            offset = max(0, near - direction.dot(point) + 2 * size)
-            offset = min(offset, max(0, direction.dot(camera - point) - 2 * size))
+            offset = max(0, near - direction.dot(point) + clearance)
+            offset = min(offset, max(0, direction.dot(camera - point) - clearance))
             point += direction * offset
+            # Size at the final depth so perspective views keep the same on-screen size.
+            size[0] = world_size(point) or size[0]
+            transform.scaleFactor.setValue(size[0], size[0], size[0])
             transform.translation.setValue(point.x, point.y, point.z)
 
     def _start_drag(self, data, dragger):
@@ -548,6 +582,7 @@ class ContainmentPreview:
         if not self.dragging:
             return
         name, position, size, transform = data
+        size = size[0]
         axis = 0 if name.endswith("X") else 2
         value = position[axis] + dragger.translation.getValue().getValue()[0] * size
         x0, x1, z0, z1 = self.bounds
