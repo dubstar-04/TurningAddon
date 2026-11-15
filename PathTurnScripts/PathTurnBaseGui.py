@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: LGPL-2.0-or-later
 # See LICENSE for terms. This software is provided WITHOUT ANY WARRANTY.
 
+import math
 import os
 
 import FreeCAD
@@ -106,6 +107,17 @@ if not getattr(PathOpGui.ViewProvider.setEdit, "_turning_tool_check", False):
     PathOpGui.ViewProvider.setEdit = _set_edit_with_turning_tool_check
 
 
+class _ContainmentVisibilityFilter(QtCore.QObject):
+    def __init__(self, callback, parent):
+        super().__init__(parent)
+        self.callback = callback
+
+    def eventFilter(self, watched, event):
+        if event.type() in (QtCore.QEvent.Show, QtCore.QEvent.Hide):
+            self.callback()
+        return False
+
+
 class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
     '''Page controller class for turning operations '''
 
@@ -134,7 +146,10 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             reason = getattr(obj.Proxy, "stock_guide_unavailable_reason", None)
             self.form.showStock.setToolTip(
                 reason or FreeCAD.Qt.translate("PathTurn", "The stock guide is unavailable for this operation."))
-        self.containment = ContainmentPreview(obj.ViewObject.RootNode)
+        self.containment = ContainmentPreview(
+            obj.ViewObject.RootNode, self.finishContainmentDrag,
+            lambda name: name in self.containment_page.widgets
+            and self.containment_page.widgets[name].isEnabled())
         from .PathTurnStockPreview import StockGuide
 
         self.stock_guide = StockGuide()
@@ -154,6 +169,9 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         self.stock_timer.setSingleShot(True)
         self.stock_timer.timeout.connect(self.updateContainment)
         self.containment_error = None
+        self.containment_visibility = _ContainmentVisibilityFilter(
+            self.updateContainment, self.containment_page.form)
+        self.containment_page.form.installEventFilter(self.containment_visibility)
         self.form.showContainment.toggled.connect(self.updateContainment)
         self.form.showStock.toggled.connect(self.updateContainment)
         self.updateContainment()
@@ -172,7 +190,6 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         if obj.Document == self.obj.Document:
             self.stock_guide.key = None
             self.stock_status.setText(FreeCAD.Qt.translate("PathTurn", "Stock guide updating..."))
-            self.containment.clear()
             self.stock_timer.start(250)
         if ((obj == getattr(self.job, "SetupSheet", None) and prop == "SafeHeightOffset")
                 or (obj == getattr(self.obj.ToolController, "Tool", None) and prop == "ToolPost")):
@@ -180,17 +197,24 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             self.updateContainment()
 
     def updateContainment(self, *args):
-        self.containment.clear()
-        if self.form.showContainment.isChecked():
+        if self.containment.dragging:
+            self.containment.set_visible(self.containment_page.form.isVisible())
+            return
+        self.containment.set_visible(True)
+        if self.form.showContainment.isChecked() and self.containment_page.form.isVisible():
             try:
                 self.containment.update(self.obj)
             except ValueError as error:
+                self.containment.clear()
                 message = str(error)
                 if message != self.containment_error:
                     PathLog.warning(message)
                 self.containment_error = message
             else:
                 self.containment_error = None
+        else:
+            self.containment.clear()
+            self.containment.exit_section()
         show_stock = self.form.showStock.isChecked()
         self.stock_mode.setEnabled(show_stock)
         self.stock_status.setVisible(show_stock)
@@ -216,13 +240,29 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             self.stock_status.setText(FreeCAD.Qt.translate(
                 "PathTurn", "Stock guide unavailable: {error}").format(error=str(error)))
 
+    def finishContainmentDrag(self, name, value):
+        def finish():
+            if not self.observing:
+                return
+            page = self.containment_page
+            if value is not None and page.widgets[name].isEnabled():
+                prop, scale = page.bindings[name]
+                current = getattr(self.obj, prop).Value * scale
+                if not math.isclose(value, current, rel_tol=0, abs_tol=1e-7):
+                    page.setCoordinate(name, value)
+            self.updateContainment()
+
+        QtCore.QTimer.singleShot(0, finish)
+
     def updateData(self, obj, prop):
-        if prop in ("MinDiameter", "MaxDiameter", "StartDepth", "FinalDepth", "ToolController"):
+        if prop in ("MinDiameter", "MaxDiameter", "StartDepth", "FinalDepth",
+                    "ToolController", "ThreadStandard"):
             self.updateContainment()
 
     def cleanupPage(self, obj):
         self.stopObserving()
         try:
+            self.containment_page.form.removeEventFilter(self.containment_visibility)
             self.form.showContainment.toggled.disconnect(self.updateContainment)
             self.form.showStock.toggled.disconnect(self.updateContainment)
         except (ReferenceError, RuntimeError) as error:

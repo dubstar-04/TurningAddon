@@ -12,10 +12,12 @@ import Path.Op.Gui.Base as PathOpGui
 from PySide import QtCore, QtGui
 
 from . import PathTurnAddonHelpers as helpers
-from .PathTurnToolBit import post_from_parameters
 
 
 class TaskPanelContainment(PathOpGui.TaskPanelPage):
+    LIMITS = {"radialMax": ("MaxDiameter", 0.5), "radialMin": ("MinDiameter", 0.5),
+              "axialMax": ("StartDepth", 1), "axialMin": ("FinalDepth", 1)}
+
     def getForm(self):
         return FreeCADGui.PySideUic.loadUi(helpers.getResourcePath("PageTurnContainment.ui"))
 
@@ -25,8 +27,8 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
     def initPage(self, obj):
         self.setIcon(str(Path(__file__).parent.parent / "Gui/Resources/Icons/CAM-TurnContainment.svg"))
         self.updating = False
-        self.bindings = {}
-        self.widgets = {name: getattr(self.form, name) for name in self.mapping(obj)}
+        self.bindings = self.LIMITS
+        self.widgets = {name: getattr(self.form, name) for name in self.LIMITS}
         self.setFields(obj)
         for name, widget in self.widgets.items():
             widget.valueChanged.connect(partial(self.changeLimit, name))
@@ -34,42 +36,46 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
             widget.customContextMenuRequested.connect(partial(self.expressionMenu, name))
             getattr(self.form, name + "Set").clicked.connect(partial(self.setFromSelection, name))
 
-    def mapping(self, obj):
-        post = post_from_parameters({"ToolPost": obj.ToolController.Tool.ToolPost})
-        if post == "Rear":
-            radial = {"plusX": ("MinDiameter", -0.5), "minusX": ("MaxDiameter", -0.5)}
-        else:
-            radial = {"plusX": ("MaxDiameter", 0.5), "minusX": ("MinDiameter", 0.5)}
-        return dict(radial, plusZ=("StartDepth", 1), minusZ=("FinalDepth", 1))
-
     def setFields(self, obj):
         self.updating = True
         try:
-            self.bindings = self.mapping(obj)
             expressions = dict(obj.ExpressionEngine)
             standard_dimensions = (
                 hasattr(obj, "ThreadStandard") and obj.ThreadStandard != "Custom")
+            effective = self.effectiveLimits(obj)
             for name, (prop, scale) in self.bindings.items():
                 widget = self.widgets[name]
+                # Operations hide limits they set themselves, such as on-centre drilling radii.
+                operation_set = "Hidden" in obj.getEditorMode(prop)
                 preset_locked = standard_dimensions and prop in ("MinDiameter", "MaxDiameter")
-                widget.setEnabled(not preset_locked)
-                getattr(self.form, name + "Set").setEnabled(not preset_locked)
+                widget.setEnabled(not (operation_set or preset_locked))
+                getattr(self.form, name + "Set").setEnabled(widget.isEnabled())
                 widget.setProperty(
                     "unit", FreeCAD.Units.Quantity(1, FreeCAD.Units.Length).getUserPreferred()[2])
-                widget.setProperty("minimum", -1e9 if scale < 0 or name.endswith("Z") else 0)
-                widget.setProperty("maximum", 0 if scale < 0 else 1e9)
-                expression = expressions.get(prop)
-                value = (FreeCAD.Units.Quantity(obj.evalExpression(expression)).Value
-                         if expression else getattr(obj, prop).Value)
-                widget.setProperty("rawValue", value * scale)
+                widget.setProperty("minimum", -1e9 if name.startswith("axial") else 0)
+                widget.setProperty("maximum", 1e9)
+                expression = None if operation_set else expressions.get(prop)
+                if operation_set:
+                    value = effective.get(name, 0)
+                elif expression:
+                    value = FreeCAD.Units.Quantity(obj.evalExpression(expression)).Value * scale
+                else:
+                    value = getattr(obj, prop).Value * scale
+                widget.setProperty("rawValue", value)
                 widget.setToolTip(
+                    FreeCAD.Qt.translate(
+                        "PathTurn", "This operation sets this limit.") if operation_set else
                     FreeCAD.Qt.translate(
                         "PathTurn", "Expression: {value}\nEditing the value replaces the expression.").format(
                         value=f"({expression}) * {scale:g}") if expression else
                     FreeCAD.Qt.translate(
-                        "PathTurn", "Signed coordinate in mm (X is radius, not diameter). "
-                        "Right-click to set an expression." if not preset_locked else
-                        "The selected standard thread size controls this diameter. Choose Custom to edit it."))
+                        "PathTurn", "The selected standard thread size controls this diameter. "
+                        "Choose Custom to edit it.") if preset_locked else
+                    FreeCAD.Qt.translate(
+                        "PathTurn", "Radius in mm, not diameter. Right-click to set an expression.")
+                    if name.startswith("radial") else
+                    FreeCAD.Qt.translate(
+                        "PathTurn", "Z coordinate in mm. Right-click to set an expression."))
         finally:
             self.updating = False
         self.updateSelection(obj, FreeCADGui.Selection.getSelectionEx())
@@ -91,9 +97,19 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
             self.setDirty()
 
     def getFields(self, obj):
-        for name in self.widgets:
-            if self.bindings[name][0] not in dict(obj.ExpressionEngine):
+        for name, widget in self.widgets.items():
+            if widget.isEnabled() and self.bindings[name][0] not in dict(obj.ExpressionEngine):
                 self.changeLimit(name)
+
+    @staticmethod
+    def effectiveLimits(obj):
+        try:
+            bounds = helpers.getContainment(obj)
+        except (AttributeError, ValueError):
+            return {}
+        inner, outer = sorted((abs(bounds.XMin), abs(bounds.XMax)))
+        return {"radialMax": outer, "radialMin": inner,
+                "axialMax": bounds.ZMax, "axialMin": bounds.ZMin}
 
     def updateData(self, obj, prop):
         if not self.updating and prop in (
@@ -136,13 +152,13 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
         value = FreeCAD.Units.Quantity(self.obj.evalExpression(expression))
         if value.Unit != FreeCAD.Units.Quantity(1, FreeCAD.Units.Length).Unit:
             raise ValueError(FreeCAD.Qt.translate("PathTurn", "Expression must evaluate to a length."))
-        if not math.isfinite(value.Value) or (name.endswith("X") and value.Value < 0):
-            raise ValueError(FreeCAD.Qt.translate("PathTurn", "Expression is outside the tool side."))
+        if not math.isfinite(value.Value) or (name.startswith("radial") and value.Value < 0):
+            raise ValueError(FreeCAD.Qt.translate("PathTurn", "Radial limits cannot be negative."))
         self.obj.setExpression(prop, expression)
         setattr(self.obj, prop, value)
 
     def selectionValue(self, name, selection):
-        if name.endswith("Z"):
+        if name.startswith("axial"):
             return PathOpGui.TaskPanelHeightsPage.selectionZLevel(self, self.obj, selection)
         if len(selection) != 1 or len(selection[0].SubObjects) != 1:
             return None
@@ -163,9 +179,7 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
                 a, b = [v.Point for v in sub.Vertexes]
                 if math.hypot(a.x - b.x, a.y - b.y) < 1e-7:
                     radius = math.hypot(a.x, a.y)
-        if radius is None:
-            return None
-        return -radius if self.bindings["plusX"][1] < 0 else radius
+        return radius
 
     def updateSelection(self, obj, selection):
         for name in self.widgets:
@@ -178,8 +192,11 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
         if value is None:
             PathLog.warning(FreeCAD.Qt.translate(
                 "PathTurn", "Select a vertex, an axial edge or a spindle-centred circle/cylinder "
-                "for X; select a vertex or horizontal edge/face for Z."))
+                "for a radial limit; select a vertex or horizontal edge/face for an axial limit."))
             return
+        self.setCoordinate(name, value)
+
+    def setCoordinate(self, name, value):
         prop, scale = self.bindings[name]
         if prop in dict(self.obj.ExpressionEngine):
             self.obj.setExpression(prop, None)

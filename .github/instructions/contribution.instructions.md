@@ -13,6 +13,8 @@ applyTo: "**"
 - Keep UI elements aligned.
 - Lay out label and input rows like the Tool Controller feed controls: a fixed-width label column (150 px) with a clear gap before the controls.
 - Do not put complex information about operations or G-code in the UI.
+- Maximise UI reuse: all operations share the same panels, controls and behaviour; do not add operation-specific variants of a shared panel.
+- When a control does not apply to an operation, keep it visible but inactive (disabled) rather than hiding it or building a separate UI.
 
 ## Tooltips
 

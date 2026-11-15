@@ -131,3 +131,38 @@ Implement an external radial grooving operation for front and rear tools.
 
 - check M Iso tool
 - Cache tool images to make the form load faster
+
+## Containment
+
+- [x] Drag handle style: red dot handles; a larger double arrow shows on hover and while dragging.
+- [x] Centre Z drag handles on their edges while retaining the camera-facing
+  pick offset.
+- [x] Edge selection improvement
+- [x] Containment colour - Pad-style green preview with red handles; active limit is dotted while dragging.
+- [x] Consistent naming Radial Max/Min, Axial Max/Min
+- [x] Consistently show all limits in containment - make inactive if not relevent
+- [ ] Update screenshots
+
+
+## workholding
+
+- [ ] Show chuck in model?
+
+## Readme
+- document simulation
+  - Multiple engines for development and testing
+  - select op in panel
+  - timeline
+  - skip forward XXmm
+  - skip op
+
+- Document containment
+  - sectional view
+  - drag handles
+
+- Flexible operations
+  - Directional control Axial / radial cutting
+  - Rough - directional clearing cuts
+  - Profile - shape offset
+  - Drilling - centerline holes
+  - Threading - Thread making [State]

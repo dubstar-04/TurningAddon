@@ -242,7 +242,7 @@ Defaults to one drill diameter.</string>
       <bool>false</bool>
      </property>
      <property name="toolTip">
-      <string>Extends the drill tip beyond Final Depth so the hole reaches full diameter at that depth.</string>
+      <string>Extends the drill tip beyond Axial Min so the hole reaches full diameter at that depth.</string>
      </property>
     </widget>
    </item>

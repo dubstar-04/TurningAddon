@@ -10,44 +10,12 @@ from PySide import QtCore
 
 from . import PathTurnBaseGui
 from . import PathTurnDrill
-from .PathTurnContainmentGui import TaskPanelContainment
 
 
 _icon = Path(__file__).parent.parent / "Gui/Resources/Icons/CAM-TurnDrill.svg"
 
 
-class TaskPanelDrillContainment(TaskPanelContainment):
-    def mapping(self, obj):
-        return {"plusZ": ("StartDepth", 1), "minusZ": ("FinalDepth", 1)}
-
-    def getForm(self):
-        form = super().getForm()
-        for name in ("plusX", "minusX"):
-            for suffix in ("", "Label", "Set"):
-                getattr(form, name + suffix).hide()
-        form.plusZLabel.setText(FreeCAD.Qt.translate("PathTurn", "Start depth"))
-        form.minusZLabel.setText(FreeCAD.Qt.translate("PathTurn", "Final tip depth"))
-        form.setToolTip(FreeCAD.Qt.translate(
-            "PathTurn", "Drills on the spindle axis (X=0).\n"
-            "Final Depth is the tip depth unless Tool Tip offset is selected.\n"
-            "Clearance comes from the job Safe Height Offset."))
-        return form
-
-    def setFields(self, obj):
-        super().setFields(obj)
-        self.form.minusZLabel.setText(FreeCAD.Qt.translate(
-            "PathTurn", "Full-diameter depth") if getattr(obj, "TipCompensation", False)
-            else FreeCAD.Qt.translate("PathTurn", "Final tip depth"))
-
-    def updateData(self, obj, prop):
-        super().updateData(obj, prop)
-        if prop == "TipCompensation":
-            self.setFields(obj)
-
-
 class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
-    taskPanelDiametersPage = TaskPanelDrillContainment
-
     def getIcon(self, obj):
         return str(_icon)
 
