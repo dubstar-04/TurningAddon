@@ -29,6 +29,7 @@ class ContainmentPreview:
         self.dragger_callbacks = []
         self.handle_positions = []
         self.clip_planes = {}
+        self.section_key = None
         self.node = coin.SoSeparator()
         # Keep the limits readable through the model without changing its display.
         depth = coin.SoDepthBuffer()
@@ -43,6 +44,12 @@ class ContainmentPreview:
         caps_pick.style = coin.SoPickStyle.UNPICKABLE
         self.section_caps.addChild(caps_pick)
         self.node.addChild(self.section_caps)
+        # Keep the stock guide separate so redrawing limits during a drag leaves it intact.
+        self.stock_graphics = coin.SoSeparator()
+        stock_pick = coin.SoPickStyle()
+        stock_pick.style = coin.SoPickStyle.UNPICKABLE
+        self.stock_graphics.addChild(stock_pick)
+        self.node.addChild(self.stock_graphics)
         self.graphics = coin.SoSeparator()
         pick = coin.SoPickStyle()
         pick.style = coin.SoPickStyle.UNPICKABLE
@@ -72,6 +79,8 @@ class ContainmentPreview:
             self._stop_camera_tracking()
             self.handle_positions.clear()
             self._clear_graphics()
+            while self.stock_graphics.getNumChildren() > 1:
+                self.stock_graphics.removeChild(1)
             self._clear_snap_highlight()
             while self.handles.getNumChildren() > 1:
                 self.handles.removeChild(1)
@@ -110,7 +119,7 @@ class ContainmentPreview:
         faces.numVertices.setValues([len(polygon) for polygon in polygons])
         fill.addChild(faces)
         # Draw the fill first so the limit and stock outlines remain legible.
-        self.graphics.insertChild(fill, 1)
+        self.stock_graphics.addChild(fill)
         group = coin.SoSeparator()
         material = coin.SoMaterial()
         material.diffuseColor = (0.95, 0.6, 0.12)
@@ -126,7 +135,7 @@ class ContainmentPreview:
         lines = coin.SoLineSet()
         lines.numVertices.setValues([2] * len(edges))
         group.addChild(lines)
-        self.graphics.insertChild(group, 2)
+        self.stock_graphics.addChild(group)
 
     def close(self):
         if self.root is not None:
@@ -137,7 +146,6 @@ class ContainmentPreview:
             self.root = None
 
     def update(self, obj):
-        self.clear()
         bounds = getContainment(obj)
         values = (bounds.XMin, bounds.XMax, bounds.ZMin, bounds.ZMax)
         if (not all(math.isfinite(value) for value in values)
@@ -161,18 +169,29 @@ class ContainmentPreview:
         self.job = job
         self.clearance = clearance
         self.bounds = (bounds.XMin, bounds.XMax, bounds.ZMin, bounds.ZMax)
+        # OCC sectioning can process repaint events, so finish it before removing the old preview.
         self._enter_section()
+        self.clear()
         self._draw(self.bounds)
         self._make_handles()
 
     def _enter_section(self):
         # Cut away the half facing the front view without changing the document.
         for obj in self._geometry_objects():
-            if obj.ViewObject is None or obj.Name in self.clip_planes:
+            if obj.ViewObject is None:
                 continue
             node = obj.ViewObject.RootNode
-            plane = coin.SoClipPlane()
-            plane.plane.setValue(coin.SbPlane(coin.SbVec3f(0, 1, 0), 0))
+            previous = self.clip_planes.get(obj.Name)
+            if previous is not None:
+                previous_node, plane = previous
+                if previous_node == node and node.findChild(plane) >= 0:
+                    continue
+                index = previous_node.findChild(plane)
+                if index >= 0:
+                    previous_node.removeChild(index)
+            else:
+                plane = coin.SoClipPlane()
+                plane.plane.setValue(coin.SbPlane(coin.SbVec3f(0, 1, 0), 0))
             node.insertChild(plane, 0)
             self.clip_planes[obj.Name] = (node, plane)
         self._draw_section_caps()
@@ -183,12 +202,19 @@ class ContainmentPreview:
             if index >= 0:
                 node.removeChild(index)
         self.clip_planes.clear()
+        self.section_key = None
         while self.section_caps.getNumChildren() > 1:
             self.section_caps.removeChild(1)
 
     def _draw_section_caps(self):
-        while self.section_caps.getNumChildren() > 1:
-            self.section_caps.removeChild(1)
+        # Limit changes leave the model unchanged, so skip the slow OCC section.
+        key = tuple((obj.Name, obj.Shape.hashCode(), str(obj.Shape.Placement))
+                    for obj in self.job.Model.Group)
+        if key == self.section_key:
+            return
+        # Keep the current section visible until its replacement is ready.
+        caps = coin.SoSeparator()
+        caps.addChild(self.section_caps.getChild(0))
         points, indices = [], []
         for obj in self.job.Model.Group:
             shape = obj.Shape
@@ -217,7 +243,7 @@ class ContainmentPreview:
                     indices.extend((*(base + index for index in triangle), -1))
             for edge in section.Edges:
                 self._boundary([(point.x, 0, point.z) for point in edge.discretize(Deflection=0.01)],
-                               (0.2, 0.22, 0.28), parent=self.section_caps, halo=False)
+                               (0.2, 0.22, 0.28), parent=caps, halo=False)
         if indices:
             fill = coin.SoSeparator()
             material = coin.SoMaterial()
@@ -233,7 +259,10 @@ class ContainmentPreview:
             faces.coordIndex.setValues(indices)
             fill.addChild(faces)
             # Draw the cap beneath its outline.
-            self.section_caps.insertChild(fill, 1)
+            caps.insertChild(fill, 1)
+        self.node.replaceChild(self.section_caps, caps)
+        self.section_caps = caps
+        self.section_key = key
 
     def _draw(self, bounds, active=None, snapped=False):
         self._clear_graphics()

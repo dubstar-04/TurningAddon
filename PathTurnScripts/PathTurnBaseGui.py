@@ -190,7 +190,6 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         if obj.Document == self.obj.Document:
             self.stock_guide.key = None
             self.stock_status.setText(FreeCAD.Qt.translate("PathTurn", "Stock guide updating..."))
-            self.containment.clear()
             self.stock_timer.start(250)
         if ((obj == getattr(self.job, "SetupSheet", None) and prop == "SafeHeightOffset")
                 or (obj == getattr(self.obj.ToolController, "Tool", None) and prop == "ToolPost")):
@@ -202,11 +201,11 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             self.containment.set_visible(self.containment_page.form.isVisible())
             return
         self.containment.set_visible(True)
-        self.containment.clear()
         if self.form.showContainment.isChecked() and self.containment_page.form.isVisible():
             try:
                 self.containment.update(self.obj)
             except ValueError as error:
+                self.containment.clear()
                 message = str(error)
                 if message != self.containment_error:
                     PathLog.warning(message)
@@ -214,6 +213,7 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             else:
                 self.containment_error = None
         else:
+            self.containment.clear()
             self.containment.exit_section()
         show_stock = self.form.showStock.isChecked()
         self.stock_mode.setEnabled(show_stock)
