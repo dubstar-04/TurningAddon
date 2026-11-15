@@ -504,42 +504,70 @@ class ContainmentPreview:
                 if edge.Degenerated:
                     continue
                 vertices = edge.Vertexes
-                for vertex in vertices:
-                    point = vertex.Point
-                    radius = math.hypot(point.x, point.y)
-                    radial_sources.setdefault(radius, []).append((edge, point))
-                    axial_sources.setdefault(point.z, []).append((edge, point))
+                # Only highlight edges that lie entirely on the snapped radius or depth.
                 if edge.BoundBox.ZLength < 1e-6:
+                    # Key by a vertex value so it matches the vertex snap candidates exactly.
+                    depth = vertices[0].Point.z if vertices else edge.BoundBox.ZMin
+                    axial.add(depth)
+                    axial_sources.setdefault(depth, []).append((edge, None))
                     for vertex in vertices:
-                        axial_sources.setdefault(vertex.Point.z, []).append((edge, None))
-            for element in (*edges, *shape.Faces):
+                        axial_sources.setdefault(vertex.Point.z, []).append((edge, vertex.Point))
+                radius = self._constant_radius(edge)
+                if radius is not None:
+                    radial.add(radius)
+                # Circles at one depth appear edge-on as axial lines in the section view.
+                if radius is not None and edge.BoundBox.ZLength >= 1e-6:
+                    radial_sources.setdefault(radius, []).append((edge, None))
+                    for vertex in vertices:
+                        point = vertex.Point
+                        radial_sources.setdefault(
+                            math.hypot(point.x, point.y), []).append((edge, point))
+            for face in shape.Faces:
                 try:
-                    geometry = element.Curve if element.ShapeType == "Edge" else element.Surface
+                    surface = face.Surface
                 except TypeError as error:
-                    if ("undefined curve type" not in str(error)
-                            and "undefined surface type" not in str(error)):
+                    if "undefined surface type" not in str(error):
                         raise
                     unsupported += 1
                     continue
-                if isinstance(geometry, (Part.Circle, Part.Cylinder)):
-                    axis, center = geometry.Axis, geometry.Center
+                if isinstance(surface, Part.Cylinder):
+                    axis, center = surface.Axis, surface.Center
                     if abs(abs(axis.z) - 1) < 1e-7 and math.hypot(center.x, center.y) < 1e-7:
-                        radius = geometry.Radius
-                        radial.add(radius)
-                        matching_edges = [element] if element.ShapeType == "Edge" else element.Edges
-                        for edge in matching_edges:
-                            if not edge.Degenerated:
-                                radial_sources.setdefault(radius, []).append((edge, None))
-                elif element.ShapeType == "Edge" and isinstance(geometry, Part.Line) and not element.Degenerated:
-                    vertices = element.Vertexes
-                    if len(vertices) == 2:
-                        a, b = (vertex.Point for vertex in vertices)
-                        if math.hypot(a.x - b.x, a.y - b.y) < 1e-7:
-                            radial_sources.setdefault(math.hypot(a.x, a.y), []).append((element, None))
+                        radial.add(surface.Radius)
         return (radial, axial), (radial_sources, axial_sources), unsupported
 
-    def _snap_edge_points(self, edge):
-        key = id(edge)
+    @staticmethod
+    def _constant_radius(edge):
+        """Return the edge's distance from the spindle axis if it is constant, else None."""
+        vertices = edge.Vertexes
+        try:
+            points = edge.discretize(Number=9)
+        except Part.OCCError:
+            return None
+        radii = [math.hypot(point.x, point.y) for point in points]
+        if max(radii) - min(radii) > 1e-6:
+            return None
+        if vertices:
+            # Key by a vertex value so it matches the vertex snap candidates exactly.
+            point = vertices[0].Point
+            return math.hypot(point.x, point.y)
+        return radii[0]
+
+    def _radial_sign(self, axis):
+        """Return the section side for radial highlights, or 0 to keep axial highlights in 3D."""
+        if axis != 0:
+            return 0
+        return -1 if self.bounds[1] <= 0 else 1
+
+    @staticmethod
+    def _to_section(point, sign):
+        if not sign:
+            return point
+        # Revolve onto the section plane so off-plane seams line up with the section outline.
+        return FreeCAD.Vector(sign * math.hypot(point.x, point.y), 0, point.z)
+
+    def _snap_edge_points(self, edge, sign=0):
+        key = (id(edge), sign)
         if key not in self.snap_edge_points:
             try:
                 points = edge.discretize(Number=65)
@@ -549,21 +577,23 @@ class ContainmentPreview:
                 PathLog.warning(FreeCAD.Qt.translate(
                     "PathTurn", "Cannot highlight a snap edge: {error}").format(error=str(error)))
                 points = ()
-            self.snap_edge_points[key] = points
+            self.snap_edge_points[key] = [self._to_section(point, sign) for point in points]
         return self.snap_edge_points[key]
 
     def _nearest_snap_source(self, axis, value, screen, view):
         direction = view.getCameraOrientation().multVec(FreeCAD.Vector(0, 0, 1))
+        sign = self._radial_sign(axis)
         best = None
         for edge, anchor in self.snap_sources[axis].get(value, ()):
             if anchor is not None:
+                anchor = self._to_section(anchor, sign)
                 x, y = view.getPointOnScreen(anchor)
                 distance = (x - screen[0]) ** 2 + (y - screen[1]) ** 2
                 rank = (distance, edge is None, -direction.dot(anchor))
                 if best is None or rank < best[0]:
                     best = (rank, edge, anchor)
                 continue
-            points = self._snap_edge_points(edge)
+            points = self._snap_edge_points(edge, sign)
             if not points:
                 continue
             projected = [view.getPointOnScreen(point) for point in points]
@@ -589,7 +619,7 @@ class ContainmentPreview:
         edge, anchor = source
         color = (0.0, 0.55, 1.0)
         if edge is not None:
-            points = self._snap_edge_points(edge)
+            points = self._snap_edge_points(edge, self._radial_sign(axis))
             if points:
                 self._boundary([(point.x, point.y, point.z) for point in points],
                                color, parent=self.snap_highlight)
