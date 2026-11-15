@@ -683,16 +683,29 @@ class ContainmentPreview:
         value = position[axis] + dragger.translation.getValue().getValue()[0] * size
         x0, x1, z0, z1 = self.bounds
         gap = 1e-5
-        # Clamp in signed coordinates, where the bound index says which side of the box moves.
         index = self._bound_index(name)
+        opposite = {"radialMin": "radialMax", "radialMax": "radialMin",
+                    "axialMin": "axialMax", "axialMax": "axialMin"}[name]
+        # Operation-controlled limits move together, preserving their derived spacing.
+        follows = not self.enabled(opposite)
+        minimum, maximum = -math.inf, math.inf
         if index == 1:
-            value = max(x0 + gap, min(value, 0) if x1 <= 0 else value)
+            minimum = -math.inf if follows else x0 + gap
+            if x1 <= 0:
+                maximum = 0
+            elif follows:
+                minimum = x1 - x0
         elif index == 0:
-            value = min(x1 - gap, max(value, 0) if x1 > 0 else value)
+            maximum = math.inf if follows else x1 - gap
+            if x1 > 0:
+                minimum = 0
+            elif follows:
+                maximum = x0 - x1
         elif index == 3:
-            value = max(z0 + gap, value)
+            minimum = -math.inf if follows else z0 + gap
         else:
-            value = min(z1 - gap, value)
+            maximum = math.inf if follows else z1 - gap
+        value = max(minimum, min(maximum, value))
         view = FreeCADGui.ActiveDocument.activeView()
         point = list(transform.translation.getValue().getValue())
         point[axis] += value - position[axis]
@@ -706,10 +719,7 @@ class ContainmentPreview:
         best = None
         for candidate in candidates:
             candidate = candidate * sign if axis == 0 else candidate
-            if ((index == 1 and (candidate <= x0 + gap or (x1 <= 0 and candidate > 0)))
-                    or (index == 0 and (candidate >= x1 - gap or (x1 > 0 and candidate < 0)))
-                    or (index == 3 and candidate <= z0 + gap)
-                    or (index == 2 and candidate >= z1 - gap)):
+            if not minimum <= candidate <= maximum:
                 continue
             point[axis] = transform.translation.getValue().getValue()[axis] + candidate - position[axis]
             target = view.getPointOnScreen(FreeCAD.Vector(*point))
@@ -720,6 +730,8 @@ class ContainmentPreview:
         if best is not None:
             value = best[2]
         values = list(self.bounds)
+        if follows:
+            values[self._bound_index(opposite)] += value - values[index]
         values[index] = value
         self.drag_value = value
         self._draw(values, name, best is not None)
