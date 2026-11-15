@@ -17,6 +17,9 @@ from .PathTurnAddonHelpers import getContainment
 class ContainmentPreview:
     # Handle half-length in screen pixels, independent of zoom and containment size.
     HANDLE_PIXELS = 16
+    PREVIEW_COLOR = (0.0, 1.0, 0.6)
+    HANDLE_COLOR = (1.0, 0.0, 0.0)
+    ACTIVE_COLOR = (1.0, 1.0, 0.0)
 
     def __init__(self, root, set_limit, enabled):
         self.root = root
@@ -270,34 +273,33 @@ class ContainmentPreview:
         rear = x1 <= 0
         inner, outer = (x1, x0) if rear else (x0, x1)
         sign = -1 if rear else 1
-        magenta = (0.55, 0.05, 0.45)
         self._fill(x0, x1, z0, z1)
-        highlight = (1.0, 0.7, 0.0) if snapped else (0.9, 0.1, 0.5)
+        highlight = self.ACTIVE_COLOR if snapped else self.HANDLE_COLOR
         self._boundary(
             [(outer, 0, z0), (outer, 0, z1)],
-            highlight if active == ("minusX" if rear else "plusX") else magenta)
+            highlight if active == ("minusX" if rear else "plusX") else self.PREVIEW_COLOR)
         self._boundary(
             [(inner, 0, z0), (inner, 0, z1)],
-            highlight if active == ("plusX" if rear else "minusX") else magenta)
+            highlight if active == ("plusX" if rear else "minusX") else self.PREVIEW_COLOR)
         self._boundary(
-            [(x0, 0, z1), (x1, 0, z1)], highlight if active == "plusZ" else magenta)
+            [(x0, 0, z1), (x1, 0, z1)], highlight if active == "plusZ" else self.PREVIEW_COLOR)
         self._boundary(
-            [(x0, 0, z0), (x1, 0, z0)], highlight if active == "minusZ" else magenta)
+            [(x0, 0, z0), (x1, 0, z0)], highlight if active == "minusZ" else self.PREVIEW_COLOR)
         if getattr(self.obj.Proxy, "centreline_drilling", False):
             self._boundary(
-                [(x0, 0, z1 + self.clearance), (x1, 0, z1 + self.clearance)], magenta,
+                [(x0, 0, z1 + self.clearance), (x1, 0, z1 + self.clearance)], self.PREVIEW_COLOR,
                 dashed=True)
         elif not (getattr(self.obj.Proxy, "supports_internal_mode", False)
                   and str(getattr(self.obj, "Mode", "")) == MachiningMode.INTERNAL.value):
             clearance_x = outer + sign * self.clearance
             self._boundary(
-                [(clearance_x, 0, z0), (clearance_x, 0, z1)], magenta,
+                [(clearance_x, 0, z0), (clearance_x, 0, z1)], self.PREVIEW_COLOR,
                 dashed=True)
 
     def _fill(self, x0, x1, z0, z1):
         fill = coin.SoSeparator()
         material = coin.SoMaterial()
-        material.diffuseColor = (0.75, 0.15, 0.65)
+        material.diffuseColor = self.PREVIEW_COLOR
         material.transparency = 0.75
         fill.addChild(material)
         hints = coin.SoShapeHints()
@@ -382,8 +384,8 @@ class ContainmentPreview:
                 transform.rotation.setValue(coin.SbVec3f(0, 1, 0), -math.pi / 2)
             group.addChild(transform)
             dragger = coin.SoTranslate1Dragger()
-            for part, color in (("translator", (0.9, 0.25, 0.72)),
-                                ("translatorActive", (1.0, 0.75, 0.0))):
+            for part, color in (("translator", self.HANDLE_COLOR),
+                                ("translatorActive", self.ACTIVE_COLOR)):
                 dragger.setPart(part, self._handle_shape(color))
             # The world size is updated with the camera, so share it with the callbacks.
             size = [1.0]
