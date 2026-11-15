@@ -115,7 +115,7 @@ class TaskPanelContainment(PathOpGui.TaskPanelPage):
         if not self.updating and prop in (
                 "MinDiameter", "MaxDiameter", "StartDepth", "FinalDepth",
                 "ExpressionEngine", "ToolController", "ThreadStandard",
-                "Mode", "ChamferSide", "ChamferSize"):
+                "Mode", "ChamferPosition", "ChamferSize"):
             self.setFields(obj)
 
     def expressionMenu(self, name, position):

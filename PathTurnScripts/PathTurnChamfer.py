@@ -1,6 +1,5 @@
 """Containment-positioned, equal-distance turning edge breaks."""
 
-from enum import Enum
 import math
 
 import FreeCAD
@@ -9,14 +8,10 @@ import Path
 from liblathe.base.boundbox import BoundBox
 from liblathe.base.point import Point
 from liblathe.op.base import Direction, MachiningMode
+from liblathe.op.chamfer import ChamferPosition
 
 from . import PathTurnAddonHelpers as helpers
 from . import PathTurnBase
-
-
-class ChamferSide(Enum):
-    NEGATIVE_Z = "-Z"
-    POSITIVE_Z = "+Z"
 
 
 def chamfer_containment(obj):
@@ -27,7 +22,7 @@ def chamfer_containment(obj):
             "PathTurn", "Chamfer Size must be finite and positive."))
 
     mode = MachiningMode(str(obj.Mode))
-    side = ChamferSide(str(obj.ChamferSide))
+    position = ChamferPosition(str(obj.ChamferPosition))
     if mode == MachiningMode.EXTERNAL:
         radial_max = obj.MaxDiameter.Value / 2
         radial_min = radial_max - size
@@ -38,7 +33,7 @@ def chamfer_containment(obj):
         radial_min = obj.MinDiameter.Value / 2
         radial_max = radial_min + size
 
-    if side == ChamferSide.NEGATIVE_Z:
+    if position == ChamferPosition.FRONT:
         axial_max = obj.StartDepth.Value
         axial_min = axial_max - size
     else:
@@ -58,10 +53,10 @@ def containment_corner_index(obj, outline):
     """Find the profile corner at the intersection of the active containment limits."""
     bounds = chamfer_containment(obj)
     mode = MachiningMode(str(obj.Mode))
-    side = ChamferSide(str(obj.ChamferSide))
+    position = ChamferPosition(str(obj.ChamferPosition))
     radial_edges = (abs(bounds.XMin), abs(bounds.XMax))
     radius = max(radial_edges) if mode == MachiningMode.EXTERNAL else min(radial_edges)
-    z = bounds.ZMax if side == ChamferSide.NEGATIVE_Z else bounds.ZMin
+    z = bounds.ZMax if position == ChamferPosition.FRONT else bounds.ZMin
     points = [edge.start for edge in outline]
     if outline:
         points.append(outline[-1].end)
@@ -103,24 +98,26 @@ class ObjectTurnChamfer(PathTurnBase.ObjectOp):
         obj.addProperty("App::PropertyLength", "ChamferSize", "Turn Path", FreeCAD.Qt.translate(
             "PathTurn", "Equal distance removed along each adjacent face (45-degree edge break)."))
         obj.ChamferSize = 1.0
-        self._addChamferSide(obj)
+        self._addChamferPosition(obj)
         self.setEditorModes(obj, self.opFeatures(obj))
 
     def opOnDocumentRestored(self, obj):
         super().opOnDocumentRestored(obj)
-        self._addChamferSide(obj)
+        self._addChamferPosition(obj)
         self.setEditorModes(obj, self.opFeatures(obj))
 
-    def _addChamferSide(self, obj):
-        self._addEnumeration(obj, "ChamferSide", ChamferSide, ChamferSide.NEGATIVE_Z,
-                             FreeCAD.Qt.translate("PathTurn", "Side of the workpiece to chamfer."))
+    def _addChamferPosition(self, obj):
+        self._addEnumeration(
+            obj, "ChamferPosition", ChamferPosition, ChamferPosition.FRONT,
+            FreeCAD.Qt.translate(
+                "PathTurn", "Front: corner at Axial Max.\nBack: corner at Axial Min."))
 
     def setEditorModes(self, obj, features):
         super().setEditorModes(obj, features)
-        if hasattr(obj, "ChamferSide") and hasattr(obj, "Mode"):
+        if hasattr(obj, "ChamferPosition") and hasattr(obj, "Mode"):
             radial = ("MaxDiameter" if str(obj.Mode) == MachiningMode.EXTERNAL.value
                       else "MinDiameter")
-            axial = ("StartDepth" if str(obj.ChamferSide) == ChamferSide.NEGATIVE_Z.value
+            axial = ("StartDepth" if str(obj.ChamferPosition) == ChamferPosition.FRONT.value
                      else "FinalDepth")
             active = {radial, axial}
             for name in ("MinDiameter", "MaxDiameter", "StartDepth", "FinalDepth"):
@@ -131,7 +128,7 @@ class ObjectTurnChamfer(PathTurnBase.ObjectOp):
 
     def onChanged(self, obj, prop):
         super().onChanged(obj, prop)
-        if prop in ("Mode", "ChamferSide"):
+        if prop in ("Mode", "ChamferPosition"):
             self.setEditorModes(obj, self.opFeatures(obj))
 
     def getContainment(self, obj):
@@ -154,7 +151,7 @@ class ObjectTurnChamfer(PathTurnBase.ObjectOp):
         operation.setParams({
             **params,
             "direction": Direction.RADIAL,
-            "chamfer_side": Direction(str(obj.ChamferSide)),
+            "chamfer_position": ChamferPosition(str(obj.ChamferPosition)),
             "chamfer_size": obj.ChamferSize.Value,
             "corner_indices": (containment_corner_index(obj, self.part_outline),),
         })
@@ -171,7 +168,7 @@ class ObjectTurnChamfer(PathTurnBase.ObjectOp):
 
 
 def SetupProperties():
-    return ["Mode", "ChamferSide", "PassOffset", "ChamferSize"]
+    return ["Mode", "ChamferPosition", "PassOffset", "ChamferSize"]
 
 
 def Create(name, obj=None, parentJob=None):

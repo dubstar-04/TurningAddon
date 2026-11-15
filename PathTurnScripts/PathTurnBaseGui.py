@@ -271,7 +271,7 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         if prop in self.quantitySpinBoxes:
             self.quantitySpinBoxes[prop].updateWidget()
         if prop in ("MinDiameter", "MaxDiameter", "StartDepth", "FinalDepth",
-                    "ToolController", "ThreadStandard", "Mode", "ChamferSide",
+                    "ToolController", "ThreadStandard", "Mode", "ChamferPosition",
                     "ChamferSize"):
             self.updateContainment()
 
@@ -292,7 +292,10 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         '''getForm() ... return UI'''
         # return FreeCADGui.PySideUic.loadUi(":/panels/PageOpTurnBaseEdit.ui")
         turnUi = PathTurnHelpers.getResourcePath("PageOpTurnBaseEdit.ui")
-        return FreeCADGui.PySideUic.loadUi(turnUi)
+        form = FreeCADGui.PySideUic.loadUi(turnUi)
+        form.chamferFront.setIcon(QtGui.QIcon(os.path.join(_iconDir, "CAM-TurnChamferFront.svg")))
+        form.chamferBack.setIcon(QtGui.QIcon(os.path.join(_iconDir, "CAM-TurnChamferBack.svg")))
+        return form
 
     def getFields(self, obj):
         '''getFields(obj) ... transfers values from UI to obj's proprties'''

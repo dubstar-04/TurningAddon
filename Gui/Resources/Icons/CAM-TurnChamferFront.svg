@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="chamferPart" x1="20" y1="8" x2="20" y2="55" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#729fcf" />
+      <stop offset="1" stop-color="#3465a4" />
+    </linearGradient>
+  </defs>
+  <path d="M 8,14 H 44 L 56,26 V 50 H 8 Z"
+        fill="url(#chamferPart)" stroke="#000000" stroke-width="2" stroke-linejoin="round" />
+  <path d="M 2,32 H 62" fill="none" stroke="#000000" stroke-width="1" stroke-dasharray="2,1" />
+</svg>
