@@ -19,7 +19,6 @@ class ContainmentPreview:
     HANDLE_PIXELS = 16
     PREVIEW_COLOR = (0.0, 1.0, 0.6)
     HANDLE_COLOR = (1.0, 0.0, 0.0)
-    ACTIVE_COLOR = (1.0, 1.0, 0.0)
 
     def __init__(self, root, set_limit, enabled):
         self.root = root
@@ -274,17 +273,17 @@ class ContainmentPreview:
         inner, outer = (x1, x0) if rear else (x0, x1)
         sign = -1 if rear else 1
         self._fill(x0, x1, z0, z1)
-        highlight = self.ACTIVE_COLOR if snapped else self.HANDLE_COLOR
-        self._boundary(
-            [(outer, 0, z0), (outer, 0, z1)],
-            highlight if active == ("minusX" if rear else "plusX") else self.PREVIEW_COLOR)
-        self._boundary(
-            [(inner, 0, z0), (inner, 0, z1)],
-            highlight if active == ("plusX" if rear else "minusX") else self.PREVIEW_COLOR)
-        self._boundary(
-            [(x0, 0, z1), (x1, 0, z1)], highlight if active == "plusZ" else self.PREVIEW_COLOR)
-        self._boundary(
-            [(x0, 0, z0), (x1, 0, z0)], highlight if active == "minusZ" else self.PREVIEW_COLOR)
+
+        def draw_limit(name, points):
+            dragging = active == name and not snapped
+            self._boundary(
+                points, self.HANDLE_COLOR if dragging else self.PREVIEW_COLOR,
+                dotted=dragging)
+
+        draw_limit("minusX" if rear else "plusX", [(outer, 0, z0), (outer, 0, z1)])
+        draw_limit("plusX" if rear else "minusX", [(inner, 0, z0), (inner, 0, z1)])
+        draw_limit("plusZ", [(x0, 0, z1), (x1, 0, z1)])
+        draw_limit("minusZ", [(x0, 0, z0), (x1, 0, z0)])
         if getattr(self.obj.Proxy, "centreline_drilling", False):
             self._boundary(
                 [(x0, 0, z1 + self.clearance), (x1, 0, z1 + self.clearance)], self.PREVIEW_COLOR,
@@ -384,9 +383,8 @@ class ContainmentPreview:
                 transform.rotation.setValue(coin.SbVec3f(0, 1, 0), -math.pi / 2)
             group.addChild(transform)
             dragger = coin.SoTranslate1Dragger()
-            for part, color in (("translator", self.HANDLE_COLOR),
-                                ("translatorActive", self.ACTIVE_COLOR)):
-                dragger.setPart(part, self._handle_shape(color))
+            for part in ("translator", "translatorActive"):
+                dragger.setPart(part, self._handle_shape(self.HANDLE_COLOR))
             # The world size is updated with the camera, so share it with the callbacks.
             size = [1.0]
             data = (name, position, size, transform)
@@ -705,7 +703,7 @@ class ContainmentPreview:
         FreeCADGui.getMainWindow().statusBar().clearMessage()
         self.set_limit(name, value)
 
-    def _boundary(self, points, color, dashed=False, parent=None, halo=True):
+    def _boundary(self, points, color, dashed=False, dotted=False, parent=None, halo=True):
         group = coin.SoSeparator()
         coordinates = coin.SoCoordinate3()
         coordinates.point.setValues(points)
@@ -718,8 +716,8 @@ class ContainmentPreview:
         halo.addChild(white)
         halo_style = coin.SoDrawStyle()
         halo_style.lineWidth = 6 if dashed else 7
-        if dashed:
-            halo_style.linePattern = 0xF0F0
+        if dashed or dotted:
+            halo_style.linePattern = 0xF0F0 if dashed else 0x1111
         halo.addChild(halo_style)
         halo.addChild(coordinates)
         halo.addChild(line)
@@ -730,8 +728,8 @@ class ContainmentPreview:
         group.addChild(material)
         style = coin.SoDrawStyle()
         style.lineWidth = 2 if dashed else 3
-        if dashed:
-            style.linePattern = 0xF0F0
+        if dashed or dotted:
+            style.linePattern = 0xF0F0 if dashed else 0x1111
         group.addChild(style)
         group.addChild(coordinates)
         group.addChild(line)
