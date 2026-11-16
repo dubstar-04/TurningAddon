@@ -6,7 +6,6 @@ import FreeCAD
 import Path.Op.Gui.Base as PathOpGui
 from PySide import QtCore, QtGui
 
-from liblathe.op.base import MachiningMode
 from liblathe.op.chamfer import ChamferPosition
 
 from . import PathTurnBaseGui
@@ -36,19 +35,6 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
         for button in self.position_buttons.values():
             self.position_group.addButton(button)
         form.chamferFront.setChecked(True)
-        external_icons = {position: button.icon()
-                          for position, button in self.position_buttons.items()}
-        rotation = QtGui.QTransform().rotate(180)
-        internal_icons = {
-            ChamferPosition.FRONT: QtGui.QIcon(
-                external_icons[ChamferPosition.BACK].pixmap(64, 64).transformed(rotation)),
-            ChamferPosition.BACK: QtGui.QIcon(
-                external_icons[ChamferPosition.FRONT].pixmap(64, 64).transformed(rotation)),
-        }
-        self.position_icons = {
-            MachiningMode.EXTERNAL: external_icons,
-            MachiningMode.INTERNAL: internal_icons,
-        }
         return form
 
     def setOpFields(self, obj):
@@ -58,10 +44,8 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
         self.form.chamferPositionLabel.setEnabled(True)
         self.form.chamferPositionButtons.setEnabled(True)
         selected = ChamferPosition(str(obj.ChamferPosition))
-        icons = self.position_icons[MachiningMode(str(obj.Mode))]
         for position, button in self.position_buttons.items():
             button.setChecked(position == selected)
-            button.setIcon(icons[position])
         self.form.passOffset.setToolTip(FreeCAD.Qt.translate(
             "PathTurn", "Maximum distance between passes, measured perpendicular to the chamfer."))
 
