@@ -39,8 +39,8 @@ The addon is available from **CAM > CAM Addons > Turning Addon**.
     <td align="center"><strong>Threading</strong><br><img src="Screenshots/screenshot_op_threading.png" alt="Threading"></td>
   </tr>
     <tr>
-    <td align="center"><strong>Boring</strong><br><img src="Screenshots/screenshot_op_chamfer.png" alt="Chamfer"></td>
-    <td align="center"><strong>Threading</strong><br><img src="Screenshots/screenshot_op_partoff.png" alt="Partoff"></td>
+    <td align="center"><strong>Chamfer</strong><br><img src="Screenshots/screenshot_op_chamfer.png" alt="Chamfer"></td>
+    <td align="center"><strong>Partoff</strong><br><img src="Screenshots/screenshot_op_partoff.png" alt="Partoff"></td>
   </tr>
 </table>
 
