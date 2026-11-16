@@ -44,6 +44,9 @@ def parting_containment(obj):
         raise ValueError(translate("PathTurn", "Parting requires a tool controller."))
     from .PathTurnToolBit import post_from_parameters
 
+    if obj.MinDiameter.Value >= obj.MaxDiameter.Value:
+        raise ValueError(translate(
+            "PathTurn", "Minimum diameter is equal or greater than maximum diameter"))
     sign = -1 if post_from_parameters({"ToolPost": tool.ToolPost}) == "Rear" else 1
     face = obj.StartDepth.Value
     return BoundBox(Point(sign * obj.MinDiameter.Value / 2, face - tool_width(tool)),
