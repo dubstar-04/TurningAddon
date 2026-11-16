@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0.033333333 0.525000000 62.933333333 62.933333333">
   <defs>
     <linearGradient id="chamferPart" x1="20" y1="8" x2="20" y2="55" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#729fcf" />

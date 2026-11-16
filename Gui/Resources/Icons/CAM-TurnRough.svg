@@ -12,12 +12,17 @@
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="64px"
    height="64px"
+   viewBox="-0.225000000 0.393750000 63.200000000 63.200000000"
    id="svg2816"
    version="1.1"
    inkscape:version="0.92.4 5da689c313, 2019-01-14"
    sodipodi:docname="CAM-TurnProfile.svg">
   <defs
      id="defs2818">
+    <linearGradient id="turnPart" x1="0" y1="10" x2="0" y2="53" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#729fcf" />
+      <stop offset="1" stop-color="#3465a4" />
+    </linearGradient>
     <linearGradient
        inkscape:collect="always"
        id="linearGradient3915">
@@ -987,37 +992,46 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer">
     <rect
-       style="fill:url(#linearGradient1023);fill-opacity:1;stroke:#000000;stroke-width:2;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       style="fill:url(#turnPart);fill-opacity:1;stroke:#000000;stroke-width:2;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        id="rect963"
        width="16"
        height="43"
-       x="5"
+       x="12"
        y="10" />
     <rect
-       style="fill:url(#linearGradient1010);fill-opacity:1;stroke:#0b0000;stroke-width:2;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       style="fill:url(#turnPart);fill-opacity:1;stroke:#000000;stroke-width:2;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        id="rect965"
        width="23"
-       height="30"
-       x="21"
-       y="16" />
+       height="24"
+       x="28"
+       y="19.5" />
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:2,1;stroke-dashoffset:0"
        d="M 2,31.5 H 62"
        id="path967"
        inkscape:connector-curvature="0" />
     <path
-       style="fill:none;stroke:#8ae234;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="M 4,57 H 57"
+       style="fill:none;stroke:#204a00;stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round"
+       d="M 4,61 H 57" />
+    <path
+       style="fill:none;stroke:#8ae234;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"
+       d="M 4,61 H 57"
        id="path973-3"
        inkscape:connector-curvature="0" />
     <path
-       style="fill:none;stroke:#8ae234;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="M 23,53 H 57"
+       style="fill:none;stroke:#204a00;stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round"
+       d="M 35,55.5 H 57" />
+    <path
+       style="fill:none;stroke:#8ae234;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"
+       d="M 35,55.5 H 57"
        id="path973-6"
        inkscape:connector-curvature="0" />
     <path
-       style="fill:none;stroke:#8ae234;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="M 23,49 H 57"
+       style="fill:none;stroke:#204a00;stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round"
+       d="M 35,50 H 57" />
+    <path
+       style="fill:none;stroke:#8ae234;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"
+       d="M 35,50 H 57"
        id="path973-7"
        inkscape:connector-curvature="0" />
   </g>
