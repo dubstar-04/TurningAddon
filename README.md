@@ -27,16 +27,20 @@ The addon is available from **CAM > CAM Addons > Turning Addon**.
 
 <table>
   <tr>
-    <td align="center"><strong>Roughing</strong><br><img src="Screenshots/screenshot_op_rough_clear.png" alt="Roughing toolpath"></td>
-    <td align="center"><strong>Facing</strong><br><img src="Screenshots/screenshot_op_rough_face.png" alt="Facing toolpath"></td>
+    <td align="center"><strong>Roughing</strong><br><img src="Screenshots/screenshot_op_rough_clear.png" alt="Roughing"></td>
+    <td align="center"><strong>Facing</strong><br><img src="Screenshots/screenshot_op_rough_face.png" alt="Facing"></td>
   </tr>
   <tr>
-    <td align="center"><strong>Grooving</strong><br><img src="Screenshots/screenshot_op_grooving.png" alt="Grooving toolpath"></td>
-    <td align="center"><strong>Profiling</strong><br><img src="Screenshots/screenshot_op_profile.png" alt="Profiling toolpath"></td>
+    <td align="center"><strong>Grooving</strong><br><img src="Screenshots/screenshot_op_grooving.png" alt="Grooving "></td>
+    <td align="center"><strong>Profiling</strong><br><img src="Screenshots/screenshot_op_profile.png" alt="Profiling"></td>
   </tr>
   <tr>
-    <td align="center"><strong>Boring</strong><br><img src="Screenshots/screenshot_op_bore.png" alt="Boring toolpath"></td>
-    <td align="center"><strong>Threading</strong><br><img src="Screenshots/screenshot_op_threading.png" alt="Threading toolpath"></td>
+    <td align="center"><strong>Boring</strong><br><img src="Screenshots/screenshot_op_bore.png" alt="Boring"></td>
+    <td align="center"><strong>Threading</strong><br><img src="Screenshots/screenshot_op_threading.png" alt="Threading"></td>
+  </tr>
+    <tr>
+    <td align="center"><strong>Chamfer</strong><br><img src="Screenshots/screenshot_op_chamfer.png" alt="Chamfer"></td>
+    <td align="center"><strong>Partoff</strong><br><img src="Screenshots/screenshot_op_partoff.png" alt="Partoff"></td>
   </tr>
 </table>
 

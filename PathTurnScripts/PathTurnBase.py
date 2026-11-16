@@ -47,6 +47,7 @@ class ObjectOp(PathOp.ObjectOp):
     pass_offset_label = translate("TurnPath", "Pass Offset")
     has_finish_offset = False
     supports_internal_mode = False
+    supports_direction_control = True
     direction_tooltip = translate("TurnPath", "Cutting direction")
 
     def opFeatures(self, obj):
@@ -95,7 +96,8 @@ class ObjectOp(PathOp.ObjectOp):
         parent = getattr(super(), "onChanged", None)
         if parent is not None:
             parent(obj, prop)
-        if self.supports_internal_mode and prop == "Mode" and hasattr(obj, "Direction"):
+        if (self.supports_internal_mode and self.supports_direction_control
+                and prop == "Mode" and hasattr(obj, "Direction")):
             obj.Direction = self._defaultDirection(obj).value
 
     @staticmethod
@@ -106,8 +108,9 @@ class ObjectOp(PathOp.ObjectOp):
     def _addModeAndDirection(self, obj):
         self._addEnumeration(obj, "Mode", MachiningMode, MachiningMode.EXTERNAL,
                              translate("TurnPath", "Machining mode"))
-        self._addEnumeration(obj, "Direction", Direction, self._defaultDirection(obj),
-                             self.direction_tooltip)
+        if self.supports_direction_control:
+            self._addEnumeration(obj, "Direction", Direction, self._defaultDirection(obj),
+                                 self.direction_tooltip)
 
     @staticmethod
     def _addEnumeration(obj, name, enum, default, tooltip):
@@ -137,25 +140,35 @@ class ObjectOp(PathOp.ObjectOp):
         self.tool = None
         self.minDia = obj.MinDiameter.Value
         self.maxDia = obj.MaxDiameter.Value
+        if (getattr(obj.Proxy, "getContainment", None) is None
+                and self.minDia >= self.maxDia):
+            raise RuntimeError(translate(
+                'PathTurn', "Minimum diameter is equal or greater than maximum diameter"))
+        bounds = PathTurnHelpers.getContainment(obj)
+        radial_min, radial_max = sorted((abs(bounds.XMin), abs(bounds.XMax)))
 
-        if self.minDia >= self.maxDia:
+        if not all(math.isfinite(value) for value in (
+                radial_min, radial_max, bounds.ZMin, bounds.ZMax)):
+            raise RuntimeError(translate('PathTurn', "Containment limits must be finite"))
+
+        if radial_min >= radial_max:
             raise RuntimeError(translate('PathTurn', "Minimum diameter is equal or greater than maximum diameter"))
 
         if self.minDia < 0 or self.maxDia < 0:
             raise RuntimeError(translate('PathTurn', "Diameter values must be non-negative"))
 
-        if obj.StartDepth.Value <= obj.FinalDepth.Value:
+        if bounds.ZMin >= bounds.ZMax:
             raise RuntimeError(translate('PathTurn', "Start depth is equal or less than final depth"))
-
-        if self.uses_pass_offset:
-            if not math.isfinite(obj.PassOffset.Value) or obj.PassOffset.Value <= 0:
-                raise RuntimeError(translate(
-                    'PathTurn', "{name} must be finite and positive").format(name=self.pass_offset_label))
 
         # Clear any existing gcode
         path = obj.Path
         path.Commands = []
         obj.Path = path
+
+        if self.uses_pass_offset:
+            if not math.isfinite(obj.PassOffset.Value) or obj.PassOffset.Value <= 0:
+                raise RuntimeError(translate(
+                    'PathTurn', "{name} must be finite and positive").format(name=self.pass_offset_label))
 
         self.part_outline = self.get_part_outline(obj)
         self.generate_gcode(obj)
@@ -206,7 +219,8 @@ class ObjectOp(PathOp.ObjectOp):
             params['allow_grooving'] = obj.AllowGrooving
         if self.supports_internal_mode:
             params["mode"] = MachiningMode(str(obj.Mode))
-            params["direction"] = Direction(str(obj.Direction))
+            if self.supports_direction_control:
+                params["direction"] = Direction(str(obj.Direction))
         return params
 
     def get_part_outline(self, obj):

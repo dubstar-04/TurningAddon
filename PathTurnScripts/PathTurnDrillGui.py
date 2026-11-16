@@ -5,7 +5,6 @@ from pathlib import Path
 import FreeCAD
 import FreeCADGui
 import Path.Op.Gui.Base as PathOpGui
-import Path.Base.Gui.Util as PathGuiUtil
 from PySide import QtCore
 
 from . import PathTurnBaseGui
@@ -20,6 +19,7 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
         return str(_icon)
 
     quantity_fields = {
+        **PathTurnBaseGui.TaskPanelTurnBase.quantity_fields,
         "PeckDepth": "peckDepth",
     }
 
@@ -34,9 +34,6 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
 
     def initPage(self, obj):
         super().initPage(obj)
-        self.quantitySpinBoxes = {
-            prop: PathGuiUtil.QuantitySpinBox(getattr(self.form, widget), obj, prop)
-            for prop, widget in self.quantity_fields.items()}
         self._updatePeckFields()
 
     def _updatePeckFields(self, *args):
@@ -48,8 +45,7 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
         for name in ("retractionMode", "peckDepth", "tipCompensation"):
             getattr(self.form, name).show()
             getattr(self.form, name + "Label").show()
-        for spin_box in self.quantitySpinBoxes.values():
-            spin_box.updateWidget()
+        self.quantitySpinBoxes["PeckDepth"].updateWidget()
         blocked = self.form.retractionMode.blockSignals(True)
         self.form.retractionMode.setCurrentIndex(
             self.form.retractionMode.findData(str(obj.RetractionMode)))
@@ -61,8 +57,7 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
 
     def getFields(self, obj):
         super().getFields(obj)
-        for spin_box in self.quantitySpinBoxes.values():
-            spin_box.updateProperty()
+        self.quantitySpinBoxes["PeckDepth"].updateProperty()
         if str(obj.RetractionMode) != self.form.retractionMode.currentData():
             obj.RetractionMode = self.form.retractionMode.currentData()
         tip_compensation = self.form.tipCompensation.currentIndex() == 1
@@ -70,12 +65,6 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
             obj.TipCompensation = tip_compensation
         self.containment_page.setFields(obj)
         self.updateContainment()
-
-    def updateData(self, obj, prop):
-        super().updateData(obj, prop)
-        if prop in self.quantitySpinBoxes:
-            self.quantitySpinBoxes[prop].updateWidget()
-            self._updatePeckFields()
 
     def getSignalsForUpdate(self, obj):
         return super().getSignalsForUpdate(obj) + [

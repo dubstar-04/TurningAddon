@@ -51,7 +51,7 @@ _path_selection = PathSelection.select
 
 
 def _select_with_turning_fallback(op):
-    if op == "TurnDrill":
+    if op in ("TurnDrill", "TurnChamfer"):
         return PathSelection.profileselect
     try:
         return _path_selection(op)
@@ -131,11 +131,24 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
 
     taskPanelDiametersPage = TaskPanelContainment
 
+    quantity_fields = {
+        "PassOffset": "passOffset",
+        "StockToLeave": "stockToLeave",
+        "FinishPassOffset": "finishPassOffset",
+    }
+
     def initPage(self, obj):
         if getattr(self, "icon", None):
             # CAM constructs tab icons with QIcon, which needs the SVG path.
             self.setIcon(os.path.join(_iconDir, os.path.basename(self.icon)))
         self.updating = False  # pylint: disable=attribute-defined-outside-init
+        self.quantitySpinBoxes = {
+            prop: PathGuiUtil.QuantitySpinBox(getattr(self.form, widget), obj, prop)
+            for prop, widget in self.quantity_fields.items() if hasattr(obj, prop)}
+        if "StockToLeave" in self.quantitySpinBoxes:
+            # Saved operations store this length as a float in millimetres.
+            self.form.stockToLeave.setProperty(
+                "unit", FreeCAD.Units.Quantity(1, FreeCAD.Units.Length).getUserPreferred()[2])
         self.containment_page = next(
             page for page in self.parent.featurePages if isinstance(page, TaskPanelContainment))
         self.form.showContainment = self.containment_page.form.showContainment
@@ -255,8 +268,11 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         QtCore.QTimer.singleShot(0, finish)
 
     def updateData(self, obj, prop):
+        if prop in self.quantitySpinBoxes:
+            self.quantitySpinBoxes[prop].updateWidget()
         if prop in ("MinDiameter", "MaxDiameter", "StartDepth", "FinalDepth",
-                    "ToolController", "ThreadStandard"):
+                    "ToolController", "ThreadStandard", "Mode", "ChamferPosition",
+                    "ChamferSize"):
             self.updateContainment()
 
     def cleanupPage(self, obj):
@@ -276,7 +292,10 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         '''getForm() ... return UI'''
         # return FreeCADGui.PySideUic.loadUi(":/panels/PageOpTurnBaseEdit.ui")
         turnUi = PathTurnHelpers.getResourcePath("PageOpTurnBaseEdit.ui")
-        return FreeCADGui.PySideUic.loadUi(turnUi)
+        form = FreeCADGui.PySideUic.loadUi(turnUi)
+        form.chamferFront.setIcon(QtGui.QIcon(os.path.join(_iconDir, "CAM-TurnChamferFront.svg")))
+        form.chamferBack.setIcon(QtGui.QIcon(os.path.join(_iconDir, "CAM-TurnChamferBack.svg")))
+        return form
 
     def getFields(self, obj):
         '''getFields(obj) ... transfers values from UI to obj's proprties'''
@@ -284,23 +303,25 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
 
         used = dict(obj.Proxy.optional_parameters())
         if used["PassOffset"]:
-            PathGuiUtil.updateInputField(obj, "PassOffset", self.form.passOffset)
+            self.quantitySpinBoxes["PassOffset"].updateProperty()
         if used["FinishPasses"]:
             obj.FinishPasses = self.form.finishPasses.value()
         if used["StockToLeave"]:
-            obj.StockToLeave = self.form.stockToLeave.value()
+            self.quantitySpinBoxes["StockToLeave"].updateProperty()
         if used["AllowGrooving"] and obj.AllowGrooving != self.form.allowGrooving.isChecked():
             obj.AllowGrooving = self.form.allowGrooving.isChecked()
 
         has_mode = hasattr(obj, "Mode")
-        has_direction = hasattr(obj, "Direction")
+        has_direction = (hasattr(obj, "Direction")
+                         and getattr(obj.Proxy, "supports_direction_control", True))
         mode_changed = has_mode and str(obj.Mode) != self.form.mode.currentText()
         if mode_changed:
             obj.Mode = self.form.mode.currentText()
-            self.form.direction.blockSignals(True)
-            self.form.direction.setCurrentIndex(
-                self.form.direction.findText(str(obj.Direction)))
-            self.form.direction.blockSignals(False)
+            if has_direction:
+                self.form.direction.blockSignals(True)
+                self.form.direction.setCurrentIndex(
+                    self.form.direction.findText(str(obj.Direction)))
+                self.form.direction.blockSignals(False)
             controller_page = next(
                 (page for page in self.parent.featurePages
                  if isinstance(page, PathOpGui.TaskPanelToolControllerPage)), None)
@@ -321,7 +342,7 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         self._setPassOffsetLabel(obj)
 
         if hasattr(obj, "FinishPassOffset"):
-            PathGuiUtil.updateInputField(obj, 'FinishPassOffset', self.form.finishPassOffset)
+            self.quantitySpinBoxes["FinishPassOffset"].updateProperty()
 
     def setFields(self, obj):
         '''setFields(obj) ... transfers obj's property values to UI'''
@@ -333,20 +354,21 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
                 getattr(self.form, widget).setVisible(used[name])
         if used["PassOffset"]:
             self._setPassOffsetLabel(obj)
-            self.form.passOffset.setText(obj.PassOffset.UserString)
+            self.quantitySpinBoxes["PassOffset"].updateWidget()
         if used["FinishPasses"]:
             self.form.finishPasses.setValue(obj.FinishPasses)
         if used["StockToLeave"]:
-            self.form.stockToLeave.setValue(obj.StockToLeave)
+            self.quantitySpinBoxes["StockToLeave"].updateWidget()
         if used["AllowGrooving"]:
             self.form.allowGrooving.setChecked(obj.AllowGrooving)
         has_finish_offset = hasattr(obj, "FinishPassOffset")
         self.form.finishPassOffset.setVisible(has_finish_offset)
         self.form.finishPassOffsetLabel.setVisible(has_finish_offset)
         if has_finish_offset:
-            self.form.finishPassOffset.setText(obj.FinishPassOffset.UserString)
+            self.quantitySpinBoxes["FinishPassOffset"].updateWidget()
         has_mode = hasattr(obj, "Mode")
-        has_direction = hasattr(obj, "Direction")
+        has_direction = (hasattr(obj, "Direction")
+                         and getattr(obj.Proxy, "supports_direction_control", True))
         self.form.modeLabel.setVisible(has_mode)
         self.form.mode.setVisible(has_mode)
         self.form.directionLabel.setVisible(has_direction)
@@ -377,12 +399,13 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         if used["FinishPasses"]:
             signals.append(self.form.finishPasses.valueChanged)
         if used["StockToLeave"]:
-            signals.append(self.form.stockToLeave.valueChanged)
+            signals.append(self.form.stockToLeave.editingFinished)
         if used["AllowGrooving"]:
             signals.append(self.form.allowGrooving.stateChanged)
         if hasattr(obj, "Mode"):
             signals.append(self.form.mode.currentIndexChanged)
-        if hasattr(obj, "Direction"):
+        if (hasattr(obj, "Direction")
+                and getattr(obj.Proxy, "supports_direction_control", True)):
             signals.append(self.form.direction.currentIndexChanged)
         if hasattr(obj, "FinishPassOffset"):
             signals.append(self.form.finishPassOffset.editingFinished)

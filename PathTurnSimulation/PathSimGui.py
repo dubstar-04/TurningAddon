@@ -269,7 +269,6 @@ class PathSimPanel:
 		if omitted:
 			message = "Tool motion only; material removal is not simulated for: {}".format(", ".join(omitted))
 			FreeCAD.Console.PrintWarning("PathSim: {}\n".format(message))
-			QtGui.QMessageBox.warning(self.form, "Simulation limitations", message)
 		self.meshView = self.document.addObject("Mesh::Feature", "Simulation_Cutshape")
 		self.meshView.Label = "Simulation-Cutshape"
 		self.meshView.addProperty("App::PropertyString", "PathSimObject", "PathSim")

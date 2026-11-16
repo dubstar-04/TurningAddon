@@ -4,7 +4,6 @@ from pathlib import Path
 
 import FreeCAD
 import FreeCADGui
-import Path.Base.Gui.Util as PathGuiUtil
 import Path.Op.Gui.Base as PathOpGui
 from PySide import QtCore
 
@@ -16,6 +15,11 @@ _icon = Path(__file__).parent.parent / "Gui/Resources/Icons/CAM-TurnThread.svg"
 
 
 class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
+    quantity_fields = {
+        **PathTurnBaseGui.TaskPanelTurnBase.quantity_fields,
+        "Pitch": "pitch",
+    }
+
     def getIcon(self, obj):
         return str(_icon)
 
@@ -103,14 +107,14 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
         name = self.form.threadPitch.currentData()
         if thread_class and name:
             targets = PathTurnThread.ThreadData.midpoint_targets(standard, thread_class, name)
-            self.form.pitch.setText(self._format_length(targets["pitch_mm"]))
+            self.form.pitch.setProperty("rawValue", targets["pitch_mm"])
 
     def getFields(self, obj):
         super().getFields(obj)
         standard = self.form.threadStandard.currentData()
         if standard == "Custom":
             obj.Proxy.setThreadPreset(obj, standard)
-            PathGuiUtil.updateInputField(obj, "Pitch", self.form.pitch)
+            self.quantitySpinBoxes["Pitch"].updateProperty()
         else:
             thread_class = self.form.threadClass.currentData()
             name = self.form.threadPitch.currentData()
@@ -159,7 +163,7 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
             "PathTurn", "Loose (8g / 1A): easier assembly.\n"
             "Standard (6g / 2A): general purpose.\n"
             "Close (4g6g / 3A): tighter fit."))
-        self.form.pitch.setText(obj.Pitch.UserString)
+        self.quantitySpinBoxes["Pitch"].updateWidget()
         self.form.pitch.setToolTip(FreeCAD.Qt.translate(
             "PathTurn", "Thread advance per spindle revolution."))
         self.form.springPassesLabel.show()

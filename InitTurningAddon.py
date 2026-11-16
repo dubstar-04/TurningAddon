@@ -16,6 +16,7 @@ initialize()
 from PathTurnScripts import PathTurnDrillGui  # noqa: F401
 from PathTurnScripts import PathTurnPartoffGui  # noqa: F401
 from PathTurnScripts import PathTurnProfileGui  # noqa: F401
+from PathTurnScripts import PathTurnChamferGui  # noqa: F401
 from PathTurnScripts import PathTurnRoughGui  # noqa: F401
 from PathTurnScripts import PathTurnToolLibraryGui  # noqa: F401
 from PathTurnScripts import PathTurnThreadGui  # noqa: F401
@@ -26,7 +27,7 @@ __dir__ = os.path.dirname(__file__)
 iconPath = os.path.join(__dir__, 'Gui/Resources/Icons')
 
 commands = [
-    'TurnRough', 'TurnProfile','TurnDrill','TurnThread','TurnPartoff',
+    'TurnRough', 'TurnProfile', 'TurnChamfer','TurnDrill','TurnThread','TurnPartoff',
     'TurnToolLibrary', 'TurnSimulation',
 ]
 FreeCADGui.addIconPath(iconPath)

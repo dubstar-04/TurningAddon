@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <path d="M 4,6 H 60" fill="none" stroke="#ad2583" stroke-width="3" stroke-dasharray="6,4"/>
-  <rect x="5" y="13" width="54" height="43" fill="none" stroke="#ad2583" stroke-width="4"/>
-  <path d="M 13,21 H 23 V 26 H 49 V 43 H 23 V 48 H 13 Z"
-        fill="#729fcf" stroke="#2e3436" stroke-width="2" stroke-linejoin="round"/>
-  <path d="M 9,34.5 H 55" fill="none" stroke="#2e3436" stroke-width="1" stroke-dasharray="3,2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0.033333333 0.525000000 62.933333333 62.933333333">
+  <rect x="8" y="16" width="48" height="40" fill="#ad2583" fill-opacity="0.12"
+        stroke="#000000" stroke-width="4" />
+  <rect x="8" y="16" width="48" height="40" fill="none" stroke="#ad2583" stroke-width="2" />
+  <path d="M 2,36 H 62" fill="none" stroke="#000000" stroke-width="1" stroke-dasharray="2,1" />
+  <g fill="#ef2929" stroke="#000000" stroke-width="1">
+    <circle cx="8" cy="36" r="3" />
+    <circle cx="56" cy="36" r="3" />
+    <circle cx="32" cy="16" r="3" />
+    <circle cx="32" cy="56" r="3" />
+  </g>
 </svg>
