@@ -41,8 +41,8 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
         self.form.chamferSize.show()
         self.form.chamferSizeLabel.show()
         self.quantitySpinBoxes["ChamferSize"].updateWidget()
-        self.form.chamferPositionLabel.setEnabled(True)
-        self.form.chamferPositionButtons.setEnabled(True)
+        self.form.chamferPositionLabel.show()
+        self.form.chamferPositionButtons.show()
         selected = ChamferPosition(str(obj.ChamferPosition))
         for position, button in self.position_buttons.items():
             button.setChecked(position == selected)
