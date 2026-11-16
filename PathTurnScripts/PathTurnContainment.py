@@ -380,6 +380,9 @@ class ContainmentPreview:
             if not self.enabled(name):
                 continue
             group = coin.SoSeparator()
+            pick = coin.SoPickStyle()
+            pick.style = coin.SoPickStyle.UNPICKABLE
+            group.addChild(pick)
             transform = coin.SoTransform()
             transform.translation.setValue(*position)
             if name.startswith("axial"):
@@ -403,7 +406,7 @@ class ContainmentPreview:
             group.addChild(dragger)
             self.handles.addChild(group)
             self.handle_positions.append((transform, position, size))
-            self.handle_arrows.append((arrow_switch, transform, axis, size))
+            self.handle_arrows.append((arrow_switch, transform, axis, size, pick))
         self.camera_sensor = coin.SoNodeSensor(self._camera_changed, None)
         self._track_camera(view)
         # Changing the camera type replaces the camera node, so check it on view events.
@@ -422,13 +425,13 @@ class ContainmentPreview:
             return
         if view.getCameraNode() != self.camera:
             self._track_camera(view)
-        if event.get("Type") == "SoLocation2Event":
+        if event.get("Type") in ("SoLocation2Event", "SoMouseButtonEvent"):
             self._update_hover(view, event["Position"])
 
     def _update_hover(self, view, mouse):
         hovered = None
         best = None
-        for arrow_switch, transform, axis, size in self.handle_arrows:
+        for arrow_switch, transform, axis, size, _pick in self.handle_arrows:
             point = FreeCAD.Vector(*transform.translation.getValue().getValue())
             centre = view.getPointOnScreen(point)
             tip = view.getPointOnScreen(point + axis * size[0])
@@ -447,10 +450,14 @@ class ContainmentPreview:
                 rank = math.hypot(mx, my)
                 if best is None or rank < best:
                     best, hovered = rank, arrow_switch
-        for arrow_switch, *_rest in self.handle_arrows:
+        for arrow_switch, _transform, _axis, _size, pick in self.handle_arrows:
             state = coin.SO_SWITCH_ALL if arrow_switch is hovered else coin.SO_SWITCH_NONE
             if arrow_switch.whichChild.getValue() != state:
                 arrow_switch.whichChild = state
+            # Overlapping hit boxes must pick the same handle that hover highlights.
+            style = coin.SoPickStyle.SHAPE if arrow_switch is hovered else coin.SoPickStyle.UNPICKABLE
+            if pick.style.getValue() != style:
+                pick.style = style
 
     def _stop_camera_tracking(self):
         if self.camera_sensor is not None:
