@@ -30,6 +30,6 @@
 
 #operations
 [ ] - output usable gcode for threading
-[ ] - leadin / leadout? Dressup? Containment for roughing and profiling.
+[ ] - leadin / leadout? Dressup? Containment allows this for roughing and profiling.
 [ ] - tool compensation not working for parting
 [ ] - parting needs pecking
