@@ -140,6 +140,10 @@ class ObjectOp(PathOp.ObjectOp):
         self.tool = None
         self.minDia = obj.MinDiameter.Value
         self.maxDia = obj.MaxDiameter.Value
+        if (getattr(obj.Proxy, "getContainment", None) is None
+                and self.minDia >= self.maxDia):
+            raise RuntimeError(translate(
+                'PathTurn', "Minimum diameter is equal or greater than maximum diameter"))
         bounds = PathTurnHelpers.getContainment(obj)
         radial_min, radial_max = sorted((abs(bounds.XMin), abs(bounds.XMax)))
 

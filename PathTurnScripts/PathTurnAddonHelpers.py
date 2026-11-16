@@ -19,6 +19,7 @@ from liblathe.base.segment import Segment
 
 
 _rotational_profiles = OrderedDict()
+PROFILE_APPROXIMATION_TOLERANCE = 0.01
 
 
 def getResourcePath(resName):
@@ -193,7 +194,7 @@ def getInternalOutline(obj, models=None):
     return contours[0]
 
 
-def getRotationalProfile(model, tolerance=0.01):
+def getRotationalProfile(model, tolerance=PROFILE_APPROXIMATION_TOLERANCE):
     """Return a verified positive-X face enclosing the model's rotation about Z.
 
     Prefer an exact line/arc section, then geometry-selected native sections,

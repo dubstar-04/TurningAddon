@@ -60,8 +60,11 @@ def containment_corner_index(obj, outline):
     points = [edge.start for edge in outline]
     if outline:
         points.append(outline[-1].end)
-    matches = [index for index, point in enumerate(points)
-               if abs(abs(point.X) - radius) <= 1e-5 and abs(point.Z - z) <= 1e-5]
+    matches = [
+        index for index, point in enumerate(points)
+        if math.hypot(abs(point.X) - radius, point.Z - z)
+        <= helpers.PROFILE_APPROXIMATION_TOLERANCE
+    ]
     if len(matches) != 1:
         raise ValueError(FreeCAD.Qt.translate(
             "PathTurn", "Containment must place its active radial and axial limits "
