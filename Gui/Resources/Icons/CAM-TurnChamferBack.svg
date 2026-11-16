@@ -6,7 +6,12 @@
       <stop offset="1" stop-color="#3465a4" />
     </linearGradient>
   </defs>
-  <path d="M 20,14 H 56 V 50 H 8 V 26 Z"
+  <path d="M 6,10 H 22 L 6,26 Z M 6,38 V 54 H 22 Z"
+        fill="#8b939b" fill-opacity="0.65" />
+  <path d="M 22,10 H 58 V 54 H 22 L 6,38 V 26 Z"
         fill="url(#chamferPart)" stroke="#000000" stroke-width="2" stroke-linejoin="round" />
-  <path d="M 2,32 H 62" fill="none" stroke="#000000" stroke-width="1" stroke-dasharray="2,1" />
+  <path d="M 22,10 H 6 V 26 M 6,38 V 54 H 22"
+        fill="none" stroke="#555d65" stroke-width="2" stroke-dasharray="5,3"
+        stroke-linejoin="round" />
+  <path d="M 2,32 H 62" fill="none" stroke="#000000" stroke-width="1" stroke-dasharray="5,3" />
 </svg>
