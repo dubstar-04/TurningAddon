@@ -60,15 +60,42 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
 
     uses_pass_offset = False
 
+    def initOperation(self, obj):
+        super().initOperation(obj)
+        self._addPeckProperties(obj)
+        self.setEditorModes(obj, self.opFeatures(obj))
+
     def opOnDocumentRestored(self, obj):
         super().opOnDocumentRestored(obj)
+        self._addPeckProperties(obj)
         self.setEditorModes(obj, self.opFeatures(obj))
+
+    @staticmethod
+    def _addPeckProperties(obj):
+        if not hasattr(obj, "RetractionMode"):
+            obj.addProperty("App::PropertyEnumeration", "RetractionMode", "Turn Path", translate(
+                "PathTurn", "None parts off in one feed. Partial Retract steps and backs off one "
+                "tool width. Full Retract steps and retracts to the cut start."))
+            obj.RetractionMode = PathTurnBase.RETRACTION_MODES
+            obj.RetractionMode = PathTurnBase.NO_RETRACT
+        if not hasattr(obj, "PeckDepth"):
+            obj.addProperty("App::PropertyLength", "PeckDepth", "Turn Path", translate(
+                "PathTurn", "Maximum radial depth per peck."))
+            obj.PeckDepth = 1.0
+
+    def opOnChanged(self, obj, prop):
+        super().opOnChanged(obj, prop)
+        if prop == "RetractionMode":
+            self.setEditorModes(obj, self.opFeatures(obj))
 
     def setEditorModes(self, obj, features):
         super().setEditorModes(obj, features)
         # Axial Min is derived from the tool width.
         if hasattr(obj, "FinalDepth"):
             obj.setEditorMode("FinalDepth", 2)
+        if hasattr(obj, "RetractionMode") and hasattr(obj, "PeckDepth"):
+            pecking = str(obj.RetractionMode) != PathTurnBase.NO_RETRACT
+            obj.setEditorMode("PeckDepth", 0 if pecking else 2)
 
     def opSetDefaultValues(self, obj, job):
         super().opSetDefaultValues(obj, job)
@@ -79,6 +106,10 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
         job = PathUtils.findParentJob(obj)
         if job is not None:
             obj.OpStartDepth = model_z_min(job)
+
+    def getProps(self, obj):
+        return {**super().getProps(obj),
+                **PathTurnBase.peck_parameters(obj, obj.PeckDepth.Value)}
 
     def getContainment(self, obj):
         return parting_containment(obj)
@@ -123,7 +154,7 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
 
 
 def SetupProperties():
-    return []
+    return ["RetractionMode", "PeckDepth"]
 
 
 def Create(name, obj=None, parentJob=None):

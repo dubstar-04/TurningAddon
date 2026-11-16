@@ -7,6 +7,7 @@ import Path
 
 from . import PathTurnAddonHelpers as helpers
 from . import PathTurnBase
+from .PathTurnBase import NO_RETRACT, RETRACTION_MODES, peck_parameters
 from .PathTurnToolBit import is_drill_tool
 
 
@@ -16,12 +17,6 @@ def getDrill(tool):
     if not is_drill_tool(tool):
         raise ValueError(FreeCAD.Qt.translate("PathTurn", "Turn Drill requires a Drill ToolBit."))
     return Drill(tool.Diameter.Value, tool.TipAngle.Value, tool.Length.Value)
-
-
-NO_RETRACT = "None"
-PARTIAL_RETRACT = "Partial Retract"
-FULL_RETRACT = "Full Retract"
-RETRACTION_MODES = [NO_RETRACT, PARTIAL_RETRACT, FULL_RETRACT]
 
 
 class ObjectTurnDrill(PathTurnBase.ObjectOp):
@@ -73,7 +68,7 @@ class ObjectTurnDrill(PathTurnBase.ObjectOp):
         path = obj.Path
         path.Commands = []
         obj.Path = path
-        from liblathe.op.drill import DrillOP, RetractMode
+        from liblathe.op.drill import DrillOP
 
         depths = (obj.StartDepth.Value, obj.FinalDepth.Value)
         if not all(math.isfinite(value) for value in depths) or depths[0] <= depths[1]:
@@ -90,11 +85,8 @@ class ObjectTurnDrill(PathTurnBase.ObjectOp):
         operation.add_containment(helpers.getContainment(obj))
         operation.vfeed = feed
         operation.clearance = clearance
-        mode = str(obj.RetractionMode)
         operation.setParams({
-            "peck_depth": self._length(obj, "PeckDepth") if mode != NO_RETRACT else 0.0,
-            "retract_mode": (RetractMode.PARTIAL_RETRACT if mode == PARTIAL_RETRACT
-                             else RetractMode.FULL_RETRACT),
+            **peck_parameters(obj, self._length(obj, "PeckDepth")),
             "reentry_gap_diameters": 1.0,
             "chip_break_retract_diameters": 1.0,
             "tip_compensation": obj.TipCompensation,
