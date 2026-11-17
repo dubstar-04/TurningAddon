@@ -76,13 +76,33 @@
     </layout>
    </item>
    <item row="2" column="0">
-    <widget class="QListWidget" name="listOperations">
+    <widget class="QTreeWidget" name="listOperations">
      <property name="selectionMode">
       <enum>QAbstractItemView::NoSelection</enum>
      </property>
+     <property name="rootIsDecorated">
+      <bool>false</bool>
+     </property>
+     <column>
+      <property name="text">
+       <string>Operation</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Cycle Time</string>
+      </property>
+     </column>
     </widget>
    </item>
    <item row="3" column="0">
+    <widget class="QLabel" name="labelCycleTime">
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="0">
     <widget class="QLabel" name="labelNote">
      <property name="styleSheet">
       <string notr="true">QLabel { color: rgb(250, 100, 0) }</string>

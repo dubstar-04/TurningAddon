@@ -14,6 +14,7 @@ import FreeCADGui
 import Mesh
 
 import Path.Base.Util as PathUtil
+from Path.Op.Util import getCycleTimeEstimate
 
 from . import PathSim, PathSimTimelineGui
 
@@ -34,6 +35,14 @@ OPERATION_COLOURS = [
 	(0.25, 0.30, 0.65),
 	(0.65, 0.80, 0.25),
 ]
+
+
+def formatCycleTime(cycleTime):
+	if not isinstance(cycleTime, (int, float)):
+		return cycleTime
+	minutes, seconds = divmod(round(cycleTime), 60)
+	hours, minutes = divmod(minutes, 60)
+	return "{:02d}:{:02d}:{:02d}".format(hours, minutes, seconds)
 
 class PathSimPanel:
 	def __init__(self, obj=None):
@@ -65,6 +74,10 @@ class PathSimPanel:
 		self.form.listOperations.itemChanged.connect(self.updateTimeline)
 		self.form.listOperations.itemPressed.connect(self.onOperationPressed)
 		self.form.listOperations.itemClicked.connect(self.onOperationClicked)
+		header = self.form.listOperations.header()
+		header.setStretchLastSection(False)
+		header.setSectionResizeMode(0, QtGui.QHeaderView.Stretch)
+		header.setSectionResizeMode(1, QtGui.QHeaderView.ResizeToContents)
 		self.sim.updatePos.connect(self.setPos)
 		self.sim.complete.connect(self.simComplete)
 		self.sim.meshReady.connect(self.onMeshReady)
@@ -153,25 +166,39 @@ class PathSimPanel:
 		self.sim.job = j
 		self.form.listOperations.clear()
 		self.operations = []
+		self.cycleTimes = []
 		for op in j.Operations.OutList:
 			if PathUtil.opProperty(op, 'Active'):
 				colour = OPERATION_COLOURS[len(self.operations) % len(OPERATION_COLOURS)]
 				swatch = QtGui.QPixmap(16, 16)
 				swatch.fill(QtGui.QColor.fromRgbF(*colour))
-				listItem = QtGui.QListWidgetItem(QtGui.QIcon(swatch), op.Label)
+				# Seconds on success, otherwise a translated error string.
+				cycleTime = getCycleTimeEstimate(op, formatted=False)
+				listItem = QtGui.QTreeWidgetItem([op.Label, formatCycleTime(cycleTime)])
+				listItem.setIcon(0, QtGui.QIcon(swatch))
+				listItem.setTextAlignment(1, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
 				listItem.setFlags(listItem.flags() | QtCore.Qt.ItemIsUserCheckable)
-				listItem.setCheckState(QtCore.Qt.CheckState.Checked)
+				listItem.setCheckState(0, QtCore.Qt.CheckState.Checked)
 				self.operations.append(op)
-				self.form.listOperations.addItem(listItem)
+				self.cycleTimes.append(cycleTime)
+				self.form.listOperations.addTopLevelItem(listItem)
 		self.updateTimeline()
 
-	def getOperations(self):
-		activeOps = []
-		for i in range(self.form.listOperations.count()):
-			if self.form.listOperations.item(i).checkState() == QtCore.Qt.CheckState.Checked:
-				activeOps.append(self.operations[i])
+	def checkedRows(self):
+		tree = self.form.listOperations
+		return [i for i in range(tree.topLevelItemCount())
+				if tree.topLevelItem(i).checkState(0) == QtCore.Qt.CheckState.Checked]
 
-		return activeOps
+	def getOperations(self):
+		return [self.operations[i] for i in self.checkedRows()]
+
+	def updateCycleTime(self):
+		times = [self.cycleTimes[i] for i in self.checkedRows()]
+		seconds = sum(t for t in times if isinstance(t, (int, float)))
+		text = "Total cycle time: {}".format(formatCycleTime(seconds))
+		if any(not isinstance(t, (int, float)) for t in times):
+			text += " (incomplete)"
+		self.form.labelCycleTime.setText(text)
 
 	def onOperationPressed(self, item):
 		self._pressedOperation = item
@@ -179,9 +206,9 @@ class PathSimPanel:
 	def onOperationClicked(self, item):
 		pressedOperation = self._pressedOperation
 		self._pressedOperation = None
-		if item is not pressedOperation or item.checkState() != QtCore.Qt.CheckState.Checked:
+		if item is not pressedOperation or item.checkState(0) != QtCore.Qt.CheckState.Checked:
 			return
-		row = self.form.listOperations.row(item)
+		row = self.form.listOperations.indexOfTopLevelItem(item)
 		start = self.operationStarts.get(row + 1)
 		if start is None:
 			FreeCAD.Console.PrintWarning(
@@ -192,6 +219,7 @@ class PathSimPanel:
 	def updateTimeline(self):
 		# Checkbox changes also emit itemClicked, but should not seek.
 		self._pressedOperation = None
+		self.updateCycleTime()
 		if not self.sim.isRunning():
 			operationIds = {op.Name: index + 1 for index, op in enumerate(self.operations)}
 			self.sim.setOperations(self.getOperations(), operationIds)
