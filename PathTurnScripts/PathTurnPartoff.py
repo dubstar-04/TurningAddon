@@ -15,7 +15,6 @@ import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 import liblathe.op.partoff as LLP
 from liblathe.base.boundbox import BoundBox
 from liblathe.base.point import Point
-from liblathe.base.segmentgroup import SegmentGroup
 from liblathe.tool.tool import Tool
 
 __title__ = "Path Turn Part Operation"
@@ -112,7 +111,9 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
 
     def getProps(self, obj):
         return {**super().getProps(obj),
-                **PathTurnBase.peck_parameters(obj, obj.PeckDepth.Value)}
+                **PathTurnBase.peck_parameters(obj, obj.PeckDepth.Value),
+                # The machining outline may extend past the model by up to the profile tolerance.
+                "outline_margin": PathTurnHelpers.PROFILE_APPROXIMATION_TOLERANCE}
 
     def getContainment(self, obj):
         return parting_containment(obj)
@@ -131,10 +132,8 @@ class ObjectTurnPart(PathTurnBase.ObjectOp):
         Generate GCode for the op
         '''
         containmentBounds = parting_containment(obj)
-        outline = SegmentGroup()
-        for segment in self.part_outline:
-            outline.addSegment(segment)
-        part_z_min = outline.boundbox().ZMin
+        # Check the model itself; the machining outline is padded outward.
+        part_z_min = model_z_min(PathUtils.findParentJob(obj))
         if containmentBounds.ZMax > part_z_min + FACE_TOLERANCE:
             raise ValueError(translate(
                 "PathTurn", "Axial Max ({face:.3f} mm) is inside the part. "
