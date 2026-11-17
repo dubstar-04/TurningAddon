@@ -205,7 +205,14 @@ class PathSimPanel:
 				self.operations.append(op)
 				self.cycleTimes.append(cycleTime)
 				self.form.listOperations.addTopLevelItem(listItem)
+		self.fitOperationList()
 		self.updateTimeline()
+
+	def fitOperationList(self):
+		''' show every operation without scrolling '''
+		tree = self.form.listOperations
+		rows = sum(tree.sizeHintForRow(i) for i in range(tree.topLevelItemCount()))
+		tree.setMinimumHeight(tree.header().sizeHint().height() + rows + 2 * tree.frameWidth())
 
 	def checkedRows(self):
 		tree = self.form.listOperations
