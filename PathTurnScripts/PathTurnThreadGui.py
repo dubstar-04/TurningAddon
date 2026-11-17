@@ -185,7 +185,7 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
 
 
 Command = PathOpGui.SetupOperation(
-    "TurnThread", PathTurnThread.Create, TaskPanelOpPage, "CAM-TurnThread",
+    "TurnThread", PathTurnBaseGui.stockCheckedFactory(PathTurnThread.Create), TaskPanelOpPage, "CAM-TurnThread",
     QtCore.QT_TRANSLATE_NOOP("PathTurnThread", "Turn Thread"),
     QtCore.QT_TRANSLATE_NOOP(
         "PathTurnThread", "Create straight single-start external threads using spindle-synchronized G33"),

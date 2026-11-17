@@ -10,6 +10,7 @@ import os
 import FreeCAD
 import FreeCADGui
 import Path.Log as PathLog
+import Path.Main.Stock as PathStock
 import Path.Op.Gui.Base as PathOpGui
 import Path.Op.Gui.Selection as PathSelection
 from PathScripts import PathUtils
@@ -108,6 +109,62 @@ if not getattr(PathOpGui.ViewProvider.setEdit, "_turning_tool_check", False):
     PathOpGui.ViewProvider.setEdit = _set_edit_with_turning_tool_check
 
 
+def checkStockAxis(job):
+    """Offer to move the job's stock onto the spindle axis when it is off it."""
+    stock = getattr(job, "Stock", None)
+    if stock is None:
+        return
+    offset = PathTurnHelpers.stockAxisOffset(stock)
+    if offset.Length <= PathTurnHelpers.STOCK_AXIS_TOLERANCE:
+        return
+    title = FreeCAD.Qt.translate("PathTurn", "Stock off spindle axis")
+    position = FreeCAD.Qt.translate(
+        "PathTurn", "Current Position:\nX {x:.4f} mm\nY {y:.4f} mm").format(x=offset.x, y=offset.y)
+    window = FreeCADGui.getMainWindow()
+    if isinstance(getattr(stock, "Proxy", None), PathStock.StockFromBase):
+        base = getattr(stock, "Base", None)
+        base_box = PathStock.shapeBoundBox(base.Group) if base and hasattr(base, "Group") else None
+        stock_box = stock.Shape.BoundBox
+        tolerance = 1e-7
+        if base_box is None:
+            message = FreeCAD.Qt.translate(
+                "PathTurn", "Unable to verify that the base model will remain inside the stock "
+                "after centering. Restore the base model or use a different stock.")
+        elif not (
+                stock_box.XMin - offset.x <= base_box.XMin + tolerance
+                and stock_box.XMax - offset.x >= base_box.XMax - tolerance
+                and stock_box.YMin - offset.y <= base_box.YMin + tolerance
+                and stock_box.YMax - offset.y >= base_box.YMax - tolerance
+                and stock_box.ZMin <= base_box.ZMin + tolerance
+                and stock_box.ZMax >= base_box.ZMax - tolerance):
+            message = FreeCAD.Qt.translate(
+                "PathTurn", "Centering this stock would leave part of the base model outside "
+                "the stock. Move the model or adjust the stock allowances first.")
+        else:
+            message = None
+        if message:
+            QtGui.QMessageBox.warning(window, title, message + "\n\n" + position)
+            return
+    dialog = QtGui.QMessageBox(
+        QtGui.QMessageBox.Question, title,
+        FreeCAD.Qt.translate("PathTurn", "Center stock on the spindle axis?") + "\n\n" + position,
+        QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, window)
+    dialog.setStyleSheet("QLabel#qt_msgbox_label { min-width: 330px; }")
+    dialog.setDefaultButton(QtGui.QMessageBox.Yes)
+    answer = dialog.exec_()
+    if answer == QtGui.QMessageBox.Yes:
+        PathTurnHelpers.centreStockOnAxis(stock)
+
+
+def stockCheckedFactory(create):
+    """Wrap an operation factory so adding the operation checks the stock position."""
+    def factory(name, obj=None, parentJob=None):
+        operation = create(name, obj, parentJob)
+        checkStockAxis(parentJob or PathUtils.findParentJob(operation))
+        return operation
+    return factory
+
+
 class _ContainmentVisibilityFilter(QtCore.QObject):
     def __init__(self, callback, parent):
         super().__init__(parent)
@@ -167,21 +224,23 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         from .PathTurnStockPreview import StockGuide
 
         self.stock_guide = StockGuide()
-        self.stock_mode = QtGui.QComboBox()
-        self.stock_mode.addItems([
-            FreeCAD.Qt.translate("PathTurn", "Stock before operation"),
-            FreeCAD.Qt.translate("PathTurn", "Stock after operation")])
-        self.stock_mode.setCurrentIndex(0)
+        self.stock_path_stale = "Touched" in obj.State or not obj.Path.Commands
+        self.panel_initializing = True
+        self.initial_expression_values = {}
+        for prop, _ in getattr(obj, "ExpressionEngine", ()):
+            value = getattr(obj, prop)
+            self.initial_expression_values[prop] = value.Value if hasattr(value, "Value") else value
         self.stock_status = QtGui.QLabel()
         self.stock_status.setWordWrap(True)
         layout = self.containment_page.form.layout()
         row = layout.rowCount()
-        layout.addWidget(self.stock_mode, row, 0, 1, 3)
-        layout.addWidget(self.stock_status, row + 1, 0, 1, 3)
-        self.stock_mode.currentIndexChanged.connect(self.updateContainment)
+        layout.addWidget(self.stock_status, row, 0, 1, 3)
         self.stock_timer = QtCore.QTimer(self.form)
         self.stock_timer.setSingleShot(True)
         self.stock_timer.timeout.connect(self.updateContainment)
+        self.initialization_timer = QtCore.QTimer(self.form)
+        self.initialization_timer.setSingleShot(True)
+        self.initialization_timer.timeout.connect(self.finishPanelInitialization)
         self.containment_error = None
         self.containment_visibility = _ContainmentVisibilityFilter(
             self.updateContainment, self.containment_page.form)
@@ -193,15 +252,37 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         FreeCAD.addDocumentObserver(self)
         self.form.destroyed.connect(self.stopObserving)
         self.containment_page.form.destroyed.connect(self.stopObserving)
+        self.initialization_timer.start(0)
+
+    def finishPanelInitialization(self):
+        self.panel_initializing = False
+        for prop, initial_value in self.initial_expression_values.items():
+            value = getattr(self.obj, prop)
+            value = value.Value if hasattr(value, "Value") else value
+            if value != initial_value:
+                self.stock_path_stale = True
+                self.stock_guide.key = None
+                self.updateContainment()
+                break
+        self.initial_expression_values.clear()
 
     def stopObserving(self, *args):
         if self.observing:
             self.stock_timer.stop()
+            self.initialization_timer.stop()
             FreeCAD.removeDocumentObserver(self)
             self.observing = False
 
     def slotChangedObject(self, obj, prop):
         if obj.Document == self.obj.Document:
+            if obj == self.obj and "Touched" in obj.State:
+                if self.panel_initializing:
+                    value = getattr(obj, prop, None)
+                    value = value.Value if hasattr(value, "Value") else value
+                    if prop in self.initial_expression_values and value != self.initial_expression_values[prop]:
+                        self.stock_path_stale = True
+                else:
+                    self.stock_path_stale = True
             self.stock_guide.key = None
             self.stock_status.setText(FreeCAD.Qt.translate("PathTurn", "Stock guide updating..."))
             self.stock_timer.start(250)
@@ -209,6 +290,13 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
                 or (obj == getattr(self.obj.ToolController, "Tool", None) and prop == "ToolPost")):
             self.containment_page.setFields(self.obj)
             self.updateContainment()
+
+    def slotRecomputedObject(self, obj):
+        if obj.Document == self.obj.Document:
+            if obj == self.obj:
+                self.stock_path_stale = "Touched" in obj.State or not obj.Path.Commands
+            self.stock_guide.key = None
+            self.stock_timer.start(250)
 
     def updateContainment(self, *args):
         if self.containment.dragging:
@@ -230,26 +318,26 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             self.containment.clear()
             self.containment.exit_section()
         show_stock = self.form.showStock.isChecked()
-        self.stock_mode.setEnabled(show_stock)
         self.stock_status.setVisible(show_stock)
         if not show_stock:
             return
         try:
-            show_after = bool(self.stock_mode.currentIndex())
-            before, after, complete = self.stock_guide.calculate(
-                self.obj, include_current=show_after)
-            snapshot = after if self.stock_mode.currentIndex() else before
+            # Page edits and document changes can both invalidate the generated path.
+            edited = any(page.isdirty for page in self.parent.featurePages)
+            stock, complete = self.stock_guide.calculate(
+                self.obj, path_current=not (edited or self.stock_path_stale))
             rear = PathTurnHelpers.getContainment(self.obj).XMax <= 0
-            self.containment.show_stock(snapshot.edges(), rear, polygons=snapshot.polygons())
-            message = ""
-            if show_after and not complete:
-                message = FreeCAD.Qt.translate("PathTurn", "No current path: showing stock before operation.")
+            self.containment.show_stock(stock.edges(), rear, polygons=stock.polygons())
+            if complete:
+                message = FreeCAD.Qt.translate("PathTurn", "Showing stock after operation.")
+            else:
+                message = FreeCAD.Qt.translate(
+                    "PathTurn", "No current path: showing stock before operation.")
             if self.stock_guide.omitted_operations:
                 note = FreeCAD.Qt.translate(
                     "PathTurn", "Threading passes are shown as uncut in the 2D stock preview.")
                 message = "\n".join(filter(None, (message, note)))
             self.stock_status.setText(message)
-            self.stock_status.setVisible(bool(message))
         except (ValueError, RuntimeError) as error:
             self.stock_status.setText(FreeCAD.Qt.translate(
                 "PathTurn", "Stock guide unavailable: {error}").format(error=str(error)))

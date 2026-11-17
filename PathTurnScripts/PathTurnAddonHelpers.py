@@ -20,6 +20,8 @@ from liblathe.base.segment import Segment
 
 _rotational_profiles = OrderedDict()
 PROFILE_APPROXIMATION_TOLERANCE = 0.01
+# Stock further than this from the spindle axis (Z) is treated as misaligned.
+STOCK_AXIS_TOLERANCE = 1e-4
 
 
 def getResourcePath(resName):
@@ -57,6 +59,21 @@ def getContainment(operation):
     return BoundBox(
         Point(sign * operation.MinDiameter.Value / 2, operation.FinalDepth.Value),
         Point(sign * operation.MaxDiameter.Value / 2, operation.StartDepth.Value))
+
+
+def stockAxisOffset(stock):
+    """Return the stock's X/Y offset from the spindle axis as a vector."""
+    box = stock.Shape.BoundBox
+    return FreeCAD.Vector((box.XMin + box.XMax) / 2, (box.YMin + box.YMax) / 2, 0)
+
+
+def centreStockOnAxis(stock):
+    """Move the stock onto the spindle axis without changing its size or Z position."""
+    placement = stock.Placement
+    placement.Base = placement.Base - stockAxisOffset(stock)
+    stock.Placement = placement
+    # The object's own recompute() leaves it touched; the document's clears it.
+    stock.Document.recompute([stock])
 
 
 def getStock(operation):

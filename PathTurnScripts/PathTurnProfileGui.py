@@ -35,7 +35,7 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
 
 
 Command = PathOpGui.SetupOperation('TurnProfile',
-                                   PathTurnProfile.Create,
+                                   PathTurnBaseGui.stockCheckedFactory(PathTurnProfile.Create),
                                    TaskPanelOpPage,
                                    'CAM-TurnProfile',
                                    QtCore.QT_TRANSLATE_NOOP("PathTurnProfile", "Turn Profile"),

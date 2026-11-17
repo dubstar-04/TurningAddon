@@ -57,7 +57,7 @@ class TaskPanelOpPage(PathTurnBaseGui.RetractionModeFields, PathTurnBaseGui.Task
 
 
 Command = PathOpGui.SetupOperation(
-    "TurnDrill", PathTurnDrill.Create, TaskPanelOpPage, "CAM-TurnDrill",
+    "TurnDrill", PathTurnBaseGui.stockCheckedFactory(PathTurnDrill.Create), TaskPanelOpPage, "CAM-TurnDrill",
     QtCore.QT_TRANSLATE_NOOP("PathTurnDrill", "Turn Drill"),
     QtCore.QT_TRANSLATE_NOOP("PathTurnDrill", "Drill on the spindle axis with optional pecking and tip compensation"),
     PathTurnDrill.SetupProperties)
