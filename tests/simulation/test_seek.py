@@ -1019,5 +1019,37 @@ class SeekTests(unittest.TestCase):
             "in Tool Controller 'TC1'.")
 
 
+class NearbyMovesTests(unittest.TestCase):
+    def setUp(self):
+        self.sim = worker.PathSim()
+        self.first, self.second = object(), object()
+        # Moves: locate [0], rapid [1, 2], feed [3], feed [4]; then a new operation [5], [6].
+        self.sim.pathPoints = [[index, self.first] for index in range(5)] + [
+            [index, self.second] for index in range(5, 7)]
+        self.sim.pathRapid = [True, True, True, False, False, True, False]
+        self.sim.moveEnds = [1, 3, 4, 5, 6, 7]
+
+    def at(self, idx, fraction=0.0):
+        self.sim.idx = idx
+        self.sim._motionFraction = fraction
+        return self.sim.nearbyMoves()
+
+    def test_shows_previous_current_and_next_move(self):
+        move, operation, moves = self.at(3, 0.5)
+        self.assertEqual(move, 2)
+        self.assertIs(operation, self.first)
+        self.assertEqual(moves, [(True, [0, 1, 2]), (False, [2, 3]), (False, [3, 4])])
+
+    def test_moves_stay_within_the_current_operation(self):
+        move, operation, moves = self.at(6, 0.5)
+        self.assertEqual(move, 5)
+        self.assertIs(operation, self.second)
+        self.assertEqual(moves, [(False, [5, 6])])
+
+    def test_no_moves_without_a_path(self):
+        self.sim.moveEnds = []
+        self.assertEqual(self.at(0), (None, None, []))
+
+
 if __name__ == "__main__":
     unittest.main()

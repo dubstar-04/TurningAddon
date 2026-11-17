@@ -17,6 +17,7 @@ import Path.Base.Util as PathUtil
 from Path.Op.Util import getCycleTimeEstimate
 
 from . import PathSim, PathSimTimelineGui
+from .PathSimToolpath import ToolpathOverlay
 
 dir = os.path.dirname(__file__)
 ui_name = "PathSimGui.ui"
@@ -62,12 +63,17 @@ class PathSimPanel:
 		self._closing = False
 		self._pressedOperation = None
 		self.operationStarts = {}
+		self.toolpath = ToolpathOverlay(
+			FreeCADGui.getDocument(self.document.Name).ActiveView.getSceneGraph())
 		self.cleanup()
 
 		self.timeline = PathSimTimelineGui.timeline()
 		showStock = self.preferences.GetBool("ShowStock", True)
 		self.sim.showStock = showStock
 		self.timeline.setStockVisible(showStock)
+		showToolpath = self.preferences.GetBool("ShowToolpath", True)
+		self.toolpath.setVisible(showToolpath)
+		self.timeline.setToolpathVisible(showToolpath)
 
 		# connect ui components
 		self.form.comboJobs.currentIndexChanged.connect(self.onJobChange)
@@ -95,6 +101,7 @@ class PathSimPanel:
 		self.timeline.stepBackwardRequested.connect(self.simStepBackward)
 		self.timeline.stepForwardRequested.connect(self.simStepForward)
 		self.timeline.stockVisibilityChanged.connect(self.onStockVisibilityChanged)
+		self.timeline.toolpathVisibilityChanged.connect(self.onToolpathVisibilityChanged)
 
 		self.setupUi()
 		self.form.comboEngines.currentTextChanged.connect(self.onEngineChange)
@@ -146,6 +153,21 @@ class PathSimPanel:
 		if visible and self.sim.needsWork() and not self.sim.isRunning():
 			self.startWorker()
 
+	def onToolpathVisibilityChanged(self, visible):
+		self.preferences.SetBool("ShowToolpath", visible)
+		self.toolpath.setVisible(visible)
+
+	def updateToolpath(self):
+		''' show the previous, current and next G-code moves around the tool '''
+		move, operation, polylines = self.sim.nearbyMoves()
+		if move == self.toolpath.move:
+			return
+		if operation is None:
+			self.toolpath.clear()
+			return
+		colour = OPERATION_COLOURS[self.operations.index(operation) % len(OPERATION_COLOURS)]
+		self.toolpath.show(move, polylines, colour)
+
 	def reject(self):
 		self.quit()
 
@@ -155,6 +177,7 @@ class PathSimPanel:
 		self.sim.wait()
 		self.timeline.quit()
 		self.cleanup()
+		self.toolpath.close()
 		FreeCADGui.Control.closeDialog()
 		
 	def getStandardButtons(self):
@@ -229,6 +252,7 @@ class PathSimPanel:
 			self.timeline.setProgress(0)
 
 	def onPathReady(self, ranges):
+		self.toolpath.clear()
 		self.operationStarts = {}
 		for start, _, operationId in ranges:
 			self.operationStarts.setdefault(operationId, start)
@@ -353,10 +377,13 @@ class PathSimPanel:
 		# update tool position 
 		if self.tool is not None:
 			self.tool.Placement = pos
+		if not self._closing:
+			self.updateToolpath()
 
 	def cleanup(self):
 		self.cleanupStock()
 		self.cleanupTool()
+		self.toolpath.clear()
 
 	def cleanupTool(self):
 		''' Delete the tool created for the simulation '''
