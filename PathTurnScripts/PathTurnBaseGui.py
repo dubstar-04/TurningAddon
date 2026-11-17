@@ -108,6 +108,44 @@ if not getattr(PathOpGui.ViewProvider.setEdit, "_turning_tool_check", False):
     PathOpGui.ViewProvider.setEdit = _set_edit_with_turning_tool_check
 
 
+def checkStockAxis(job):
+    """Offer to move the job's stock onto the spindle axis when it is off it."""
+    stock = getattr(job, "Stock", None)
+    if stock is None:
+        return
+    offset = PathTurnHelpers.stockAxisOffset(stock)
+    if offset.Length <= PathTurnHelpers.STOCK_AXIS_TOLERANCE:
+        return
+    title = FreeCAD.Qt.translate("PathTurn", "Stock off spindle axis")
+    position = FreeCAD.Qt.translate(
+        "PathTurn", "Current Position:\nX {x:.4f} mm\nY {y:.4f} mm").format(x=offset.x, y=offset.y)
+    window = FreeCADGui.getMainWindow()
+    # Stock created from the base model is rebuilt from the model's bounding box.
+    if type(getattr(stock, "Proxy", None)).__name__ == "StockFromBase":
+        QtGui.QMessageBox.warning(window, title, FreeCAD.Qt.translate(
+            "PathTurn", "This stock follows the model's bounding box and cannot be moved. "
+            "Use cylinder stock to turn this model.") + "\n\n" + position)
+        return
+    dialog = QtGui.QMessageBox(
+        QtGui.QMessageBox.Question, title,
+        FreeCAD.Qt.translate("PathTurn", "Center stock on the spindle axis?") + "\n\n" + position,
+        QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, window)
+    dialog.setStyleSheet("QLabel#qt_msgbox_label { min-width: 330px; }")
+    dialog.setDefaultButton(QtGui.QMessageBox.Yes)
+    answer = dialog.exec_()
+    if answer == QtGui.QMessageBox.Yes:
+        PathTurnHelpers.centreStockOnAxis(stock)
+
+
+def stockCheckedFactory(create):
+    """Wrap an operation factory so adding the operation checks the stock position."""
+    def factory(name, obj=None, parentJob=None):
+        operation = create(name, obj, parentJob)
+        checkStockAxis(parentJob or PathUtils.findParentJob(operation))
+        return operation
+    return factory
+
+
 class _ContainmentVisibilityFilter(QtCore.QObject):
     def __init__(self, callback, parent):
         super().__init__(parent)
