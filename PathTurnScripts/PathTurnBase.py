@@ -37,6 +37,24 @@ else:
     PathLog.setLevel(PathLog.Level.INFO, PathLog.thisModule())
 
 
+NO_RETRACT = "None"
+PARTIAL_RETRACT = "Partial Retract"
+FULL_RETRACT = "Full Retract"
+RETRACTION_MODES = [NO_RETRACT, PARTIAL_RETRACT, FULL_RETRACT]
+
+
+def peck_parameters(obj, peck_depth):
+    """Return LibLathe peck parameters for the operation's RetractionMode."""
+    from liblathe.op.base import RetractMode
+
+    mode = str(obj.RetractionMode)
+    return {
+        "peck_depth": peck_depth if mode != NO_RETRACT else 0.0,
+        "retract_mode": (RetractMode.PARTIAL_RETRACT if mode == PARTIAL_RETRACT
+                         else RetractMode.FULL_RETRACT),
+    }
+
+
 class ObjectOp(PathOp.ObjectOp):
     '''Base class for proxy objects of all turning operations.'''
 

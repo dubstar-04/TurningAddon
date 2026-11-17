@@ -26,8 +26,33 @@ else:
     PathLog.setLevel(PathLog.Level.NOTICE, PathLog.thisModule())
 
 
-class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
+class TaskPanelOpPage(PathTurnBaseGui.RetractionModeFields, PathTurnBaseGui.TaskPanelTurnBase):
     '''Page controller class for Turning operations.'''
+
+    quantity_fields = {
+        **PathTurnBaseGui.TaskPanelTurnBase.quantity_fields,
+        "PeckDepth": "peckDepth",
+    }
+    retraction_tooltip = FreeCAD.Qt.translate(
+        "PathTurn", "None: part off in one feed.\n"
+        "Partial Retract: cut in Peck depth steps; back off one tool width to break the chip.\n"
+        "Full Retract: cut in Peck depth steps; retract to the cut start to clear the chip.")
+    peck_depth_tooltip = FreeCAD.Qt.translate("PathTurn", "Maximum radial depth per peck.")
+
+    def getForm(self):
+        form = super().getForm()
+        self._setupRetractionMode(form)
+        return form
+
+    def setOpFields(self, obj):
+        self._setRetractionFields(obj)
+
+    def getFields(self, obj):
+        super().getFields(obj)
+        self._getRetractionFields(obj)
+
+    def getSignalsForUpdate(self, obj):
+        return super().getSignalsForUpdate(obj) + self._retractionSignals()
 
 
 Command = PathOpGui.SetupOperation('TurnPartoff',

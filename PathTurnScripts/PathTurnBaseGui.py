@@ -20,6 +20,7 @@ import Path.Base.Gui.Util as PathGuiUtil
 from PySide import QtCore, QtGui
 
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
+from PathTurnScripts.PathTurnBase import NO_RETRACT, RETRACTION_MODES
 from PathTurnScripts.PathTurnContainment import ContainmentPreview
 from PathTurnScripts.PathTurnContainmentGui import TaskPanelContainment
 from PathTurnScripts.PathTurnToolBit import post_from_parameters
@@ -416,3 +417,43 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         '''setOpFields(obj) ... overwrite to set operations specific values.
         Should be overwritten by subclasses.'''
         pass  # pylint: disable=unnecessary-pass
+
+
+class RetractionModeFields:
+    """Retraction mode selector for pecking operations; Peck depth is enabled only while pecking."""
+
+    retraction_tooltip = None
+    peck_depth_tooltip = None
+
+    def _setupRetractionMode(self, form):
+        for mode in RETRACTION_MODES:
+            form.retractionMode.addItem(FreeCAD.Qt.translate("PathTurn", mode), mode)
+        if self.retraction_tooltip:
+            form.retractionMode.setToolTip(self.retraction_tooltip)
+        if self.peck_depth_tooltip:
+            form.peckDepth.setToolTip(self.peck_depth_tooltip)
+        form.retractionMode.currentIndexChanged.connect(self._updatePeckFields)
+
+    def _updatePeckFields(self, *args):
+        pecking = self.form.retractionMode.currentData() != NO_RETRACT
+        for field in ("peckDepth", "peckDepthLabel"):
+            getattr(self.form, field).setEnabled(pecking)
+
+    def _setRetractionFields(self, obj):
+        for name in ("retractionMode", "peckDepth"):
+            getattr(self.form, name).show()
+            getattr(self.form, name + "Label").show()
+        self.quantitySpinBoxes["PeckDepth"].updateWidget()
+        blocked = self.form.retractionMode.blockSignals(True)
+        self.form.retractionMode.setCurrentIndex(
+            self.form.retractionMode.findData(str(obj.RetractionMode)))
+        self.form.retractionMode.blockSignals(blocked)
+        self._updatePeckFields()
+
+    def _getRetractionFields(self, obj):
+        self.quantitySpinBoxes["PeckDepth"].updateProperty()
+        if str(obj.RetractionMode) != self.form.retractionMode.currentData():
+            obj.RetractionMode = self.form.retractionMode.currentData()
+
+    def _retractionSignals(self):
+        return [self.form.retractionMode.currentIndexChanged, self.form.peckDepth.editingFinished]
