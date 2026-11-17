@@ -20,6 +20,10 @@ import numpy as np
 import Part
 
 
+# Matches PathTurnAddonHelpers.STOCK_AXIS_TOLERANCE, checked when operations are added.
+STOCK_AXIS_TOLERANCE = 1e-4
+
+
 def _cylinderRadius(stock):
 	''' recognise a complete cylinder parallel to Z, not a bore or partial cylinder '''
 	if len(stock.Solids) != 1 or len(stock.Faces) != 3:
@@ -186,7 +190,7 @@ class Engine:
 			raise ValueError("Turning requires complete cylinder stock with its spindle parallel to Z")
 		box = stock.BoundBox
 		axis = ((box.XMin + box.XMax) / 2, (box.YMin + box.YMax) / 2)
-		if any(abs(value) > 1e-7 for value in axis):
+		if math.hypot(*axis) > STOCK_AXIS_TOLERANCE:
 			raise ValueError("Turning currently requires the spindle on X = Y = 0")
 		self.setCylinder(radius, box.ZMin, box.ZMax)
 		FreeCAD.Console.PrintMessage(
