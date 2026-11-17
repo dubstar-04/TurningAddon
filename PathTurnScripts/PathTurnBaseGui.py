@@ -10,6 +10,7 @@ import os
 import FreeCAD
 import FreeCADGui
 import Path.Log as PathLog
+import Path.Main.Stock as PathStock
 import Path.Op.Gui.Base as PathOpGui
 import Path.Op.Gui.Selection as PathSelection
 from PathScripts import PathUtils
@@ -120,12 +121,30 @@ def checkStockAxis(job):
     position = FreeCAD.Qt.translate(
         "PathTurn", "Current Position:\nX {x:.4f} mm\nY {y:.4f} mm").format(x=offset.x, y=offset.y)
     window = FreeCADGui.getMainWindow()
-    # Stock created from the base model is rebuilt from the model's bounding box.
-    if type(getattr(stock, "Proxy", None)).__name__ == "StockFromBase":
-        QtGui.QMessageBox.warning(window, title, FreeCAD.Qt.translate(
-            "PathTurn", "This stock follows the model's bounding box and cannot be moved. "
-            "Use cylinder stock to turn this model.") + "\n\n" + position)
-        return
+    if isinstance(getattr(stock, "Proxy", None), PathStock.StockFromBase):
+        base = getattr(stock, "Base", None)
+        base_box = PathStock.shapeBoundBox(base.Group) if base and hasattr(base, "Group") else None
+        stock_box = stock.Shape.BoundBox
+        tolerance = 1e-7
+        if base_box is None:
+            message = FreeCAD.Qt.translate(
+                "PathTurn", "Unable to verify that the base model will remain inside the stock "
+                "after centering. Restore the base model or use a different stock.")
+        elif not (
+                stock_box.XMin - offset.x <= base_box.XMin + tolerance
+                and stock_box.XMax - offset.x >= base_box.XMax - tolerance
+                and stock_box.YMin - offset.y <= base_box.YMin + tolerance
+                and stock_box.YMax - offset.y >= base_box.YMax - tolerance
+                and stock_box.ZMin <= base_box.ZMin + tolerance
+                and stock_box.ZMax >= base_box.ZMax - tolerance):
+            message = FreeCAD.Qt.translate(
+                "PathTurn", "Centering this stock would leave part of the base model outside "
+                "the stock. Move the model or adjust the stock allowances first.")
+        else:
+            message = None
+        if message:
+            QtGui.QMessageBox.warning(window, title, message + "\n\n" + position)
+            return
     dialog = QtGui.QMessageBox(
         QtGui.QMessageBox.Question, title,
         FreeCAD.Qt.translate("PathTurn", "Center stock on the spindle axis?") + "\n\n" + position,
