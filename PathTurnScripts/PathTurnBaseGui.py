@@ -205,6 +205,12 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         from .PathTurnStockPreview import StockGuide
 
         self.stock_guide = StockGuide()
+        self.stock_path_stale = "Touched" in obj.State or not obj.Path.Commands
+        self.panel_initializing = True
+        self.initial_expression_values = {}
+        for prop, _ in getattr(obj, "ExpressionEngine", ()):
+            value = getattr(obj, prop)
+            self.initial_expression_values[prop] = value.Value if hasattr(value, "Value") else value
         self.stock_status = QtGui.QLabel()
         self.stock_status.setWordWrap(True)
         layout = self.containment_page.form.layout()
@@ -213,6 +219,9 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         self.stock_timer = QtCore.QTimer(self.form)
         self.stock_timer.setSingleShot(True)
         self.stock_timer.timeout.connect(self.updateContainment)
+        self.initialization_timer = QtCore.QTimer(self.form)
+        self.initialization_timer.setSingleShot(True)
+        self.initialization_timer.timeout.connect(self.finishPanelInitialization)
         self.containment_error = None
         self.containment_visibility = _ContainmentVisibilityFilter(
             self.updateContainment, self.containment_page.form)
@@ -224,15 +233,37 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         FreeCAD.addDocumentObserver(self)
         self.form.destroyed.connect(self.stopObserving)
         self.containment_page.form.destroyed.connect(self.stopObserving)
+        self.initialization_timer.start(0)
+
+    def finishPanelInitialization(self):
+        self.panel_initializing = False
+        for prop, initial_value in self.initial_expression_values.items():
+            value = getattr(self.obj, prop)
+            value = value.Value if hasattr(value, "Value") else value
+            if value != initial_value:
+                self.stock_path_stale = True
+                self.stock_guide.key = None
+                self.updateContainment()
+                break
+        self.initial_expression_values.clear()
 
     def stopObserving(self, *args):
         if self.observing:
             self.stock_timer.stop()
+            self.initialization_timer.stop()
             FreeCAD.removeDocumentObserver(self)
             self.observing = False
 
     def slotChangedObject(self, obj, prop):
         if obj.Document == self.obj.Document:
+            if obj == self.obj and "Touched" in obj.State:
+                if self.panel_initializing:
+                    value = getattr(obj, prop, None)
+                    value = value.Value if hasattr(value, "Value") else value
+                    if prop in self.initial_expression_values and value != self.initial_expression_values[prop]:
+                        self.stock_path_stale = True
+                else:
+                    self.stock_path_stale = True
             self.stock_guide.key = None
             self.stock_status.setText(FreeCAD.Qt.translate("PathTurn", "Stock guide updating..."))
             self.stock_timer.start(250)
@@ -240,6 +271,13 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
                 or (obj == getattr(self.obj.ToolController, "Tool", None) and prop == "ToolPost")):
             self.containment_page.setFields(self.obj)
             self.updateContainment()
+
+    def slotRecomputedObject(self, obj):
+        if obj.Document == self.obj.Document:
+            if obj == self.obj:
+                self.stock_path_stale = "Touched" in obj.State or not obj.Path.Commands
+            self.stock_guide.key = None
+            self.stock_timer.start(250)
 
     def updateContainment(self, *args):
         if self.containment.dragging:
@@ -265,10 +303,10 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         if not show_stock:
             return
         try:
-            # Unapplied page edits make the operation's path out of date. The panel's
-            # isDirty() is unusable here: its own flag is set after pages initialise.
+            # Page edits and document changes can both invalidate the generated path.
             edited = any(page.isdirty for page in self.parent.featurePages)
-            stock, complete = self.stock_guide.calculate(self.obj, path_current=not edited)
+            stock, complete = self.stock_guide.calculate(
+                self.obj, path_current=not (edited or self.stock_path_stale))
             rear = PathTurnHelpers.getContainment(self.obj).XMax <= 0
             self.containment.show_stock(stock.edges(), rear, polygons=stock.polygons())
             if complete:
