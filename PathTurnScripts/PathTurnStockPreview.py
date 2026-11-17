@@ -52,12 +52,16 @@ def feeds(commands, sign):
 class StockGuide:
     def __init__(self):
         self.key = None
-        self.before = None
-        self.after = None
+        self.stock = None
         self.complete = False
         self.omitted_operations = ()
 
-    def calculate(self, obj, *, include_current=True):
+    def calculate(self, obj, *, path_current=True):
+        """Return the stock after obj when its path is current, otherwise the stock before it.
+
+        The caller decides whether obj's path is current: opening the task panel
+        reassigns obj's expression-bound properties, touching it with a valid path.
+        """
         from .PathTurnBase import ObjectOp
         from PathScripts import PathUtils
 
@@ -78,27 +82,23 @@ class StockGuide:
         records = []
         complete = False
         for operation in operations[:operations.index(obj) + 1]:
-            if operation == obj and not include_current:
-                break
+            current = operation == obj
             if not getattr(operation, "Active", True):
-                if operation == obj:
-                    complete = False
                 continue
             if not isinstance(getattr(operation, "Proxy", None), ObjectOp):
                 raise ValueError("Stock guide cannot model preceding non-turning operations")
             if not getattr(operation.Proxy, "supports_stock_guide", True):
                 raise ValueError("Stock guide does not support this operation")
-            if "Touched" in operation.State:
-                raise ValueError("Stock guide is stale; apply/recompute the operations first")
             commands = list(operation.Path.Commands)
-            if not commands:
-                if operation != obj:
-                    raise ValueError("Stock guide requires a valid path for every preceding operation")
+            if current and not (path_current and commands):
                 break
+            if not current and "Touched" in operation.State:
+                raise ValueError("Stock guide is stale; apply/recompute the operations first")
+            if not commands:
+                raise ValueError("Stock guide requires a valid path for every preceding operation")
             if getattr(operation.Proxy, "stock_guide_skip_feeds", False):
                 records.append((operation.Name, None, ()))
-                if operation == obj:
-                    complete = True
+                complete = current
                 continue
             tool = operation.ToolController.Tool
             if "Touched" in tool.State or "Touched" in operation.ToolController.State:
@@ -116,29 +116,19 @@ class StockGuide:
             if not moves:
                 raise ValueError("Stock guide found no generated cutting feeds")
             records.append((operation.Name, polygon, moves))
-            if operation == obj:
-                complete = True
+            complete = current
         omitted_operations = tuple(name for name, tool, moves in records if tool is None)
         key = (tuple(vertices), tuple((name, None if tool is None else tuple(tool), tuple(moves))
                                      for name, tool, moves in records), complete)
         if key == self.key:
-            return self.before, self.after, self.complete
-        state = StockPreview(vertices)
-        before = state.copy()
+            return self.stock, self.complete
+        stock = StockPreview(vertices)
         for name, tool, moves in records:
-            if name == obj.Name:
-                before = state.copy()
-            if tool is None:
-                continue
-            state.remove_feeds(tool, moves)
-        if not complete:
-            before = state.copy()
-        after = state
-        for snapshot in (before, after):
-            edges = snapshot.edges()
-            area = math.fsum((x0 * z1 - x1 * z0) / 2 for x0, z0, x1, z1 in edges)
-            if not math.isclose(area, snapshot.area, rel_tol=1e-7, abs_tol=1e-7):
-                raise ValueError("Stock guide boundary is numerically unresolved")
-        self.key, self.before, self.after, self.complete = key, before, after, complete
+            if tool is not None:
+                stock.remove_feeds(tool, moves)
+        area = math.fsum((x0 * z1 - x1 * z0) / 2 for x0, z0, x1, z1 in stock.edges())
+        if not math.isclose(area, stock.area, rel_tol=1e-7, abs_tol=1e-7):
+            raise ValueError("Stock guide boundary is numerically unresolved")
+        self.key, self.stock, self.complete = key, stock, complete
         self.omitted_operations = omitted_operations
-        return before, after, complete
+        return stock, complete

@@ -70,7 +70,7 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
 
 
 Command = PathOpGui.SetupOperation(
-    "TurnChamfer", PathTurnChamfer.Create, TaskPanelOpPage, "CAM-TurnChamfer",
+    "TurnChamfer", PathTurnBaseGui.stockCheckedFactory(PathTurnChamfer.Create), TaskPanelOpPage, "CAM-TurnChamfer",
     QtCore.QT_TRANSLATE_NOOP("PathTurnChamfer", "Turn Chamfer"),
     QtCore.QT_TRANSLATE_NOOP(
         "PathTurnChamfer", "Create equal 45-degree edge breaks on selected turning corners"),

@@ -205,18 +205,11 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
         from .PathTurnStockPreview import StockGuide
 
         self.stock_guide = StockGuide()
-        self.stock_mode = QtGui.QComboBox()
-        self.stock_mode.addItems([
-            FreeCAD.Qt.translate("PathTurn", "Stock before operation"),
-            FreeCAD.Qt.translate("PathTurn", "Stock after operation")])
-        self.stock_mode.setCurrentIndex(0)
         self.stock_status = QtGui.QLabel()
         self.stock_status.setWordWrap(True)
         layout = self.containment_page.form.layout()
         row = layout.rowCount()
-        layout.addWidget(self.stock_mode, row, 0, 1, 3)
-        layout.addWidget(self.stock_status, row + 1, 0, 1, 3)
-        self.stock_mode.currentIndexChanged.connect(self.updateContainment)
+        layout.addWidget(self.stock_status, row, 0, 1, 3)
         self.stock_timer = QtCore.QTimer(self.form)
         self.stock_timer.setSingleShot(True)
         self.stock_timer.timeout.connect(self.updateContainment)
@@ -268,26 +261,26 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
             self.containment.clear()
             self.containment.exit_section()
         show_stock = self.form.showStock.isChecked()
-        self.stock_mode.setEnabled(show_stock)
         self.stock_status.setVisible(show_stock)
         if not show_stock:
             return
         try:
-            show_after = bool(self.stock_mode.currentIndex())
-            before, after, complete = self.stock_guide.calculate(
-                self.obj, include_current=show_after)
-            snapshot = after if self.stock_mode.currentIndex() else before
+            # Unapplied page edits make the operation's path out of date. The panel's
+            # isDirty() is unusable here: its own flag is set after pages initialise.
+            edited = any(page.isdirty for page in self.parent.featurePages)
+            stock, complete = self.stock_guide.calculate(self.obj, path_current=not edited)
             rear = PathTurnHelpers.getContainment(self.obj).XMax <= 0
-            self.containment.show_stock(snapshot.edges(), rear, polygons=snapshot.polygons())
-            message = ""
-            if show_after and not complete:
-                message = FreeCAD.Qt.translate("PathTurn", "No current path: showing stock before operation.")
+            self.containment.show_stock(stock.edges(), rear, polygons=stock.polygons())
+            if complete:
+                message = FreeCAD.Qt.translate("PathTurn", "Showing stock after operation.")
+            else:
+                message = FreeCAD.Qt.translate(
+                    "PathTurn", "No current path: showing stock before operation.")
             if self.stock_guide.omitted_operations:
                 note = FreeCAD.Qt.translate(
                     "PathTurn", "Threading passes are shown as uncut in the 2D stock preview.")
                 message = "\n".join(filter(None, (message, note)))
             self.stock_status.setText(message)
-            self.stock_status.setVisible(bool(message))
         except (ValueError, RuntimeError) as error:
             self.stock_status.setText(FreeCAD.Qt.translate(
                 "PathTurn", "Stock guide unavailable: {error}").format(error=str(error)))

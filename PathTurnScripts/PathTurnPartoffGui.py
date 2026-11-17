@@ -56,7 +56,7 @@ class TaskPanelOpPage(PathTurnBaseGui.RetractionModeFields, PathTurnBaseGui.Task
 
 
 Command = PathOpGui.SetupOperation('TurnPartoff',
-                                   PathTurnPartoff.Create,
+                                   PathTurnBaseGui.stockCheckedFactory(PathTurnPartoff.Create),
                                    TaskPanelOpPage,
                                    'CAM-TurnPartoff',
                                    QtCore.QT_TRANSLATE_NOOP("PathTurnPartoff", "Turn Part"),

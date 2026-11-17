@@ -31,7 +31,7 @@ class TaskPanelOpPage(PathTurnBaseGui.TaskPanelTurnBase):
 
 
 Command = PathOpGui.SetupOperation('TurnRough',
-                                   PathTurnRough.Create,
+                                   PathTurnBaseGui.stockCheckedFactory(PathTurnRough.Create),
                                    TaskPanelOpPage,
                                    'CAM-TurnRough',
                                    QtCore.QT_TRANSLATE_NOOP("PathTurnRough", "Turn Rough"),
