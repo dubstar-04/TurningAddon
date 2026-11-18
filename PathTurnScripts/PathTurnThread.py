@@ -204,7 +204,7 @@ class ObjectTurnThread(PathTurnBase.ObjectOp):
         self.commandlist.append(Path.Command("G40"))
         # TODO: Emit G33 directly once FreeCAD's path display and simulation support it.
         # Until then synchronized passes are stored as G1 with a K lead so they display
-        # as feeds; the turning post-processor rewrites G1 moves carrying K back to G33.
+        # as feeds;
         self.commandlist.extend(
             Path.Command("G1" if command.get_movement() == "G33" else command.get_movement(),
                          command.getParams())
