@@ -21,6 +21,7 @@ def getDrill(tool):
 
 class ObjectTurnDrill(PathTurnBase.ObjectOp):
     centreline_drilling = True
+    supports_css = False
     uses_pass_offset = False
 
     def initOperation(self, obj):
@@ -94,6 +95,7 @@ class ObjectTurnDrill(PathTurnBase.ObjectOp):
         commands = operation.getGCode()
         self.commandlist.extend(
             Path.Command(command.get_movement(), command.getParams()) for command in commands)
+        self._apply_spindle_mode(obj)
 
 
 def SetupProperties():

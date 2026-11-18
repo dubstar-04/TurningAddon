@@ -24,6 +24,7 @@ import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
 from PathTurnScripts.PathTurnBase import NO_RETRACT, RETRACTION_MODES
 from PathTurnScripts.PathTurnContainment import ContainmentPreview
 from PathTurnScripts.PathTurnContainmentGui import TaskPanelContainment
+from PathTurnScripts.PathTurnSpindleGui import TaskPanelToolControllerWithSpindlePage
 from PathTurnScripts.PathTurnToolBit import post_from_parameters
 
 __title__ = "Path Turn Base Gui"
@@ -190,6 +191,7 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
     }
 
     taskPanelDiametersPage = TaskPanelContainment
+    taskPanelToolControllerPage = TaskPanelToolControllerWithSpindlePage
 
     quantity_fields = {
         "PassOffset": "passOffset",

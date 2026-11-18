@@ -7,10 +7,12 @@
 import math
 
 import FreeCAD
+import Path
 import Path.Log as PathLog
 import Path.Op.Base as PathOp
 import PathScripts.PathUtils as PathUtils
 import PathTurnScripts.PathTurnAddonHelpers as PathTurnHelpers
+from PathTurnScripts.PathTurnSpindle import spindle_commands
 
 from PySide import QtCore
 
@@ -41,6 +43,72 @@ NO_RETRACT = "None"
 PARTIAL_RETRACT = "Partial Retract"
 FULL_RETRACT = "Full Retract"
 RETRACTION_MODES = [NO_RETRACT, PARTIAL_RETRACT, FULL_RETRACT]
+SPINDLE_MODE_RPM = "RPM"
+SPINDLE_MODE_CSS = "CSS"
+SPINDLE_MODE_PROPERTY = "TurnSpindleMode"
+SURFACE_SPEED_PROPERTY = "TurnSurfaceSpeed"
+MAX_SPINDLE_SPEED_PROPERTY = "TurnMaxSpindleSpeed"
+
+
+def job_machine(obj):
+    """Return the machine configured on the operation's Job, or None."""
+    job = PathUtils.findParentJob(obj)
+    get_machine = getattr(getattr(job, "Proxy", None), "getMachine", None)
+    return get_machine() if get_machine else None
+
+
+def machine_outputs_imperial(machine):
+    """Return True if the machine's new-style post output units are imperial (G20)."""
+    units = getattr(getattr(machine, "output", None), "units", None)
+    return getattr(units, "value", units) == "imperial"
+
+
+def configured_machine_max_rpm(obj, machine=None):
+    """Return the sole configured rotary toolhead's max RPM, or zero if unavailable."""
+    if machine is None:
+        machine = job_machine(obj)
+    if machine is None:
+        return 0
+
+    rotary_toolheads = [
+        toolhead for toolhead in getattr(machine, "toolheads", ())
+        if getattr(getattr(toolhead, "toolhead_type", None), "value",
+                   getattr(toolhead, "toolhead_type", None)) == "rotary"
+    ]
+    if len(rotary_toolheads) != 1:
+        return 0
+
+    max_rpm = float(rotary_toolheads[0].max_rpm or 0)
+    return math.floor(max_rpm) if math.isfinite(max_rpm) and max_rpm > 0 else 0
+
+
+def ensure_turning_spindle_properties(controller, obj):
+    """Add persistent Addon spindle settings to a Tool Controller."""
+    if controller is None:
+        return
+
+    if not hasattr(controller, SPINDLE_MODE_PROPERTY):
+        controller.addProperty(
+            "App::PropertyEnumeration", SPINDLE_MODE_PROPERTY, "Turning",
+            translate("PathTurn", "Spindle speed control mode"))
+        setattr(controller, SPINDLE_MODE_PROPERTY, [SPINDLE_MODE_RPM, SPINDLE_MODE_CSS])
+        setattr(controller, SPINDLE_MODE_PROPERTY, SPINDLE_MODE_RPM)
+
+    if not hasattr(controller, SURFACE_SPEED_PROPERTY):
+        controller.addProperty(
+            "App::PropertyFloat", SURFACE_SPEED_PROPERTY, "Turning",
+            translate("PathTurn", "Constant surface speed in metres per minute"))
+        setattr(controller, SURFACE_SPEED_PROPERTY, 0.0)
+
+    if not hasattr(controller, MAX_SPINDLE_SPEED_PROPERTY):
+        controller.addProperty(
+            "App::PropertyInteger", MAX_SPINDLE_SPEED_PROPERTY, "Turning",
+            translate("PathTurn", "Maximum spindle speed in RPM"))
+        setattr(controller, MAX_SPINDLE_SPEED_PROPERTY, configured_machine_max_rpm(obj))
+    elif getattr(controller, MAX_SPINDLE_SPEED_PROPERTY) <= 0:
+        machine_max_rpm = configured_machine_max_rpm(obj)
+        if machine_max_rpm > 0:
+            setattr(controller, MAX_SPINDLE_SPEED_PROPERTY, machine_max_rpm)
 
 
 def peck_parameters(obj, peck_depth):
@@ -58,6 +126,7 @@ def peck_parameters(obj, peck_depth):
 class ObjectOp(PathOp.ObjectOp):
     '''Base class for proxy objects of all turning operations.'''
 
+    supports_css = True
     uses_pass_offset = True
     uses_finish_passes = False
     uses_stock_to_leave = False
@@ -107,6 +176,8 @@ class ObjectOp(PathOp.ObjectOp):
 
     def opOnDocumentRestored(self, obj):
         super().opOnDocumentRestored(obj)
+        if self.supports_css:
+            ensure_turning_spindle_properties(getattr(obj, "ToolController", None), obj)
         if self.supports_internal_mode:
             self._addModeAndDirection(obj)
 
@@ -117,6 +188,8 @@ class ObjectOp(PathOp.ObjectOp):
         if (self.supports_internal_mode and self.supports_direction_control
                 and prop == "Mode" and hasattr(obj, "Direction")):
             obj.Direction = self._defaultDirection(obj).value
+        if prop == "ToolController" and self.supports_css:
+            ensure_turning_spindle_properties(getattr(obj, "ToolController", None), obj)
 
     @staticmethod
     def _defaultDirection(obj):
@@ -155,6 +228,9 @@ class ObjectOp(PathOp.ObjectOp):
         '''opExecute(obj) ... processes all Base features
         '''
         PathLog.track()
+        controller = getattr(obj, "ToolController", None)
+        if self.supports_css:
+            ensure_turning_spindle_properties(controller, obj)
         self.tool = None
         self.minDia = obj.MinDiameter.Value
         self.maxDia = obj.MaxDiameter.Value
@@ -190,6 +266,39 @@ class ObjectOp(PathOp.ObjectOp):
 
         self.part_outline = self.get_part_outline(obj)
         self.generate_gcode(obj)
+        self._apply_spindle_mode(obj)
+
+    def _apply_spindle_mode(self, obj):
+        controller = getattr(obj, "ToolController", None)
+        mode = str(getattr(controller, SPINDLE_MODE_PROPERTY, SPINDLE_MODE_RPM))
+        if mode not in (SPINDLE_MODE_RPM, SPINDLE_MODE_CSS):
+            raise RuntimeError(translate("PathTurn", "Unknown spindle speed control mode."))
+        if mode != SPINDLE_MODE_CSS:
+            return
+
+        prefix_count = 1 + bool(obj.Comment)
+        if len(self.commandlist) <= prefix_count:
+            return
+
+        spindle_speed = float(getattr(controller, "SpindleSpeed", 0) or 0)
+        surface_speed = float(getattr(controller, SURFACE_SPEED_PROPERTY, 0) or 0)
+        max_rpm = int(getattr(controller, MAX_SPINDLE_SPEED_PROPERTY, 0) or 0)
+        machine = job_machine(obj)
+        machine_max_rpm = configured_machine_max_rpm(obj, machine)
+        try:
+            commands = spindle_commands(
+                mode, self.supports_css, spindle_speed, surface_speed, max_rpm, machine_max_rpm,
+                imperial_output=machine_outputs_imperial(machine))
+        except ValueError as error:
+            raise RuntimeError(
+                translate("PathTurn", str(error)).format(limit=machine_max_rpm)) from error
+
+        for index, (name, params) in enumerate(commands):
+            command = Path.Command(name, params)
+            if index == 0:
+                self.commandlist.insert(prefix_count, command)
+            else:
+                self.commandlist.append(command)
 
     def opSetDefaultValues(self, obj, job):
         obj.OpStartDepth = job.Stock.Shape.BoundBox.ZMax
