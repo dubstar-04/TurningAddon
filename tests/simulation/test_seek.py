@@ -1200,5 +1200,53 @@ class MixedOperationMovesTests(unittest.TestCase):
                          [(False, [2, 4, 6])])
 
 
+class SimulatorDialogLifecycleTests(unittest.TestCase):
+    def test_existing_task_dialog_is_checked_before_panel_creation(self):
+        panel_factory = Mock()
+        control = SimpleNamespace(activeDialog=Mock(return_value=True), showDialog=Mock())
+        console = SimpleNamespace(PrintWarning=Mock())
+        with patch.object(panel_module, "PathSimPanel", panel_factory), \
+                patch.object(panel_module.FreeCADGui, "Control", control, create=True), \
+                patch.object(panel_module.FreeCAD, "Console", console, create=True):
+            panel_module.Show()
+        panel_factory.assert_not_called()
+        control.showDialog.assert_not_called()
+        console.PrintWarning.assert_called_once()
+
+    def test_timeline_is_shown_by_the_task_dialog_open_callback(self):
+        panel = panel_module.PathSimPanel.__new__(panel_module.PathSimPanel)
+        panel._opened = False
+        panel.cleanup = Mock()
+        panel.timeline = SimpleNamespace(show=Mock())
+        panel.open()
+        panel.cleanup.assert_called_once_with()
+        panel.timeline.show.assert_called_once_with()
+        self.assertTrue(panel._opened)
+
+    def test_panel_resources_are_closed_when_task_dialog_did_not_open(self):
+        panel = SimpleNamespace(_opened=False, closeResources=Mock())
+        control = SimpleNamespace(activeDialog=Mock(return_value=False), showDialog=Mock())
+        with patch.object(panel_module, "PathSimPanel", return_value=panel), \
+                patch.object(panel_module.FreeCADGui, "Control", control, create=True):
+            panel_module.Show()
+        panel.closeResources.assert_called_once_with(cleanupSimulation=False)
+
+    def test_normal_close_stops_and_cleans_the_timeline(self):
+        panel = panel_module.PathSimPanel.__new__(panel_module.PathSimPanel)
+        panel._resourcesClosed = False
+        panel._closing = False
+        panel.simStop = Mock()
+        panel.sim = SimpleNamespace(wait=Mock())
+        panel.timeline = SimpleNamespace(quit=Mock())
+        panel.cleanup = Mock()
+        panel.toolpath = SimpleNamespace(close=Mock())
+        panel.closeResources(cleanupSimulation=True)
+        panel.simStop.assert_called_once_with()
+        panel.sim.wait.assert_called_once_with()
+        panel.timeline.quit.assert_called_once_with()
+        panel.cleanup.assert_called_once_with()
+        panel.toolpath.close.assert_called_once_with()
+
+
 if __name__ == "__main__":
     unittest.main()
