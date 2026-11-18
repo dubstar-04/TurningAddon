@@ -160,7 +160,9 @@ def stockCheckedFactory(create):
     """Wrap an operation factory so adding the operation checks the stock position."""
     def factory(name, obj=None, parentJob=None):
         operation = create(name, obj, parentJob)
-        checkStockAxis(parentJob or PathUtils.findParentJob(operation))
+        # The Job Setup Sheet also calls this factory with non-document prototypes.
+        if isinstance(operation, FreeCAD.DocumentObject):
+            checkStockAxis(parentJob or PathUtils.findParentJob(operation))
         return operation
     return factory
 
