@@ -79,6 +79,7 @@ class ThreadData:
 
 
 class ObjectTurnThread(PathTurnBase.ObjectOp):
+    supports_css = False
     pass_offset_label = FreeCAD.Qt.translate("TurnPath", "Radial Pass Offset")
     stock_guide_skip_feeds = True
 
