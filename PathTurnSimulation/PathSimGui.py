@@ -61,13 +61,14 @@ class PathSimPanel:
 		self._resetMeshTiming()
 		self.counter = 0
 		self._closing = False
+		self._opened = False
+		self._resourcesClosed = False
 		self._pressedOperation = None
 		self.operationStarts = {}
 		self._toolpathPosition = None
 		self._toolpathPoints = None
 		self.toolpath = ToolpathOverlay(
 			FreeCADGui.getDocument(self.document.Name).ActiveView.getSceneGraph())
-		self.cleanup()
 
 		self.timeline = PathSimTimelineGui.timeline()
 		showStock = self.preferences.GetBool("ShowStock", True)
@@ -117,9 +118,6 @@ class PathSimPanel:
 		for j in jobList:
 			self.jobs.append(j)
 			self.form.comboJobs.addItem(j.ViewObject.Icon, j.Label)
-
-		#show the timeline widget
-		self.timeline.show()
 
 		self.form.comboEngines.clear()
 		engines = os.listdir(path_to_engines)
@@ -181,14 +179,26 @@ class PathSimPanel:
 	def reject(self):
 		self.quit()
 
+	def open(self):
+		self._opened = True
+		self.cleanup()
+		self.timeline.show()
+
 	def quit(self):
+		self.closeResources(cleanupSimulation=True)
+		FreeCADGui.Control.closeDialog()
+
+	def closeResources(self, cleanupSimulation):
+		if self._resourcesClosed:
+			return
+		self._resourcesClosed = True
 		self._closing = True
 		self.simStop()
 		self.sim.wait()
 		self.timeline.quit()
-		self.cleanup()
+		if cleanupSimulation:
+			self.cleanup()
 		self.toolpath.close()
-		FreeCADGui.Control.closeDialog()
 		
 	def getStandardButtons(self):
 		return QtGui.QDialogButtonBox.Close
@@ -503,5 +513,14 @@ class PathSimPanel:
 		view.Coloring = True
 
 def Show():
+	if FreeCADGui.Control.activeDialog():
+		FreeCAD.Console.PrintWarning(
+			"PathSim: Close the active task dialog before starting the simulation.\n")
+		return
+
 	panel = PathSimPanel()
-	FreeCADGui.Control.showDialog(panel)
+	try:
+		FreeCADGui.Control.showDialog(panel)
+	finally:
+		if not panel._opened:
+			panel.closeResources(cleanupSimulation=False)
