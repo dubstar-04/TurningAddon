@@ -40,6 +40,16 @@ class SpindleCommandTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown spindle"):
             spindle_commands("variable", True, 1200, 180, 2500, 3000)
 
+    def test_css_is_rejected_for_imperial_output(self):
+        with self.assertRaisesRegex(ValueError, "imperial output"):
+            spindle_commands(CSS, True, 1200, 180, 2500, 3000, imperial_output=True)
+
+    def test_fixed_rpm_only_operation_allows_imperial_output(self):
+        self.assertEqual(
+            spindle_commands(CSS, False, 1200, 0, 0, 3000, imperial_output=True),
+            (("G97", {"S": 1200}),),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
