@@ -2,7 +2,7 @@ import importlib.util
 import math
 from pathlib import Path
 import sys
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
@@ -48,6 +48,41 @@ def load_worker():
 
 
 worker = load_worker()
+
+
+def load_panel():
+    path_util = ModuleType("Path.Base.Util")
+    op_util = ModuleType("Path.Op.Util")
+    op_util.getCycleTimeEstimate = Mock()
+    path_package = ModuleType("Path")
+    path_package.__path__ = []
+    path_base = ModuleType("Path.Base")
+    path_base.__path__ = []
+    path_base.Util = path_util
+    path_package.Base = path_base
+    path_op = ModuleType("Path.Op")
+    path_op.__path__ = []
+    path_package.Op = path_op
+    toolpath = ModuleType("PathTurnSimulation.PathSimToolpath")
+    toolpath.ToolpathOverlay = Mock()
+    modules = {
+        "FreeCAD": worker.FreeCAD, "FreeCADGui": ModuleType("FreeCADGui"),
+        "Mesh": ModuleType("Mesh"), "PySide": SimpleNamespace(QtCore=None, QtGui=None),
+        "Path": path_package, "Path.Base": path_base, "Path.Base.Util": path_util,
+        "Path.Op": path_op, "Path.Op.Util": op_util,
+        "PathTurnSimulation.PathSim": worker,
+        "PathTurnSimulation.PathSimTimelineGui": ModuleType("PathTurnSimulation.PathSimTimelineGui"),
+        "PathTurnSimulation.PathSimToolpath": toolpath,
+    }
+    path = Path(__file__).resolve().parents[2] / "PathTurnSimulation" / "PathSimGui.py"
+    spec = importlib.util.spec_from_file_location("PathTurnSimulation.test_panel", path)
+    module = importlib.util.module_from_spec(spec)
+    with patch.dict(sys.modules, modules):
+        spec.loader.exec_module(module)
+    return module
+
+
+panel_module = load_panel()
 
 
 class EngineLoadingTests(unittest.TestCase):
@@ -270,7 +305,7 @@ class SeekTests(unittest.TestCase):
         self.sim.engine.cutDuration = self.sim.engine.meshDuration = 0
         origin = []
 
-        def step(placement):
+        def step(placement, _position):
             if placement.Base.x >= 2:
                 origin.append(placement.Base.x)
                 self.sim.updatePos.callback = None
@@ -330,7 +365,7 @@ class SeekTests(unittest.TestCase):
         self.sim.engine.cutDuration = self.sim.engine.meshDuration = 0
         origin = []
 
-        def step(placement):
+        def step(placement, _position):
             if placement.Base.x >= 0.5:
                 origin.append(placement.Base.x)
                 self.sim.updatePos.callback = None
@@ -428,6 +463,20 @@ class SeekTests(unittest.TestCase):
         self.assertGreater(len(self.sim.progress.calls), 1)
         self.assertEqual(len(self.sim.complete.calls), 1)
 
+    def test_playback_snapshots_follow_tool_across_operations(self):
+        self.sim.moveEnds = [5, 10, 15, 20]
+        self.sim.pathRapid = [False] * 20
+        self.sim.running = True
+        self.run_worker()
+        seen_operations = set()
+        for placement, position in self.sim.updatePos.calls:
+            sample = int(placement.Base.x)
+            move, operation, _ = self.sim.nearbyMoves(position)
+            self.assertEqual(move, sample // 5)
+            self.assertIs(operation, self.operations[sample // 10])
+            seen_operations.add(operation.Name)
+        self.assertEqual(seen_operations, {"first", "second"})
+
     def test_pause_during_periodic_meshing_retries_paused_stock(self):
         def pause():
             if len(self.sim.engine.meshes) == 2:
@@ -474,7 +523,7 @@ class SeekTests(unittest.TestCase):
         self.configure_paced_turning()
         poses = []
         frames = []
-        self.sim.updatePos.callback = lambda placement: poses.append(self.sim.idx)
+        self.sim.updatePos.callback = lambda placement, position: poses.append(self.sim.idx)
         self.sim.engine.on_mesh = lambda: frames.append(self.sim.idx)
         self.sim.running = True
         self.run_worker()
@@ -507,7 +556,7 @@ class SeekTests(unittest.TestCase):
         self.sim.engine.cutDuration = self.sim.engine.meshDuration = 0
         samples = []
 
-        def capture(placement):
+        def capture(placement, _position):
             samples.append((self.clock.now, placement.Base.x,
                             list(self.sim.engine.positions)))
 
@@ -532,7 +581,7 @@ class SeekTests(unittest.TestCase):
             "HorizFeed": 2, "VertFeed": 2, "HorizRapid": 20, "VertRapid": 20}
         self.sim.engine.cutDuration = self.sim.engine.meshDuration = 0
 
-        def pause(placement):
+        def pause(placement, _position):
             if placement.Base.x >= 0.5:
                 self.sim.updatePos.callback = None
                 self.sim.stop()
@@ -558,7 +607,7 @@ class SeekTests(unittest.TestCase):
         self.configure_paced_turning()
         self.sim.engine.cutDuration = self.sim.engine.meshDuration = 0
 
-        def pause(placement):
+        def pause(placement, _position):
             if placement.Base.x > 0.4:
                 self.sim.updatePos.callback = None
                 self.sim.stop()
@@ -592,7 +641,7 @@ class SeekTests(unittest.TestCase):
         self.configure_paced_turning()
         self.sim.engine.cutDuration = self.sim.engine.meshDuration = 0
 
-        def seek(placement):
+        def seek(placement, _position):
             if placement.Base.x > 0.4:
                 self.sim.updatePos.callback = None
                 self.sim.skipTo(0.1)
@@ -682,7 +731,7 @@ class SeekTests(unittest.TestCase):
     def test_stop_during_paced_turning_flushes_only_the_current_position(self):
         self.configure_paced_turning()
 
-        def stop(placement):
+        def stop(placement, _position):
             if self.sim.idx >= 8:
                 self.sim.updatePos.callback = None
                 self.sim.stop()
@@ -1032,7 +1081,7 @@ class NearbyMovesTests(unittest.TestCase):
     def at(self, idx, fraction=0.0):
         self.sim.idx = idx
         self.sim._motionFraction = fraction
-        return self.sim.nearbyMoves()
+        return self.sim.nearbyMoves(self.sim.toolpathPosition())
 
     def test_shows_previous_current_and_next_move(self):
         move, operation, moves = self.at(3, 0.5)
@@ -1049,6 +1098,106 @@ class NearbyMovesTests(unittest.TestCase):
     def test_no_moves_without_a_path(self):
         self.sim.moveEnds = []
         self.assertEqual(self.at(0), (None, None, []))
+
+
+class ToolpathPositionTests(unittest.TestCase):
+    def setUp(self):
+        self.sim = worker.PathSim()
+        self.operation = SimpleNamespace(Name="op")
+        self.sim.pathPoints = [
+            [SimpleNamespace(x=index, y=0, z=0), self.operation] for index in range(5)]
+        self.sim.pathRapid = [True, False, False, False, False]
+        self.sim.moveEnds = [1, 3, 5]
+        self.panel = panel_module.PathSimPanel.__new__(panel_module.PathSimPanel)
+        self.panel.sim = self.sim
+        self.panel.operations = [self.operation]
+        self.panel.tool = SimpleNamespace(Placement=None)
+        self.panel.toolpath = SimpleNamespace(move=None, show=Mock(), clear=Mock(), setVisible=Mock())
+        self.panel.toolpath.show.side_effect = lambda move, *_: setattr(self.panel.toolpath, "move", move)
+        self.panel.preferences = Mock()
+        self.panel._closing = False
+        self.panel._showToolpath = True
+        self.panel._toolpathPosition = None
+        self.panel._toolpathPoints = None
+
+    def emit_position(self, index, fraction):
+        self.sim.idx = index
+        self.sim._motionFraction = fraction
+        self.sim.updateToolPosition(self.sim.pathPoints[max(0, index - 1)][0], None)
+        return self.sim.updatePos.calls[-1]
+
+    def test_queued_position_retains_its_move_and_path_after_worker_advances(self):
+        position = self.emit_position(2, 0)
+        points = self.sim.pathPoints
+        self.emit_position(4, 0)
+        self.sim.pathPoints = []
+        self.sim.moveEnds = []
+        self.sim.pathRapid = []
+        self.panel.setPos(*position)
+        self.assertIs(self.panel.tool.Placement.Base, points[1][0])
+        self.assertEqual(self.panel.toolpath.show.call_args.args[0], 1)
+        self.assertIs(self.panel.toolpath.show.call_args.args[1][0][1][0], points[0][0])
+
+    def test_repeated_and_hidden_positions_do_not_build_polylines(self):
+        with patch.object(self.sim, "nearbyMoves", wraps=self.sim.nearbyMoves) as build:
+            self.panel.setPos(*self.emit_position(2, 0))
+            self.panel.setPos(*self.emit_position(2, 0.5))
+            self.assertEqual(build.call_count, 1)
+            self.panel.onToolpathVisibilityChanged(False)
+            self.panel.setPos(*self.emit_position(4, 0))
+            self.assertEqual(build.call_count, 1)
+            self.panel.onToolpathVisibilityChanged(True)
+            self.assertEqual(build.call_count, 2)
+            self.assertEqual(self.panel.toolpath.show.call_args.args[0], 2)
+
+    def test_same_move_in_new_sampled_path_is_rebuilt(self):
+        with patch.object(self.sim, "nearbyMoves", wraps=self.sim.nearbyMoves) as build:
+            self.panel.setPos(*self.emit_position(2, 0))
+            self.sim.pathPoints = list(self.sim.pathPoints)
+            self.panel.setPos(*self.emit_position(2, 0))
+            self.assertEqual(build.call_count, 2)
+
+
+class MixedOperationMovesTests(unittest.TestCase):
+    def test_milling_to_turning_preserves_move_boundaries_and_feed_type(self):
+        class Vector:
+            def __init__(self, x=0, y=0, z=0):
+                self.x, self.y, self.z = x, y, z
+
+            def sub(self, other):
+                return Vector(self.x - other.x, self.y - other.y, self.z - other.z)
+
+            def add(self, other):
+                return Vector(self.x + other.x, self.y + other.y, self.z + other.z)
+
+            def distanceToPoint(self, other):
+                return math.dist((self.x, self.y, self.z), (other.x, other.y, other.z))
+
+            def normalize(self):
+                length = self.distanceToPoint(Vector())
+                return Vector(self.x / length, self.y / length, self.z / length)
+
+            def __mul__(self, factor):
+                return Vector(self.x * factor, self.y * factor, self.z * factor)
+
+        def command(name, x):
+            return SimpleNamespace(Name=name, Parameters={"X": x})
+
+        milling = SimpleNamespace(Path=SimpleNamespace(Commands=[
+            command("G0", 2), command("G1", 6)]))
+        turning = SimpleNamespace(MinDiameter=0, MaxDiameter=10,
+            Path=SimpleNamespace(Commands=[command("G0", 8), command("G1", 10)]))
+        sim = worker.PathSim()
+        sim.operations = [milling, turning]
+        with patch.object(worker.FreeCAD, "Vector", Vector):
+            sim.pathPoints = sim.discretizePath()
+        self.assertEqual(sim.moveEnds, [1, 3, 4, 5])
+        sim.idx = 3
+        move, operation, polylines = sim.nearbyMoves(sim.toolpathPosition())
+        self.assertEqual(move, 1)
+        self.assertIs(operation, milling)
+        self.assertEqual([(rapid, [point.x for point in points]) for rapid, points in polylines],
+                         [(False, [2, 4, 6])])
 
 
 if __name__ == "__main__":
