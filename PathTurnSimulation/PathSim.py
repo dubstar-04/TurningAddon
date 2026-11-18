@@ -49,7 +49,7 @@ def operationToolShape(operation):
 
 class PathSim (QtCore.QThread):
 
-	updatePos = QtCore.Signal(FreeCAD.Placement)
+	updatePos = QtCore.Signal(FreeCAD.Placement, object)
 	meshReady = QtCore.Signal()
 	complete = QtCore.Signal()
 	progress = QtCore.Signal(float)
@@ -455,24 +455,30 @@ class PathSim (QtCore.QThread):
 		else:
 			self.progress.emit(0)
 
-	def nearbyMoves(self, count=1):
-		''' return (move index, operation, [(rapid, points)]) for the move under the tool
-		and up to count moves either side of it within the same operation '''
-		if not self.moveEnds or not self.pathPoints:
+	def toolpathPosition(self):
+		'''Snapshot the move and sampled path associated with the displayed position.'''
+		move = None
+		if self.moveEnds and self.pathPoints:
+			sample = self.idx if self._motionFraction else self.idx - 1
+			sample = max(0, min(sample, len(self.pathPoints) - 1))
+			move = min(bisect.bisect_right(self.moveEnds, sample), len(self.moveEnds) - 1)
+		return move, self.pathPoints, self.pathRapid, self.moveEnds
+
+	def nearbyMoves(self, position, count=1):
+		'''Return the sampled moves surrounding a captured toolpath position.'''
+		current, pathPoints, pathRapid, moveEnds = position
+		if current is None:
 			return None, None, []
-		sample = self.idx if self._motionFraction else self.idx - 1
-		sample = max(0, min(sample, len(self.pathPoints) - 1))
-		current = min(bisect.bisect_right(self.moveEnds, sample), len(self.moveEnds) - 1)
-		operation = self.pathPoints[sample][1]
+		operation = pathPoints[moveEnds[current] - 1][1]
 		moves = []
-		for move in range(max(0, current - count), min(len(self.moveEnds), current + count + 1)):
-			start = self.moveEnds[move - 1] if move else 0
-			end = self.moveEnds[move]
+		for move in range(max(0, current - count), min(len(moveEnds), current + count + 1)):
+			start = moveEnds[move - 1] if move else 0
+			end = moveEnds[move]
 			# Include the previous end point; it is skipped when it belongs to another operation.
-			points = [point for point, pointOperation in self.pathPoints[max(0, start - 1):end]
+			points = [point for point, pointOperation in pathPoints[max(0, start - 1):end]
 				if pointOperation is operation]
 			if len(points) > 1:
-				moves.append((self.pathRapid[end - 1], points))
+				moves.append((pathRapid[end - 1], points))
 		return current, operation, moves
 
 	def getOperationRanges(self):
@@ -640,7 +646,7 @@ class PathSim (QtCore.QThread):
 		return position
 
 	def updateToolPosition(self, pos, rot):
-		self.updatePos.emit(FreeCAD.Placement(pos, rot))
+		self.updatePos.emit(FreeCAD.Placement(pos, rot), self.toolpathPosition())
 
 	def discretizePath(self):
 		''' split the path in to discrete points'''
@@ -659,6 +665,7 @@ class PathSim (QtCore.QThread):
 
 		for op in self.operations:
 			if isTurningOperation(op):
+				endMove()
 				samples, commandEnds = sample_turning_path(
 					((command.Name, command.Parameters) for command in op.Path.Commands),
 					self.stepDistance, (currentPos.x, currentPos.y, currentPos.z))

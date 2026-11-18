@@ -63,6 +63,8 @@ class PathSimPanel:
 		self._closing = False
 		self._pressedOperation = None
 		self.operationStarts = {}
+		self._toolpathPosition = None
+		self._toolpathPoints = None
 		self.toolpath = ToolpathOverlay(
 			FreeCADGui.getDocument(self.document.Name).ActiveView.getSceneGraph())
 		self.cleanup()
@@ -72,6 +74,7 @@ class PathSimPanel:
 		self.sim.showStock = showStock
 		self.timeline.setStockVisible(showStock)
 		showToolpath = self.preferences.GetBool("ShowToolpath", True)
+		self._showToolpath = showToolpath
 		self.toolpath.setVisible(showToolpath)
 		self.timeline.setToolpathVisible(showToolpath)
 
@@ -155,13 +158,20 @@ class PathSimPanel:
 
 	def onToolpathVisibilityChanged(self, visible):
 		self.preferences.SetBool("ShowToolpath", visible)
+		self._showToolpath = visible
 		self.toolpath.setVisible(visible)
+		if visible:
+			self.updateToolpath()
 
 	def updateToolpath(self):
 		''' show the previous, current and next G-code moves around the tool '''
-		move, operation, polylines = self.sim.nearbyMoves()
-		if move == self.toolpath.move:
+		if not self._showToolpath or self._toolpathPosition is None:
 			return
+		move, points, _, _ = self._toolpathPosition
+		if move == self.toolpath.move and points is self._toolpathPoints:
+			return
+		self._toolpathPoints = points
+		move, operation, polylines = self.sim.nearbyMoves(self._toolpathPosition)
 		if operation is None:
 			self.toolpath.clear()
 			return
@@ -260,6 +270,8 @@ class PathSimPanel:
 
 	def onPathReady(self, ranges):
 		self.toolpath.clear()
+		self._toolpathPosition = None
+		self._toolpathPoints = None
 		self.operationStarts = {}
 		for start, _, operationId in ranges:
 			self.operationStarts.setdefault(operationId, start)
@@ -380,17 +392,20 @@ class PathSimPanel:
 		self.sim.stop()
 		self.timeline.setPlaying(False)
 
-	def setPos(self, pos):
+	def setPos(self, pos, toolpathPosition):
 		# update tool position 
 		if self.tool is not None:
 			self.tool.Placement = pos
 		if not self._closing:
+			self._toolpathPosition = toolpathPosition
 			self.updateToolpath()
 
 	def cleanup(self):
 		self.cleanupStock()
 		self.cleanupTool()
 		self.toolpath.clear()
+		self._toolpathPosition = None
+		self._toolpathPoints = None
 
 	def cleanupTool(self):
 		''' Delete the tool created for the simulation '''
