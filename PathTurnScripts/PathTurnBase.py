@@ -50,11 +50,23 @@ SURFACE_SPEED_PROPERTY = "TurnSurfaceSpeed"
 MAX_SPINDLE_SPEED_PROPERTY = "TurnMaxSpindleSpeed"
 
 
-def configured_machine_max_rpm(obj):
-    """Return the sole configured rotary toolhead's max RPM, or zero if unavailable."""
+def job_machine(obj):
+    """Return the machine configured on the operation's Job, or None."""
     job = PathUtils.findParentJob(obj)
     get_machine = getattr(getattr(job, "Proxy", None), "getMachine", None)
-    machine = get_machine() if get_machine else None
+    return get_machine() if get_machine else None
+
+
+def machine_outputs_imperial(machine):
+    """Return True if the machine's new-style post output units are imperial (G20)."""
+    units = getattr(getattr(machine, "output", None), "units", None)
+    return getattr(units, "value", units) == "imperial"
+
+
+def configured_machine_max_rpm(obj, machine=None):
+    """Return the sole configured rotary toolhead's max RPM, or zero if unavailable."""
+    if machine is None:
+        machine = job_machine(obj)
     if machine is None:
         return 0
 
@@ -271,10 +283,12 @@ class ObjectOp(PathOp.ObjectOp):
         spindle_speed = float(getattr(controller, "SpindleSpeed", 0) or 0)
         surface_speed = float(getattr(controller, SURFACE_SPEED_PROPERTY, 0) or 0)
         max_rpm = int(getattr(controller, MAX_SPINDLE_SPEED_PROPERTY, 0) or 0)
-        machine_max_rpm = configured_machine_max_rpm(obj)
+        machine = job_machine(obj)
+        machine_max_rpm = configured_machine_max_rpm(obj, machine)
         try:
             commands = spindle_commands(
-                mode, self.supports_css, spindle_speed, surface_speed, max_rpm, machine_max_rpm)
+                mode, self.supports_css, spindle_speed, surface_speed, max_rpm, machine_max_rpm,
+                imperial_output=machine_outputs_imperial(machine))
         except ValueError as error:
             raise RuntimeError(
                 translate("PathTurn", str(error)).format(limit=machine_max_rpm)) from error

@@ -6,7 +6,8 @@ CSS = "CSS"
 
 
 def spindle_commands(
-        mode, supports_css, spindle_speed, surface_speed, max_rpm, machine_max_rpm=0):
+        mode, supports_css, spindle_speed, surface_speed, max_rpm, machine_max_rpm=0,
+        imperial_output=False):
     """Return mode commands as (G-code, parameters) pairs, validating spindle limits."""
     if mode not in (RPM, CSS):
         raise ValueError("Unknown spindle speed control mode.")
@@ -21,6 +22,11 @@ def spindle_commands(
     if not supports_css:
         return (("G97", {"S": spindle_speed}),)
 
+    # FreeCAD posts write S unchanged, so m/min would be read as ft/min under G20.
+    if imperial_output:
+        raise ValueError(
+            "Constant surface speed is not supported with imperial output. "
+            "Use metric output or Fixed RPM.")
     if not math.isfinite(surface_speed) or surface_speed <= 0:
         raise ValueError("Set a positive surface speed on the Tool Controller.")
     if max_rpm <= 0:
