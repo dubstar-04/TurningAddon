@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: LGPL-2.0-or-later
 # See LICENSE for terms. This software is provided WITHOUT ANY WARRANTY.
 
+import bisect
 import math
 import time
 import threading
@@ -48,7 +49,7 @@ def operationToolShape(operation):
 
 class PathSim (QtCore.QThread):
 
-	updatePos = QtCore.Signal(FreeCAD.Placement)
+	updatePos = QtCore.Signal(FreeCAD.Placement, object)
 	meshReady = QtCore.Signal()
 	complete = QtCore.Signal()
 	progress = QtCore.Signal(float)
@@ -73,6 +74,7 @@ class PathSim (QtCore.QThread):
 		self.pathPoints = []
 		self.pathRapid = []
 		self.turningCommandEnds = set()
+		self.moveEnds = []  # exclusive sample end of each G-code motion command
 		self._pendingCut = None
 		self._motionFraction = 0.0
 		self._cutFraction = 0.0  # committed cut may lag the displayed motion fraction
@@ -453,6 +455,32 @@ class PathSim (QtCore.QThread):
 		else:
 			self.progress.emit(0)
 
+	def toolpathPosition(self):
+		'''Snapshot the move and sampled path associated with the displayed position.'''
+		move = None
+		if self.moveEnds and self.pathPoints:
+			sample = self.idx if self._motionFraction else self.idx - 1
+			sample = max(0, min(sample, len(self.pathPoints) - 1))
+			move = min(bisect.bisect_right(self.moveEnds, sample), len(self.moveEnds) - 1)
+		return move, self.pathPoints, self.pathRapid, self.moveEnds
+
+	def nearbyMoves(self, position, count=1):
+		'''Return the sampled moves surrounding a captured toolpath position.'''
+		current, pathPoints, pathRapid, moveEnds = position
+		if current is None:
+			return None, None, []
+		operation = pathPoints[moveEnds[current] - 1][1]
+		moves = []
+		for move in range(max(0, current - count), min(len(moveEnds), current + count + 1)):
+			start = moveEnds[move - 1] if move else 0
+			end = moveEnds[move]
+			# Include the previous end point; it is skipped when it belongs to another operation.
+			points = [point for point, pointOperation in pathPoints[max(0, start - 1):end]
+				if pointOperation is operation]
+			if len(points) > 1:
+				moves.append((pathRapid[end - 1], points))
+		return current, operation, moves
+
 	def getOperationRanges(self):
 		''' timeline ranges use the same sampled positions as playback progress '''
 		ranges = []
@@ -618,24 +646,32 @@ class PathSim (QtCore.QThread):
 		return position
 
 	def updateToolPosition(self, pos, rot):
-		self.updatePos.emit(FreeCAD.Placement(pos, rot))
+		self.updatePos.emit(FreeCAD.Placement(pos, rot), self.toolpathPosition())
 
 	def discretizePath(self):
 		''' split the path in to discrete points'''
 		pathPoints = []
 		pathRapid = []
 		turningCommandEnds = set()
+		moveEnds = []
+
+		def endMove():
+			if len(pathPoints) > (moveEnds[-1] if moveEnds else 0):
+				moveEnds.append(len(pathPoints))
+
 		currentPos = FreeCAD.Vector(0, 0, 0)
 		pos = FreeCAD.Vector(0, 0, 0)
 		centrePos = FreeCAD.Vector()
 
 		for op in self.operations:
 			if isTurningOperation(op):
+				endMove()
 				samples, commandEnds = sample_turning_path(
 					((command.Name, command.Parameters) for command in op.Path.Commands),
 					self.stepDistance, (currentPos.x, currentPos.y, currentPos.z))
 				offset = len(pathPoints)
 				turningCommandEnds.update(offset + end for end in commandEnds)
+				moveEnds.extend(offset + end for end in commandEnds)
 				pathPoints.extend([FreeCAD.Vector(*point), op] for point, _ in samples)
 				pathRapid.extend(rapid for _, rapid in samples)
 				if samples:
@@ -644,6 +680,7 @@ class PathSim (QtCore.QThread):
 				continue
 			for command in op.Path.Commands:
 				name = command.Name
+				endMove()
 
 				centrePos.x = currentPos.x
 				centrePos.y = currentPos.y
@@ -740,6 +777,8 @@ class PathSim (QtCore.QThread):
 								currentPos.y = pos.y
 								currentPos.z = pos.z
 								#self.skippedDistance = 0
+		endMove()
 		self.pathRapid = pathRapid
 		self.turningCommandEnds = turningCommandEnds
+		self.moveEnds = moveEnds
 		return pathPoints

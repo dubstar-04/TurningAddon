@@ -141,6 +141,7 @@ class timeline(QtCore.QObject):
     stepBackwardRequested = QtCore.Signal()
     stepForwardRequested = QtCore.Signal()
     stockVisibilityChanged = QtCore.Signal(bool)
+    toolpathVisibilityChanged = QtCore.Signal(bool)
 
     def __init__(self):
         super(timeline, self).__init__()
@@ -171,6 +172,7 @@ class timeline(QtCore.QObject):
         self.nextOperationButton = self.form.findChild(
             QtGui.QPushButton, "nextOperationButton")
         self.stockButton = self.form.findChild(QtGui.QPushButton, "stockButton")
+        self.toolpathButton = self.form.findChild(QtGui.QPushButton, "toolpathButton")
         buttonLayout = self.form.findChild(QtGui.QWidget, "buttonGroup").layout()
         buttonLayout.setContentsMargins(0, 0, 0, 0)
         buttonLayout.setSpacing(4)
@@ -182,13 +184,12 @@ class timeline(QtCore.QObject):
         self.stepButton.setIcon(QtGui.QIcon(os.path.join(path_to_icons, "step_forward.svg")))
         self.nextOperationButton.setIcon(
             QtGui.QIcon(os.path.join(path_to_icons, "next_operation.svg")))
-        stockIcon = QtGui.QIcon()
-        stockIcon.addFile(os.path.join(path_to_icons, "stock_visible.svg"),
-                          QtCore.QSize(), QtGui.QIcon.Normal, QtGui.QIcon.On)
-        stockIcon.addFile(os.path.join(path_to_icons, "stock_hidden.svg"),
-                          QtCore.QSize(), QtGui.QIcon.Normal, QtGui.QIcon.Off)
-        self.stockButton.setIcon(stockIcon)
-        self.updateStockButton()
+        self.toggleLabels = {
+            self.stockButton: ("Hide stock", "Show stock"),
+            self.toolpathButton: ("Hide toolpath", "Show toolpath"),
+        }
+        self.setupToggleButton(self.stockButton, "stock")
+        self.setupToggleButton(self.toolpathButton, "toolpath")
         self.progressBar = self.form.progressBar
         self.progressBar.setRenderHint(QtGui.QPainter.Antialiasing)
         self.scene = QtGui.QGraphicsScene()
@@ -201,6 +202,7 @@ class timeline(QtCore.QObject):
         self.stepButton.clicked.connect(self.stepForwardRequested.emit)
         self.nextOperationButton.clicked.connect(self.jumpToNextOperation)
         self.stockButton.toggled.connect(self.onStockToggled)
+        self.toolpathButton.toggled.connect(self.onToolpathToggled)
         # self.progressMarker.progresschange.connect(self.progressUpdate)
         self.progressMarker.skipRequested.connect(self.skip)
         self.timeLine.skipRequested.connect(self.skip)
@@ -290,21 +292,41 @@ class timeline(QtCore.QObject):
         self.playButton.setToolTip(label)
         self.playButton.setAccessibleName(label)
 
+    def setupToggleButton(self, button, name):
+        icon = QtGui.QIcon()
+        icon.addFile(os.path.join(path_to_icons, name + "_visible.svg"),
+                     QtCore.QSize(), QtGui.QIcon.Normal, QtGui.QIcon.On)
+        icon.addFile(os.path.join(path_to_icons, name + "_hidden.svg"),
+                     QtCore.QSize(), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        button.setIcon(icon)
+        self.updateToggleButton(button)
+
+    def updateToggleButton(self, button):
+        hideLabel, showLabel = self.toggleLabels[button]
+        label = hideLabel if button.isChecked() else showLabel
+        button.setToolTip(label)
+        button.setAccessibleName(label)
+
+    def setToggleChecked(self, button, checked):
+        ''' set the button state without emitting its visibility signal '''
+        blocked = button.blockSignals(True)
+        button.setChecked(checked)
+        button.blockSignals(blocked)
+        self.updateToggleButton(button)
+
     def setStockVisible(self, visible):
-        ''' set the button state without emitting stockVisibilityChanged '''
-        blocked = self.stockButton.blockSignals(True)
-        self.stockButton.setChecked(visible)
-        self.stockButton.blockSignals(blocked)
-        self.updateStockButton()
+        self.setToggleChecked(self.stockButton, visible)
+
+    def setToolpathVisible(self, visible):
+        self.setToggleChecked(self.toolpathButton, visible)
 
     def onStockToggled(self, visible):
-        self.updateStockButton()
+        self.updateToggleButton(self.stockButton)
         self.stockVisibilityChanged.emit(visible)
 
-    def updateStockButton(self):
-        label = "Hide stock" if self.stockButton.isChecked() else "Show stock"
-        self.stockButton.setToolTip(label)
-        self.stockButton.setAccessibleName(label)
+    def onToolpathToggled(self, visible):
+        self.updateToggleButton(self.toolpathButton)
+        self.toolpathVisibilityChanged.emit(visible)
 
     def jumpToPreviousOperation(self):
         ''' seek to the beginning of the previous operation '''
