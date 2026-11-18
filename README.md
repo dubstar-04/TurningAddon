@@ -11,6 +11,7 @@ A FreeCAD CAM workbench addon for creating CNC lathe toolpaths.
 - Drilling: drills holes on the spindle centreline
 - Threading: cuts external threads (does not currently produce valid G-code; see [#65](https://github.com/dubstar-04/TurningAddon/issues/65))
 - Parting: cuts through the workpiece to separate a finished part
+- Constant surface speed: uses CSS on supported turning operations with a new-style postprocessor
 - Tool Library: Create and edit turning tools.
 - Simulation: Preview and navigate toolpaths.
 - Containment: Set machining limits for each operation.
@@ -77,6 +78,17 @@ The addon is available from **CAM > CAM Addons > Turning Addon**.
 - Choose a simulation engine. More than one engine is available to help with development and testing.
 
 <img src="Screenshots/screenshot_simulation.png" alt="Turning simulation" width="640">
+
+### Constant surface speed
+
+- In the operation's **Turning Spindle** page, choose **Constant Surface Speed**.
+- Edit fixed RPM using **Spindle Speed** on the **Tool Controller** page.
+- Surface speed and maximum RPM are stored on the Tool Controller and shared by operations using it.
+- The maximum RPM defaults to the configured machine limit when the machine has one rotary toolhead; otherwise, set it manually.
+- These Addon settings are saved with the document but are not included in FreeCAD's Tool Controller templates.
+- The operation emits `G96` for cutting and restores the Tool Controller's fixed RPM with `G97`.
+- Drilling and threading always use fixed RPM.
+- Use a new-style postprocessor that supports converting `G96` and `G97` for the target controller.
 
 ## License
 
