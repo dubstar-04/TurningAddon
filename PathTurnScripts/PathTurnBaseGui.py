@@ -125,7 +125,7 @@ def checkStockAxis(job):
     if isinstance(getattr(stock, "Proxy", None), PathStock.StockFromBase):
         base = getattr(stock, "Base", None)
         base_box = PathStock.shapeBoundBox(base.Group) if base and hasattr(base, "Group") else None
-        stock_box = stock.Shape.BoundBox
+        stock_box = stock.Shape.optimalBoundingBox(False, False)
         tolerance = 1e-7
         if base_box is None:
             message = FreeCAD.Qt.translate(
@@ -229,6 +229,7 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
 
         self.stock_guide = StockGuide()
         self.stock_path_stale = "Touched" in obj.State or not obj.Path.Commands
+        self.stock_path_recomputed = False
         self.panel_initializing = True
         self.initial_expression_values = {}
         for prop, _ in getattr(obj, "ExpressionEngine", ()):
@@ -298,7 +299,16 @@ class TaskPanelTurnBase(PathOpGui.TaskPanelPage):
     def slotRecomputedObject(self, obj):
         if obj.Document == self.obj.Document:
             if obj == self.obj:
-                self.stock_path_stale = "Touched" in obj.State or not obj.Path.Commands
+                self.stock_path_recomputed = True
+            self.stock_guide.key = None
+            self.stock_timer.start(250)
+
+    def slotRecomputedDocument(self, doc):
+        if doc == self.obj.Document and self.stock_path_recomputed:
+            self.stock_path_recomputed = False
+            self.stock_path_stale = (
+                "Touched" in self.obj.State or "Invalid" in self.obj.State
+                or not self.obj.Path.Commands)
             self.stock_guide.key = None
             self.stock_timer.start(250)
 
