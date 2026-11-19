@@ -63,7 +63,8 @@ def getContainment(operation):
 
 def stockAxisOffset(stock):
     """Return the stock's X/Y offset from the spindle axis as a vector."""
-    box = stock.Shape.BoundBox
+    # Display triangulation can make BoundBox asymmetric around the real geometry.
+    box = stock.Shape.optimalBoundingBox(False, False)
     return FreeCAD.Vector((box.XMin + box.XMax) / 2, (box.YMin + box.YMax) / 2, 0)
 
 

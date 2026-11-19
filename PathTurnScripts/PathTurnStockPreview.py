@@ -2,6 +2,8 @@
 
 import math
 
+import FreeCAD
+
 from liblathe.base.segmentgroup import StockPreview
 
 from . import PathTurnAddonHelpers as helpers
@@ -24,6 +26,24 @@ def insert_polygon(segments, tolerance=0.005):
             a = angle + sweep * i / count
             points.append((centre.X + radius * math.cos(a), centre.Z + radius * math.sin(a)))
     return points
+
+
+def stock_polygon(stock):
+    if getattr(stock, "StockType", None) == "CreateCylinder" and stock.Axis == "Z":
+        axis = stock.Placement.Rotation.multVec(FreeCAD.Vector(0, 0, 1))
+        if abs(axis.x) < 1e-12 and abs(axis.y) < 1e-12:
+            origin = stock.Placement.Base
+            radius = stock.Radius.Value + math.hypot(origin.x, origin.y)
+            end_z = origin.z + axis.z * stock.Height.Value
+            zmin, zmax = sorted((origin.z, end_z))
+            return [(0, zmin), (radius, zmin), (radius, zmax), (0, zmax)]
+
+    outline = helpers.getPartOutline((stock.Shape,))
+    vertices = insert_polygon(outline)
+    start, end = outline[0].start, outline[-1].end
+    if not end.isSame(start):
+        vertices.extend(((end.X, end.Z), (0, end.Z), (0, start.Z)))
+    return vertices
 
 
 def feeds(commands, sign):
@@ -73,12 +93,7 @@ class StockGuide:
             raise ValueError("Stock guide cannot resolve operation order")
         if "Touched" in job.Stock.State:
             raise ValueError("Stock guide is stale; recompute the stock first")
-        stock = helpers.getPartOutline((job.Stock.Shape,))
-        # A convex stock is validated in C++; no rectangular-envelope substitution.
-        vertices = insert_polygon(stock)
-        start, end = stock[0].start, stock[-1].end
-        if not end.isSame(start):
-            vertices.extend(((end.X, end.Z), (0, end.Z), (0, start.Z)))
+        vertices = stock_polygon(job.Stock)
         records = []
         complete = False
         for operation in operations[:operations.index(obj) + 1]:
@@ -122,10 +137,16 @@ class StockGuide:
                                      for name, tool, moves in records), complete)
         if key == self.key:
             return self.stock, self.complete
-        stock = StockPreview(vertices)
+        try:
+            stock = StockPreview(vertices)
+        except ValueError as error:
+            raise ValueError(f"Invalid stock outline: {error}") from error
         for name, tool, moves in records:
             if tool is not None:
-                stock.remove_feeds(tool, moves)
+                try:
+                    stock.remove_feeds(tool, moves)
+                except ValueError as error:
+                    raise ValueError(f"Invalid tool or cutting moves for {name}: {error}") from error
         area = math.fsum((x0 * z1 - x1 * z0) / 2 for x0, z0, x1, z1 in stock.edges())
         if not math.isclose(area, stock.area, rel_tol=1e-7, abs_tol=1e-7):
             raise ValueError("Stock guide boundary is numerically unresolved")
